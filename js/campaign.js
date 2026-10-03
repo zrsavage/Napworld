@@ -144,7 +144,8 @@
     v += (COLONIAL[f] || 0) * INCOME_K * (S.factions[f].alive ? 1 : 0);
     const n = C.provincesOf(f).length;
     v *= 1 - clamp((n - 22) * 0.015, 0, 0.45); // overextension
-    return Math.round(v * S.factions[f].incomeMult);
+    const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
+    return Math.round(v * S.factions[f].incomeMult * (dm || 1));
   };
   C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0), 0);
   C.manpowerGain = function (f) {
@@ -295,6 +296,7 @@
   function makePeace(a, b) {
     if (!atWar(a, b)) return;
     delete S.wars[pkey(a, b)];
+    (S.truce = S.truce || {})[pkey(a, b)] = S.turn + 12;
     addRel(a, b, 20);
     for (const p of Object.values(S.provinces)) if (p.siege && (p.siege.by === a || p.siege.by === b) && !atWar(p.siege.by, p.owner)) p.siege = null;
     plog(`${F(a).name} and ${F(b).name} sign a peace treaty.`, 'peace', [a, b]);
@@ -339,6 +341,7 @@
     if (sr < 0.8) score += (0.8 - sr) * 60;
     if (sr > 1.4) score -= 25;
     if (S.factions[ai].gold < 0) score += 10;
+    if (other === S.player) score += S.difficulty === 'easy' ? 10 : S.difficulty === 'hard' ? -8 : 0;
     const heldFromOther = C.provincesOf(ai).filter((p) => p.owner === other).length;
     score -= heldFromOther * 12;
     if (S.provinces[S.factions[ai].cap] && S.provinces[S.factions[ai].cap].owner !== ai) score += 20;
@@ -364,7 +367,7 @@
   }
   function sidePower(armies, extraMul) {
     let p = 0;
-    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale;
+    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1); // last stand
     const g = genBonus(armies);
     return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (extraMul || 1);
   }
@@ -571,7 +574,7 @@
       const ps = S.provinces[a.prov], d = C.def(a.prov);
       let loss = 0;
       const home = ps.owner === a.owner || allied(a.owner, ps.owner);
-      if (!home) loss += 0.012 * (1 + a.units.length / 12);
+      if (!home) loss += 0.018 * (1 + a.units.length / 12);
       if (!home && d.terrain === 'm') loss += 0.01;
       if ((month === 12 || month <= 2) && d.owner === 'russia' && a.owner !== 'russia' && !allied(a.owner, 'russia')) loss += 0.10;
       if (loss > 0) {
@@ -657,7 +660,7 @@
     for (const a of C.armiesOf(f)) for (const u of a.units) { counts[u.type] = (counts[u.type] || 0) + 1; total++; }
     for (const p of own) for (const q of S.provinces[p.id].queue) { counts[q.type] = (counts[q.type] || 0) + 1; total++; }
     const diffMul = S.difficulty === 'hard' ? 1.15 : S.difficulty === 'easy' ? 0.85 : 1;
-    const budgetUp = income * (en.length ? 0.78 : 0.5) * diffMul;
+    const budgetUp = income * (en.length ? (C.provincesOf(f).length <= 4 ? 0.92 : 0.78) : 0.5) * diffMul;
     let guard = 0;
     while (guard++ < 5) {
       if (up >= budgetUp) break;
@@ -708,19 +711,19 @@
   }
 
   function aiDiplomacy(f) {
-    if (f === 'minor' || f === S.player) return;
+    if (f === 'minor' || (f === S.player && !S.autoplay)) return;
     const aggr = F(f).aggr;
     // peace
     for (const e of wars(f)) {
       const w = S.wars[pkey(f, e)];
       w.exh++;
       const [ok] = C.acceptsPeace(f, e);
-      const wantsPeace = ok && rnd() < 0.35;
+      const wantsPeace = (ok && rnd() < 0.35) || w.exh >= 16;
       if (wantsPeace) {
         if (e === S.player) {
           // offer to player (resolved asynchronously by UI)
           if (!S.msgs.some((m) => m.type === 'peace-offer' && m.from === f)) S.msgs.push({ type: 'peace-offer', from: f });
-        } else if (C.acceptsPeace(e, f)[0] || rnd() < 0.15) makePeace(f, e);
+        } else if (C.acceptsPeace(e, f)[0] || w.exh >= 14 || (w.exh >= 8 && rnd() < 0.3)) makePeace(f, e);
       }
     }
     // alliances against common enemies
@@ -737,11 +740,12 @@
     if (S.turn < 4) return;
     const engaged = wars(f).filter((x) => x !== 'minor').length;
     if (engaged >= 2) return;
-    if (rnd() > 0.045 * aggr * (S.difficulty === 'hard' ? 1.3 : 1)) return;
+    if (rnd() > 0.045 * aggr * (S.difficulty === 'hard' ? 1.3 : S.difficulty === 'easy' ? 0.7 : 1)) return;
     const myP = factionPower(f) + alliesOf(f).reduce((s, x) => s + factionPower(x) * 0.5, 0);
     let best = null, bs = 0;
     for (const e of Object.keys(S.factions)) {
       if (e === f || !S.factions[e].alive || allied(f, e) || atWar(f, e)) continue;
+      if (S.truce && S.truce[pkey(f, e)] > S.turn) continue;
       // neighbours?
       let near = false;
       for (const p of C.provincesOf(f)) {
@@ -853,7 +857,7 @@
     aiDiplomacy(f);
     aiRecruit(f);
     aiGenerals(f);
-    if (f !== S.player) aiMoves(f);
+    if (f !== S.player || S.autoplay) aiMoves(f);
   };
 
   // -------------------------------------------------------------------- events
@@ -1107,7 +1111,7 @@
     const ids = Object.keys(S.factions).filter((f) => S.factions[f].alive && f !== 'minor');
     expelFromTerritory();
     // AI planning
-    for (const f of ids) if (f !== S.player) C.aiPlan(f);
+    for (const f of ids) if (f !== S.player || S.autoplay) C.aiPlan(f);
     // The player's own faction: no AI planning besides recruiting handled by the user
     // Movement (rotate starting faction for fairness)
     const order = [S.player, ...ids.filter((f) => f !== S.player)];

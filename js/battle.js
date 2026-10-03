@@ -51,6 +51,10 @@
       this.initialMen = [0, 0];
       this.deadGen = [];
       this.genDead = [false, false];
+      const att = spec.playerIsAttacker, mtn = spec.terrain === 'm' ? 40 : 0;
+      this.zoneR = (att ? 540 : 680) - mtn;               // player's deployment limit (x)
+      this.zoneL = FW - ((att ? 680 : 540) - mtn);        // enemy's deployment limit (x)
+      this.rec = []; this.recAcc = 0; this.recStatic = null;
       this.buildTerrain();
       this.prerender();
       this.deploy();
@@ -102,7 +106,7 @@
         baseMorale: clamp(base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0), 30, 110),
         morale: 0, fatigue: 0, formation: bt.forms[0], wantForm: null, formT: 0,
         state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
-        kills: 0, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
+        kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
         fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1),
         takeMul: g ? 1 - (g.def - 3) * 0.025 : 1
       };
@@ -120,7 +124,8 @@
         const cav = us.filter((u) => NAP.UNITS[u.type].cls === 'cav');
         const art = us.filter((u) => NAP.UNITS[u.type].cls === 'art');
         const dir = s === 0 ? 1 : -1;
-        const baseX = s === 0 ? 330 : 1270;
+        const att = this.spec.playerIsAttacker;
+        const baseX = s === 0 ? (att ? 310 : 410) : (att ? 1200 : 1290);
         const place = (arr, x, spread, jitter) => {
           arr.forEach((src, i) => {
             const n = arr.length;
@@ -150,6 +155,17 @@
         this.units.push(gu);
         this.units.filter((u) => u.side === s && u.cls !== 'gen').forEach((u) => (this.initialMen[s] += u.men));
         this.sides = sides;
+      }
+      // an AI defender digs in on the best nearby hill
+      if (this.spec.playerIsAttacker) {
+        const hills = this.terrain.hills.filter((h) => h.x > 960 && h.x < 1300).sort((a, b) => b.r - a.r);
+        if (hills.length) {
+          const mine = this.units.filter((u) => u.side === 1 && u.cls !== 'gen');
+          const mx = mine.reduce((a, u) => a + u.x, 0) / mine.length, my = mine.reduce((a, u) => a + u.y, 0) / mine.length;
+          const dx = Math.max(-120, Math.min(120, hills[0].x - mx)), dy = Math.max(-150, Math.min(150, hills[0].y - my));
+          for (const u of this.units) if (u.side === 1 && u.cls !== 'gen' && u.cls !== 'cav') { u.x += dx; u.y = clamp(u.y + dy, 40, FH - 40); }
+          const g = this.general(1); if (g) { g.x += dx; g.y = clamp(g.y + dy, 40, FH - 40); }
+        }
       }
     }
 
@@ -192,8 +208,14 @@
       if (rnd() < cas * 0.35 && this.dead.length < 900) this.dead.push([target.x + (rnd() - 0.5) * target.w, target.y + (rnd() - 0.5) * target.d, target.side]);
     }
 
+    record() {
+      if (!this.recStatic) this.recStatic = this.units.map((u) => ({ id: u.id, side: u.side, type: u.type, cls: u.cls, faction: u.faction, name: u.name, max: u.max, baseMorale: u.baseMorale, w: u.w, d: u.d, gen: u.gen, wantForm: null, formation: u.formation, state: 'idle', men: u.men, morale: u.morale, fatigue: 0, x: u.x, y: u.y, facing: u.facing }));
+      if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
+    }
+
     step(dt) {
       this.t += dt;
+      this.recAcc += dt; if (this.recAcc >= 1) { this.recAcc -= 1; this.record(); }
       for (const g of [0, 1]) this.rallyCd[g] = Math.max(0, this.rallyCd[g] - dt);
       const us = this.units;
       // AI
@@ -571,6 +593,7 @@
     }
 
     finish(winner) {
+      this.record();
       this.over = true; this.paused = true; this.winner = winner;
       const loser = 1 - winner;
       const casualties = [0, 0];
@@ -581,6 +604,7 @@
         if (!u.dead && u.state === 'routing') men = Math.round(men * 0.8);
         if (u.fled) men = Math.round(men * 0.75);
         if (u.side === loser) men = Math.round(men * 0.88);
+        (this.report = this.report || []).push({ side: u.side, name: NAP.UNITS[u.type].name, type: u.type, start: u.start, end: men, kills: Math.round(u.kills), status: u.dead ? 'Destroyed' : u.fled ? 'Fled' : u.state === 'routing' ? 'Routed' : men < u.start * 0.5 ? 'Battered' : 'Intact' });
         casualties[u.side] += Math.max(0, u.ref.men - men);
         u.ref.men = men;
         units.push({ ref: u.ref, men });
@@ -593,7 +617,8 @@
     // ---------------------------------------------------------- orders (player)
     // During deployment orders place units instantly inside the player's zone.
     deployPlace(u, o) {
-      u.x = clamp(o.x, 30, 570); u.y = clamp(o.y, 30, FH - 30);
+      u.x = clamp(o.x, 30, this.zoneR); u.y = clamp(o.y, 30, FH - 30);
+      for (const k of this.terrain.rocks) { const dx = u.x - k.x, dy = u.y - k.y, d = Math.hypot(dx, dy) || 1; if (d < k.r + 12) { u.x = clamp(k.x + dx / d * (k.r + 12), 30, this.zoneR); u.y = clamp(k.y + dy / d * (k.r + 12), 30, FH - 30); } }
       if (o.fa !== undefined) u.facing = o.fa;
       u.order = null; u.target = null;
     }
@@ -610,7 +635,7 @@
           if (this.deployPhase) this.deployPlace(u, o); else { u.order = o; u.target = null; }
         });
       }
-      gens.forEach((g) => { if (this.deployPhase) { g.x = clamp(x, 30, 570); g.y = clamp(y, 30, FH - 30); } else g.order = { type: 'move', x, y }; });
+      gens.forEach((g) => { if (this.deployPhase) { g.x = clamp(x, 30, this.zoneR); g.y = clamp(y, 30, FH - 30); } else g.order = { type: 'move', x, y }; });
     }
     orderLine(units, p0, p1) {
       const us = units.filter((u) => u.cls !== 'gen' && this.alive(u) && u.state !== 'routing');
@@ -686,7 +711,17 @@
       ctx.translate(c.width / 2 - this.cam.x * k, c.height / 2 - this.cam.y * k);
       ctx.scale(k, k);
       ctx.drawImage(this.terrainCanvas, 0, 0, FW, FH);
-      if (this.deployPhase) { ctx.fillStyle = 'rgba(60,110,230,0.13)'; ctx.fillRect(0, 0, 580, FH); ctx.strokeStyle = 'rgba(120,170,255,0.7)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(580, 0); ctx.lineTo(580, FH); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(200,220,255,0.8)'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center'; ctx.fillText('DEPLOYMENT ZONE', 290, 36); }
+      if (this.deployPhase) {
+        const zr = this.zoneR;
+        ctx.fillStyle = 'rgba(60,110,230,0.13)'; ctx.fillRect(0, 0, zr, FH);
+        ctx.fillStyle = 'rgba(210,70,70,0.08)'; ctx.fillRect(this.zoneL, 0, FW - this.zoneL, FH);
+        ctx.strokeStyle = 'rgba(120,170,255,0.7)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(zr, 0); ctx.lineTo(zr, FH); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,130,130,0.5)'; ctx.beginPath(); ctx.moveTo(this.zoneL, 0); ctx.lineTo(this.zoneL, FH); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(200,220,255,0.85)'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
+        ctx.fillText('YOUR DEPLOYMENT ZONE', zr / 2, 36);
+        ctx.fillStyle = 'rgba(255,200,200,0.7)'; ctx.fillText('ENEMY ZONE', (this.zoneL + FW) / 2, 36);
+      }
       // fallen
       for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
       // order lines for selection
@@ -977,6 +1012,7 @@
       if (this.keys.arrowup) this.cam.y -= ks; if (this.keys.arrowdown) this.cam.y += ks;
       if (this.keys.s) this.cam.y += ks; if (this.keys.w && false) this.cam.y -= ks;
       this.cam.x = clamp(this.cam.x, 0, FW); this.cam.y = clamp(this.cam.y, 0, FH);
+      if (this.replay) this.stepReplay(dt);
       if (!this.paused && !this.over) {
         this.acc += dt * this.speed;
         let n = 0;
@@ -1005,15 +1041,61 @@
 
     showEnd(winner, cas) {
       const b = this.root.querySelector('#b-banner');
-      b.classList.remove('hide', 'deploy');
+      b.classList.remove('hide', 'deploy'); b.classList.add('report');
       const win = winner === 0;
+      const rows = (side) => (this.report || []).filter((r) => r.side === side).sort((x, y) => y.kills - x.kills);
+      const tbl = (side) => `<table class="t"><tr><th>Regiment</th><th>Start</th><th>Left</th><th>Kills</th><th>Fate</th></tr>${rows(side).map((r) => `<tr><td>${r.name}</td><td>${r.start}</td><td>${r.end}</td><td>${r.kills}</td><td class="${r.status === 'Intact' ? 'good' : r.status === 'Destroyed' || r.status === 'Fled' ? 'bad' : ''}">${r.status}</td></tr>`).join('')}</table>`;
+      const m = Math.floor(this.t / 60), sc = Math.floor(this.t % 60);
+      const gl = this.genDead[0] ? '<span class="bad">Your general was killed.</span> ' : '';
+      const gl2 = this.genDead[1] ? '<span class="good">The enemy general was killed.</span>' : '';
+      const sd = this.spec.sides;
       b.innerHTML = `<h2 class="${win ? 'good' : 'bad'}">${win ? 'Victory!' : 'Defeat'}</h2>
-        <p>Your losses: <b>${Math.round(cas[0])}</b> &middot; Enemy losses: <b>${Math.round(cas[1])}</b></p>
-        <button id="b-cont" class="primary">Continue</button>`;
+        <p>Battle of ${this.spec.provName} \u00B7 ${m}:${String(sc).padStart(2, '0')} \u00B7 Your losses <b>${Math.round(cas[0])}</b> \u00B7 Enemy losses <b>${Math.round(cas[1])}</b><br>${gl}${gl2}</p>
+        <div class="rep-cols"><div><h4 style="color:${NAP.FACTIONS[sd[0].faction].color}">${NAP.FACTIONS[sd[0].faction].name}</h4>${tbl(0)}</div><div><h4>${NAP.FACTIONS[sd[1].faction].name}</h4>${tbl(1)}</div></div>
+        <p style="margin-top:12px"><button id="b-replay">&#9654; Watch replay</button> <button id="b-cont" class="primary">Continue</button></p>`;
       b.querySelector('#b-cont').addEventListener('click', () => this.close());
+      b.querySelector('#b-replay').addEventListener('click', () => this.startReplay());
+    }
+
+    // ---- replay of the recorded battle (1 frame per simulated second)
+    startReplay() {
+      if (!this.recStatic || this.rec.length < 2) return;
+      this.live = this.units;
+      this.units = this.recStatic.map((t) => ({ ...t }));
+      this.replay = { f: 0 };
+      this.sel.clear();
+      const b = this.root.querySelector('#b-banner'); b.classList.add('hide');
+      const bar = document.createElement('div'); bar.id = 'b-replaybar'; bar.className = 'b-replaybar';
+      bar.innerHTML = 'REPLAY &middot; <button id="b-rp-speed">8x</button> <button id="b-rp-stop">Back to report</button>';
+      this.stage.appendChild(bar);
+      this.rpSpeed = 8;
+      bar.querySelector('#b-rp-stop').onclick = () => this.stopReplay();
+      bar.querySelector('#b-rp-speed').onclick = (e) => { this.rpSpeed = this.rpSpeed === 8 ? 24 : this.rpSpeed === 24 ? 3 : 8; e.target.textContent = this.rpSpeed + 'x'; };
+    }
+    stepReplay(dt) {
+      const r = this.replay; r.f += dt * this.rpSpeed;
+      const n = this.rec.length - 1;
+      if (r.f >= n) { this.stopReplay(); return; }
+      const i = Math.floor(r.f), k = r.f - i, A = this.rec[i], B = this.rec[i + 1];
+      this.units.forEach((u, j) => {
+        const a = A[j], c = B[j];
+        u.x = a[0] + (c[0] - a[0]) * k; u.y = a[1] + (c[1] - a[1]) * k;
+        let df = c[2] - a[2]; while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
+        u.facing = a[2] + df * k;
+        u.men = a[3] + (c[3] - a[3]) * k; u.state = a[4] ? 'routing' : 'idle'; u.dead = !!a[5]; u.fled = !!a[6]; u.formation = a[7]; u.morale = a[8];
+        if (u.cls === 'gen') { u.w = u.d = 14; } else [u.w, u.d] = dims(u);
+      });
+      this.t = r.f;
+    }
+    stopReplay() {
+      if (!this.replay) return;
+      this.replay = null; this.units = this.live; this.live = null;
+      const bar = this.root.querySelector('#b-replaybar'); if (bar) bar.remove();
+      this.root.querySelector('#b-banner').classList.remove('hide');
     }
 
     close() {
+      if (this.replay) this.stopReplay();
       this.stopped = true;
       cancelAnimationFrame(this.raf);
       window.removeEventListener('resize', this.onResize);

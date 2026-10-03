@@ -30,7 +30,8 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
-- **Manual deployment:** before the battle starts, place and re-form your regiments inside a shaded deployment zone.
+- **Manual deployment:** before the battle starts, place and re-form your regiments inside a shaded deployment zone. The zone depends on the situation (defenders deploy deeper, mountains shrink it, rocks block placement) and AI defenders dig in on hills.
+- **After-action report and replay:** per-regiment losses, kills and fates, plus a replay of the whole battle at up to 24x.
 - Select with click / drag-box, right-click to move or attack, right-drag to draw a battle line.
   Or just **auto-resolve** any battle.
 
@@ -67,5 +68,6 @@ js/battle.js      real-time tactical battle engine + enemy AI
 js/ui.js          start screen, panels, dialogs, input
 ```
 
+Difficulty (Easy / Normal / Hard) shifts player vs AI income, AI aggression and willingness to make peace. War exhaustion, 12-month truces and a last-stand bonus for tiny states keep the AI from snowballing.
 Tuning knobs live at the top of `js/campaign.js` (`INCOME_K`, `MP_K`, `WIN_SHARE`, …) and the stat tables
 in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
