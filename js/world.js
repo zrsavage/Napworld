@@ -355,6 +355,11 @@
       const last = w.byId[opts.pathProvs[opts.pathProvs.length - 1]];
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(last.cx, last.cy, 4, 0, 7); ctx.fill();
     }
+    if (opts.pulse && w.byId[opts.pulse]) {
+      const pp = w.byId[opts.pulse], k = (performance.now() % 1200) / 1200;
+      ctx.strokeStyle = `rgba(255,224,90,${1 - k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(pp.cx, pp.cy, 12 + 34 * k, 0, 7); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,224,90,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(pp.cx, pp.cy, 11, 0, 7); ctx.stroke();
+    }
     // army markers
     opts.markers = [];
     const byProv = {};

@@ -143,3 +143,25 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .rep-cols h4 { margin: 4px 0; } .b-banner.report table.t { font-size: 12px; }
 .b-replaybar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(10,12,16,.85); border: 1px solid var(--gold); padding: 6px 14px; border-radius: 6px; font-weight: 700; letter-spacing: 1px; }
 @media (max-width: 800px) { .rep-cols { grid-template-columns: 1fr; } }
+
+.b-tip { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: 640px; background: rgba(20,26,36,.94); border: 2px solid var(--gold); border-radius: 8px; padding: 10px 34px 10px 14px; font-size: 13.5px; z-index: 4; box-shadow: 0 6px 24px #000a; }
+.b-tip .tipx { position: absolute; right: 6px; top: 4px; padding: 0 7px; font-size: 16px; background: none; border: none; color: var(--muted); }
+.evart { display: block; width: 100%; height: 130px; border-bottom: 2px solid #2a1c0a; }
+.dlg.event h2 { border-top: none; }
+.warn { color: #e8b04a; }
+.bar { height: 6px; background: #0007; border-radius: 3px; overflow: hidden; margin: 2px 0 6px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, #5cb85c, #e8b04a, #d9534f); background-size: 300% 100%; }
+.tut-hl { outline: 2px solid #ffd54a !important; box-shadow: 0 0 12px #ffd54a; animation: tutpulse 1.2s infinite; }
+@keyframes tutpulse { 50% { box-shadow: 0 0 22px #ffe58a; } }
+#coach { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(560px, 92vw); background: linear-gradient(#2a2418, #1b1710); border: 2px solid #f1d487; border-radius: 10px; padding: 12px 16px 10px; z-index: 12; box-shadow: 0 10px 40px #000c; }
+#coach h3 { margin: 0 0 4px; font: 700 17px Georgia, serif; color: var(--gold2); }
+#coach .ct { font-size: 13.5px; line-height: 1.5; }
+#coach .cf { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+#coach .dots { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; } #coach .dots i { width: 8px; height: 8px; border-radius: 50%; background: #ffffff25; } #coach .dots i.on { background: var(--gold); } #coach .dots i.done { background: #8a7a3c; }
+#coach .hintdo { color: var(--gold); font-size: 12px; }
+.sumrow { display: flex; justify-content: space-between; padding: 2px 0; font-size: 13.5px; }
+.sumlist { max-height: 240px; overflow-y: auto; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 6px; font-size: 12.5px; }
+.sumlist div { padding: 2px 0; border-bottom: 1px dotted #ffffff12; }
+.termopt { display: block; padding: 6px 8px; margin: 3px 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
+.termopt:hover, .termopt.on { border-color: var(--gold); }
+.termopt input { margin-right: 8px; }

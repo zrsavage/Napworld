@@ -227,7 +227,7 @@
                 desc:'Neutral Baltic trading power with a strong fleet — tempting prize for both sides.' },
     naples:   { name:'Kingdom of Naples',  adj:'Neapolitan',color:'#a9d34a', leader:'Ferdinand IV', gold:300, aggr:0.3, morale:0.9, fire:0.95, playable:true,
                 desc:'A Bourbon kingdom in southern Italy, caught between French ambition and British gold.' },
-    bavaria:  { name:'Bavaria & Allies',   adj:'Bavarian',  color:'#69b7e8', leader:'Maximilian I Joseph', gold:300, aggr:0.3, morale:1.0, fire:1.0, playable:true,
+    bavaria:  { name:'Bavaria & Allies',   adj:'Bavarian',  color:'#69b7e8', leader:'Maximilian I Joseph', gold:500, aggr:0.3, morale:1.0, fire:1.0, playable:true,
                 desc:'Small German states drifting into the French orbit, standing between Austria and the Rhine.' },
     minor:    { name:'Neutral States',     adj:'Neutral',   color:'#948f7c', leader:'—', gold:200, aggr:0, morale:0.9, fire:0.9, playable:false,
                 desc:'Switzerland, the Papal States, Sardinia and the Barbary regencies.' }
@@ -374,7 +374,7 @@
     sweden: [['stockholm','Gustav Adolf','line:4 art:1'], ['finland','Johan Cronstedt','line:4 art:1'], ['gothenburg','', 'line:2']],
     denmark: [['copenhagen','Prince Christian','line:4 art:1'], ['jutland','Hans Bulow','line:3 hussar:1'], ['norway_s','', 'line:2']],
     naples: [['naples','Michele Pignatelli','line:5 hussar:1 art:1'], ['sicily','', 'line:2'], ['calabria','', 'line:2']],
-    bavaria: [['bavaria','Carl von Wrede','line:5 light:1 hussar:1 art:1'], ['saxony','', 'line:3 hussar:1'], ['wurttemberg','', 'line:3 art:1']],
+    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1']],
     minor: [['switzerland','','line:2'], ['papal','','line:2'], ['sardinia','','line:1'], ['morocco','','line:2 hussar:1'], ['algiers','','line:2 hussar:1'], ['tunis','','line:1'], ['tripoli','','line:1']]
   };
 })();

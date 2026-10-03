@@ -42,7 +42,7 @@
       log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
-      S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null };
+      S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced' };
     }
     for (const id in NAP.FACTIONS) {
       const n = w.provs.filter((p) => p.owner === id).length;
@@ -67,10 +67,12 @@
         }
       }
     }
-    for (const [a, b] of NAP.START_WARS) S.wars[pkey(a, b)] = { since: 0, exh: 0 };
+    for (const [a, b] of NAP.START_WARS) S.wars[pkey(a, b)] = { since: 0, exh: 0, s: {} };
     for (const [a, b] of NAP.START_ALLIES) S.allies[pkey(a, b)] = true;
     for (const [a, b, v] of NAP.START_REL) S.rel[pkey(a, b)] = v;
     for (const k in S.allies) S.rel[k] = Math.max(S.rel[k] || 0, 60);
+    S.truce = { [pkey('austria', 'bavaria')]: 22, [pkey('russia', 'ottoman')]: 6 };
+    S.factions.france.incomeMult = 1.1; // Napoleon's France at its height (fades in 1812)
     C.log(`Year 1805. ${F(player).leader} leads the ${F(player).name}. Europe is on the brink of a new war.`, 'info');
     NAP.recolor(S);
     return S;
@@ -99,6 +101,7 @@
 
   C.log = function (text, kind, facs) {
     S.log.push({ t: S.turn, text, kind: kind || 'info' });
+    (S.turnLog = S.turnLog || []).push({ text, kind: kind || 'info' });
     if (S.log.length > 300) S.log.shift();
     H().notify(text, kind || 'info', facs);
   };
@@ -136,6 +139,9 @@
     const d = C.def(ps.id);
     let v = d.income * INCOME_K * (1 + 0.5 * ps.market);
     if (ps.siege) v *= 0.1;
+    v *= { tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1;
+    const u = ps.unrest || 0;
+    v *= u >= 60 ? 0.5 : u >= 30 ? 0.8 : 1;
     return v;
   };
   C.factionIncome = function (f) {
@@ -150,7 +156,7 @@
   C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0), 0);
   C.manpowerGain = function (f) {
     let v = 0;
-    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks); }
+    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
     return Math.round(v);
   };
   C.manpowerCap = (f) => 6000 + C.provincesOf(f).length * 500;
@@ -172,13 +178,13 @@
   }
   C.neighbors = nbrs;
   // BFS path (excluding start). maxDepth optional. Returns array of ids or null.
-  C.findPath = function (f, from, to, maxDepth) {
+  function bfsPath(f, from, to, maxDepth, landOnly) {
     if (from === to) return [];
     const prev = { [from]: null }; let q = [from], d = 0;
     while (q.length && d < (maxDepth || 99)) {
       const nq = [];
       for (const cur of q) for (const n of nbrs(f, cur)) {
-        if (n in prev) continue;
+        if (n in prev || (landOnly && isSea(cur, n))) continue;
         prev[n] = cur;
         if (n === to) { const path = []; let c = to; while (c !== from) { path.unshift(c); c = prev[c]; } return path; }
         nq.push(n);
@@ -186,6 +192,13 @@
       q = nq; d++;
     }
     return null;
+  }
+  // Prefer land routes; use the sea only when it is clearly faster
+  C.findPath = function (f, from, to, maxDepth) {
+    const land = bfsPath(f, from, to, maxDepth, true);
+    const any = bfsPath(f, from, to, maxDepth, false);
+    if (land && (!any || land.length <= any.length + 2)) return land;
+    return any;
   };
   // Distances from a province to all reachable ones
   C.bfsAll = function (f, from, maxDepth) {
@@ -284,7 +297,7 @@
   function declareWar(a, b, depth, why) {
     if (atWar(a, b) || a === b || !S.factions[a].alive || !S.factions[b].alive) return false;
     if (allied(a, b)) delete S.allies[pkey(a, b)];
-    S.wars[pkey(a, b)] = { since: S.turn, exh: 0 };
+    S.wars[pkey(a, b)] = { since: S.turn, exh: 0, s: {} };
     addRel(a, b, -40);
     plog(`${F(a).name} declares war on ${F(b).name}${why ? ' (' + why + ')' : ''}!`, 'war', [a, b]);
     if (a !== S.player && b !== S.player) C.log(`${F(a).name} declares war on ${F(b).name}.`, 'war-minor');
@@ -358,6 +371,125 @@
     return [ok, ok ? 'They agree to an alliance.' : r < 15 ? 'Relations are too poor.' : 'They see no need for an alliance.'];
   };
 
+
+  // -------------------------------------------------------------------- war score & peace terms
+  function addScore(winner, loser, pts) {
+    const w = S.wars[pkey(winner, loser)];
+    if (w) { w.s = w.s || {}; w.s[winner] = (w.s[winner] || 0) + pts; }
+  }
+  C.warScore = function (a, b) { const w = S.wars[pkey(a, b)]; return w && w.s ? (w.s[a] || 0) - (w.s[b] || 0) : 0; };
+  const provValue = (pid) => { const d = C.def(pid); return 12 + d.income * 1.5 + (d.capital ? 25 : 0) + S.provinces[pid].fort * 4; };
+  // Options for the player ('from') when negotiating with 'to'
+  C.peaceOptions = function (from, to) {
+    const opts = [{ id: 'status', label: 'White peace (status quo)' }];
+    const gTo = Math.max(0, Math.floor(S.factions[to].gold)), gFrom = Math.max(0, Math.floor(S.factions[from].gold));
+    if (gTo >= 100) opts.push({ id: 'gold', label: `Demand ${Math.min(300, gTo)} gold`, gold: Math.min(300, gTo) });
+    for (const p of W().provs) {
+      const ps = S.provinces[p.id];
+      if (ps.owner !== to) continue;
+      if (S.armies.some((a) => a.prov === p.id && a.owner === from) || (ps.siege && ps.siege.by === from)) opts.push({ id: 'province:' + p.id, label: `Demand ${p.name} (occupied)` });
+    }
+    if (gFrom >= 100) opts.push({ id: 'tribute', label: `Pay ${Math.min(250, gFrom)} gold tribute`, gold: Math.min(250, gFrom) });
+    for (const p of W().provs) {
+      const ps = S.provinces[p.id];
+      if (ps.owner === from && p.owner === to) opts.push({ id: 'release:' + p.id, label: `Return ${p.name}` });
+    }
+    return opts;
+  };
+  // Player proposes peace to an AI faction with a chosen term. Returns [ok, message].
+  C.proposePeace = function (from, to, termId) {
+    const w = S.wars[pkey(from, to)];
+    if (!w) return [false, 'You are not at war.'];
+    const [base] = C.acceptsPeace(to, from);
+    let [, why] = C.acceptsPeace(to, from);
+    // recompute numeric score
+    const mine = factionPower(to) + 1, theirs = factionPower(from) + 1, sr = mine / theirs;
+    let score = w.exh * 5 - F(to).aggr * 18;
+    score += C.provincesOf(from).filter((p) => p.owner === to).length * 12;
+    if (sr < 0.8) score += (0.8 - sr) * 60;
+    if (sr > 1.4) score -= 25;
+    score -= C.provincesOf(to).filter((p) => p.owner === from).length * 12;
+    score += C.warScore(from, to) * 0.4;
+    if (S.factions[to].gold < 0) score += 10;
+    const sp = S.provinces[S.factions[to].cap];
+    if (sp && sp.owner !== to) score += 20;
+    if (from === S.player) score += S.difficulty === 'easy' ? 10 : S.difficulty === 'hard' ? -8 : 0;
+    const [kind, arg] = termId.split(':');
+    let apply = () => {};
+    const optList = C.peaceOptions(from, to);
+    const opt = optList.find((o) => o.id === termId);
+    if (!opt) return [false, 'That term is no longer available.'];
+    if (kind === 'gold') { score -= opt.gold / 25; apply = () => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }; }
+    else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
+    else if (kind === 'tribute') { score += opt.gold / 20; apply = () => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }; }
+    else if (kind === 'release') { score += provValue(arg) * 0.9; apply = () => { const ps = S.provinces[arg]; ps.owner = to; ps.siege = null; ps.unrest = 10; NAP.recolor(S); }; }
+    if (S.turn - w.since < 2) return [false, 'The war has only just begun.'];
+    const ok = score >= 25;
+    if (ok) { apply(); makePeace(from, to); return [true, 'Peace is agreed on your terms.']; }
+    return [false, kind === 'province' || kind === 'gold' ? 'Those demands are too harsh for them.' : 'They are not ready for peace yet.'];
+  };
+
+  // -------------------------------------------------------------------- province policy, unrest, assault
+  C.setPolicy = function (pid, pol) { const ps = S.provinces[pid]; if (ps) ps.policy = pol; };
+  function unrestPhase() {
+    if ((S.year > 1812 || (S.year === 1812 && S.month >= 6)) && S.factions.france.incomeMult > 1) S.factions.france.incomeMult = 1;
+    for (const p of W().provs) {
+      const ps = S.provinces[p.id]; if (ps.owner === 'minor' && !p.owner) continue;
+      const core = p.owner === ps.owner;
+      let d = core ? -2 : 2.5;
+      if (!core && (p.owner === 'spain' || p.owner === 'portugal' || p.owner === 'russia' || p.terrain === 'm') && !allied(ps.owner, p.owner)) d += 2;
+      d += { tax: 2, levy: 1, order: -4 }[ps.policy] || 0;
+      const gar = S.armies.filter((a) => a.prov === p.id && (a.owner === ps.owner)).reduce((n, a) => n + a.units.length, 0);
+      if (gar) d -= gar >= 3 ? 8 : 5;
+      const before = ps.unrest || 0;
+      ps.unrest = clamp(before + d, 0, 100);
+      if (before < 60 && ps.unrest >= 60) plog(`Unrest is rising in ${p.name}!`, 'bad', [ps.owner]);
+      if (ps.unrest >= 100) revolt(p, ps);
+    }
+  }
+  function revolt(p, ps) {
+    const was = ps.owner, back = !core(p, ps) && S.factions[p.owner] && p.owner !== 'minor' ? p.owner : 'minor';
+    ps.owner = back; ps.unrest = 30; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
+    if (back !== 'minor' && !S.factions[back].alive) { S.factions[back].alive = true; if (!S.factions[back].cap) S.factions[back].cap = p.id; }
+    for (const a of S.armies.filter((x) => x.prov === p.id && x.owner === was && !canEnter(x.owner, p.id))) { a.path = []; }
+    const a = C.makeArmy(back, p.id, parseSpec('line:2 hussar:1'));
+    plog(`${p.name} rises in revolt against ${F(was).name}!${back === 'minor' ? '' : ' ' + F(back).adj + ' loyalists take control.'}`, was === S.player ? 'bad' : 'war', [was, back]);
+    if (was !== S.player && back !== S.player) C.log(`${p.name} revolts against ${F(was).adj} rule.`, 'capture-minor');
+    NAP.recolor(S);
+  }
+  function core(p, ps) { return p.owner === ps.owner; }
+  // Storm a fortified province: returns {ok, text}
+  C.assaultCheck = function (army) {
+    const ps = S.provinces[army.prov];
+    if (!atWar(army.owner, ps.owner)) return 'This province is not hostile.';
+    if (S.armies.some((a) => a.prov === army.prov && atWar(a.owner, army.owner))) return 'Enemy army present.';
+    if (ps.fort < 1) return 'Unfortified: the siege will fall on its own.';
+    if (army.assaulted === S.turn) return 'Already stormed this turn.';
+    return null;
+  };
+  C.assault = function (army) {
+    const err = C.assaultCheck(army); if (err) return { ok: false, text: err };
+    const ps = S.provinces[army.prov], d = C.def(army.prov);
+    const garrison = (500 + 450 * ps.fort) * (1 + 0.25 * ps.fort) * (TERRAIN_DEF[d.terrain] || 1);
+    const arty = army.units.filter((u) => u.type === 'art').length;
+    const att = C.armyPower(army) * (1 + Math.min(0.6, arty * 0.12)) * (1 - (army.fatigue || 0) / 250) * F(army.owner).morale;
+    const r = (att / garrison) * (0.85 + rnd() * 0.3);
+    army.assaulted = S.turn;
+    if (r > 1) {
+      applyCasualties([army], clamp(0.05 + 0.07 * ps.fort / r, 0.04, 0.35));
+      army.units = army.units.filter((u) => u.men > 0);
+      plog(`${F(army.owner).adj} troops storm the walls of ${d.name}!`, army.owner === S.player ? 'good' : 'bad', [army.owner, ps.owner]);
+      addScore(army.owner, ps.owner, 6);
+      captureProvince(army.prov, army.owner);
+      return { ok: true, text: `${d.name} stormed and captured!` };
+    }
+    applyCasualties([army], clamp(0.12 + 0.07 * ps.fort, 0.1, 0.45));
+    plog(`The assault on ${d.name} is repulsed with heavy losses.`, 'bad', [army.owner, ps.owner]);
+    if (!army.units.length) removeArmy(army);
+    return { ok: false, text: 'The assault failed with heavy losses.' };
+  };
+  C.garrisonStrength = (pid) => { const ps = S.provinces[pid]; return Math.round((500 + 450 * ps.fort) * (1 + 0.25 * ps.fort)); };
+
   // -------------------------------------------------------------------- battles
   const TERRAIN_DEF = { p: 1.0, h: 1.15, f: 1.1, m: 1.25 };
   function genBonus(armies) {
@@ -367,7 +499,7 @@
   }
   function sidePower(armies, extraMul) {
     let p = 0;
-    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1); // last stand
+    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
     const g = genBonus(armies);
     return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (extraMul || 1);
   }
@@ -414,6 +546,13 @@
     return true;
   }
 
+  function pickWeather() {
+    const r = rnd(), winter = S.month === 12 || S.month <= 2;
+    if (winter) return r < 0.4 ? 'snow' : r < 0.55 ? 'fog' : r < 0.65 ? 'rain' : 'clear';
+    return r < 0.62 ? 'clear' : r < 0.82 ? 'rain' : 'fog';
+  }
+  function pickTod() { const r = rnd(); return r < 0.2 ? 'dawn' : r < 0.8 ? 'day' : 'dusk'; }
+
   async function resolveBattle(attacker, prov, from) {
     const ps = S.provinces[prov];
     const here = S.armies.filter((x) => x.prov === prov && x !== attacker);
@@ -431,14 +570,15 @@
     const involved = playerA || playerD;
     let choice = 'auto';
     if (involved && H().runBattle) {
-      choice = await H().askBattle({ prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+      S.pendingWeather = pickWeather(); S.pendingTod = pickTod();
+      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
     }
     let winner; // 'A' | 'D'
     let fieldCasualtiesApplied = false;
     if (choice === 'fight') {
       const pSide = playerA ? sideA : sideD, eSide = playerA ? sideD : sideA;
       const spec = {
-        terrain: terr, provName: C.def(prov).name,
+        terrain: terr, provName: C.def(prov).name, weather: S.pendingWeather || 'clear', tod: S.pendingTod || 'day', month: S.month,
         playerIsAttacker: playerA,
         fort: ps.fort,
         fortSide: (playerA ? fortSideIsA : fortSideIsD) ? 0 : ((playerA ? fortSideIsD : fortSideIsA) ? 1 : -1),
@@ -471,6 +611,7 @@
     award(win, true); award(lose, false);
     for (const f of winFacs) S.factions[f].wonBattles++;
     for (const f of loseFacs) S.factions[f].lostBattles++;
+    for (const f of winFacs) for (const e of loseFacs) addScore(f, e, 5);
     const name = C.def(prov).name;
     const lead = (arr) => F(arr[0].owner).adj;
     plog(`Battle of ${name}: ${F(win[0].owner).name} defeats ${F(lose[0].owner).name}${choice === 'fight' ? '' : ' (auto-resolved)'}.`,
@@ -491,7 +632,7 @@
   }
   function mkSide(armies) {
     const units = [];
-    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner })));
+    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
     const g = genBonus(armies);
     return {
       faction: armies[0].owner, armies, units,
@@ -500,8 +641,9 @@
   }
 
   // -------------------------------------------------------------------- turn processing
-  async function stepArmy(a) {
+  async function stepArmy(a, second) {
     if (!S.armies.includes(a) || !a.path.length) return;
+    a.moved = true;
     const dest = a.path[0];
     if (!canEnter(a.owner, dest) || !nbrs(a.owner, a.prov).includes(dest)) { a.path = []; return; }
     const from = a.prov;
@@ -519,6 +661,13 @@
     if (S.provinces[dest].siege && S.provinces[dest].siege.by !== a.owner && atWar(S.provinces[dest].siege.by, a.owner)) {
       // relief army breaks siege
       S.provinces[dest].siege = null;
+    }
+    if (a.forced && !second && a.path.length && S.armies.includes(a)) {
+      const nxt = a.path[0];
+      if (!S.armies.some((x) => x.prov === nxt && atWar(x.owner, a.owner)) && S.provinces[dest].owner !== 'x') {
+        applyCasualties([a], 0.03); a.forcedMarch = true;
+        await stepArmy(a, true);
+      }
     }
   }
 
@@ -545,7 +694,9 @@
 
   function captureProvince(pid, f) {
     const ps = S.provinces[pid], old = ps.owner, d = C.def(pid);
-    ps.owner = f; ps.siege = null; ps.queue = []; ps.build = null;
+    ps.owner = f; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
+    ps.unrest = d.owner === f ? 10 : 35;
+    addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
     if (rnd() < 0.5) ps.market = 0;
     if (rnd() < 0.5) ps.barracks = 0;
     plog(`${F(f).name} captures ${d.name} from ${F(old).name}!`, f === S.player ? 'good' : 'bad', [f, old]);
@@ -568,21 +719,40 @@
     for (const k of Object.keys(S.allies)) if (k.split('|').includes(f)) delete S.allies[k];
   }
 
+  // distance (in provinces) from friendly soil; 0 = at home
+  function supplyDepth(a) {
+    const home = (id) => { const o = S.provinces[id].owner; return o === a.owner || allied(a.owner, o); };
+    if (home(a.prov)) return 0;
+    let q = [a.prov], seen = new Set(q), d = 0;
+    while (q.length && d < 4) {
+      d++; const nq = [];
+      for (const cur of q) for (const i of W().byId[cur].adj) {
+        const id = W().provs[i].id; if (seen.has(id)) continue; seen.add(id);
+        if (home(id)) return d; nq.push(id);
+      }
+      q = nq;
+    }
+    return 4;
+  }
+  C.supplyDepth = supplyDepth;
   function attrition() {
     const month = S.month;
     for (const a of S.armies.slice()) {
       const ps = S.provinces[a.prov], d = C.def(a.prov);
       let loss = 0;
       const home = ps.owner === a.owner || allied(a.owner, ps.owner);
-      if (!home) loss += 0.018 * (1 + a.units.length / 12);
+      const depth = supplyDepth(a); a.supply = depth;
+      if (!home) loss += 0.012 * (1 + a.units.length / 12) * (depth <= 1 ? 1.5 : depth === 2 ? 2.2 : 3.2);
       if (!home && d.terrain === 'm') loss += 0.01;
       if ((month === 12 || month <= 2) && d.owner === 'russia' && a.owner !== 'russia' && !allied(a.owner, 'russia')) loss += 0.10;
+      // marching fatigue
+      if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25);
+      a.moved = false; a.forcedMarch = false;
       if (loss > 0) {
         applyCasualties([a], loss);
         if (!a.units.length) { plog(`The ${F(a.owner).adj} army in ${d.name} has melted away from attrition!`, 'bad', [a.owner]); removeArmy(a); }
-        else if (loss > 0.08) plog(`Winter attrition ravages the ${F(a.owner).adj} army in ${d.name}.`, 'bad', [a.owner]);
+        else if (loss > 0.08) plog(`Hardship ravages the ${F(a.owner).adj} army in ${d.name}.`, 'bad', [a.owner]);
       } else if (home && !a.path.length) {
-        // replenish
         const fs = S.factions[a.owner];
         for (const u of a.units) {
           if (u.men < u.max && fs.manpower > 0) {
@@ -594,7 +764,18 @@
     }
   }
 
+  function subsidies() {
+    const g = S.factions.britain;
+    if (!g || !g.alive || g.gold < 500) return;
+    for (const x of alliesOf('britain')) {
+      if (!S.factions[x].alive || !wars(x).length || g.gold < 450) continue;
+      g.gold -= 70; S.factions[x].gold += 70;
+      plog(`British subsidies of 70 gold reach ${F(x).name}.`, 'good', [x, 'britain']);
+    }
+  }
+
   function economyPhase() {
+    unrestPhase();
     S.report = {};
     for (const id in S.factions) {
       const fs = S.factions[id]; if (!fs.alive) continue;
@@ -613,6 +794,7 @@
       }
       S.report[id] = { income: inc, upkeep: up };
     }
+    subsidies();
     // build queues
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
@@ -684,6 +866,7 @@
       if (C.recruit(pick.id, best)) break;
       counts[best] = (counts[best] || 0) + 1; total++; up += U[best].upkeep;
     }
+    for (const p of own) { const ps = S.provinces[p.id]; ps.policy = (ps.unrest || 0) > 35 ? 'order' : fs.gold < 120 ? 'tax' : 'balanced'; }
     // buildings
     if (fs.gold > 450 && rnd() < 0.25) {
       const cands = own.filter((p) => !S.provinces[p.id].build);
@@ -722,7 +905,7 @@
       if (wantsPeace) {
         if (e === S.player) {
           // offer to player (resolved asynchronously by UI)
-          if (!S.msgs.some((m) => m.type === 'peace-offer' && m.from === f)) S.msgs.push({ type: 'peace-offer', from: f });
+          if (!S.msgs.some((m) => m.type === 'peace-offer' && m.from === f)) S.msgs.push({ type: 'peace-offer', from: f, demand: C.warScore(f, e) >= 25 ? Math.min(250, Math.max(0, Math.floor(S.factions[e].gold / 2))) : 0 });
         } else if (C.acceptsPeace(e, f)[0] || w.exh >= 14 || (w.exh >= 8 && rnd() < 0.3)) makePeace(f, e);
       }
     }
@@ -800,7 +983,10 @@
       // keep besieging
       if (ps.siege && ps.siege.by === f) {
         const adjThreat = enemyArmies.filter((e) => nbrs(e.owner, e.prov).includes(a.prov)).reduce((s, e) => s + C.armyPower(e), 0);
-        if (adjThreat < myPow * 1.6) return;
+        if (adjThreat < myPow * 1.6) {
+          if (ps.fort >= 1 && !C.assaultCheck(a) && myPow > C.garrisonStrength(a.prov) * 3.2 && rnd() < 0.3) C.assault(a);
+          return;
+        }
       }
       const { dist, prev } = C.bfsAll(f, a.prov, 6);
       let best = null, bscore = 0;
@@ -951,7 +1137,7 @@
       id: 'russia1812', y: 1812, m: 6, title: 'The Grande Armee Crosses the Neman',
       text: 'Napoleon invades Russia with the largest army ever assembled. The Russian winter will be a deadly ally of the Tsar.',
       cond: () => alive('france') && alive('russia') && S.player !== 'france' && !atWar('france', 'russia'),
-      run: () => { sameWar('france', 'russia', 'invasion of Russia'); S.factions.france.gold += 300; }
+      run: () => { sameWar('france', 'russia', 'invasion of Russia'); S.factions.france.gold += 300; S.factions.france.incomeMult = 1; }
     },
     {
       id: 'coalition6', y: 1813, m: 3, title: 'The Sixth Coalition',
@@ -1027,14 +1213,14 @@
   ];
 
   const RANDOM_EVENTS = [
-    { t: 'Bumper harvest', text: (f) => `A bountiful harvest fills the granaries of ${F(f).name}. +120 gold.`, run: (f) => { S.factions[f].gold += 120; } },
-    { t: 'Financial crisis', text: (f) => `Banks falter in ${F(f).name}. -150 gold.`, run: (f) => { S.factions[f].gold -= 150; } },
-    { t: 'Patriotic fervour', text: (f) => `A wave of patriotism sweeps ${F(f).name}. +800 manpower.`, run: (f) => { S.factions[f].manpower += 800; } },
-    { t: 'Typhus outbreak', text: (f) => `Camp fever spreads through the armies of ${F(f).name}.`, run: (f) => { applyCasualties(C.armiesOf(f), 0.04); } },
-    { t: 'Army reforms', text: (f) => `Reformers modernise the army of ${F(f).name}. Veterans rally to the colours (+600 manpower).`, run: (f) => { S.factions[f].manpower += 600; } },
-    { t: 'Smuggling boom', text: (f) => `Smugglers bring tariff-free goods into ${F(f).name}. +100 gold.`, run: (f) => { S.factions[f].gold += 100; } },
-    { t: 'Mutiny', text: (f) => `Unpaid troops mutiny in the army of ${F(f).name}.`, run: (f) => { const a = C.armiesOf(f); if (a.length) applyCasualties([a[Math.floor(rnd() * a.length)]], 0.1); } },
-    { t: 'Merchant loans', text: (f) => `Bankers extend a generous loan to ${F(f).name}. +200 gold.`, run: (f) => { S.factions[f].gold += 200; } }
+    { t: 'Bumper harvest', art: 'boon', text: (f) => `A bountiful harvest fills the granaries of ${F(f).name}. +120 gold.`, run: (f) => { S.factions[f].gold += 120; } },
+    { t: 'Financial crisis', art: 'disaster', text: (f) => `Banks falter in ${F(f).name}. -150 gold.`, run: (f) => { S.factions[f].gold -= 150; } },
+    { t: 'Patriotic fervour', art: 'flags', text: (f) => `A wave of patriotism sweeps ${F(f).name}. +800 manpower.`, run: (f) => { S.factions[f].manpower += 800; } },
+    { t: 'Typhus outbreak', art: 'disaster', text: (f) => `Camp fever spreads through the armies of ${F(f).name}.`, run: (f) => { applyCasualties(C.armiesOf(f), 0.04); } },
+    { t: 'Army reforms', art: 'flags', text: (f) => `Reformers modernise the army of ${F(f).name}. Veterans rally to the colours (+600 manpower).`, run: (f) => { S.factions[f].manpower += 600; } },
+    { t: 'Smuggling boom', art: 'boon', text: (f) => `Smugglers bring tariff-free goods into ${F(f).name}. +100 gold.`, run: (f) => { S.factions[f].gold += 100; } },
+    { t: 'Mutiny', art: 'disaster', text: (f) => `Unpaid troops mutiny in the army of ${F(f).name}.`, run: (f) => { const a = C.armiesOf(f); if (a.length) applyCasualties([a[Math.floor(rnd() * a.length)]], 0.1); } },
+    { t: 'Merchant loans', art: 'boon', text: (f) => `Bankers extend a generous loan to ${F(f).name}. +200 gold.`, run: (f) => { S.factions[f].gold += 200; } }
   ];
 
   async function runEvents() {
@@ -1065,7 +1251,7 @@
       const f = fs[Math.floor(rnd() * fs.length)];
       const ev = RANDOM_EVENTS[Math.floor(rnd() * RANDOM_EVENTS.length)];
       ev.run(f);
-      if (f === S.player) { C.log(`${ev.t}: ${ev.text(f)}`, 'event'); await H().event({ title: ev.t, text: ev.text(f) }, null); }
+      if (f === S.player) { C.log(`${ev.t}: ${ev.text(f)}`, 'event'); await H().event({ title: ev.t, text: ev.text(f), art: ev.art }, null); }
     }
   }
 
@@ -1108,6 +1294,8 @@
     if (S.busy || S.winner) return;
     S.busy = true;
     S.msgs = [];
+    S.turnLog = [];
+    const g0 = S.factions[S.player].gold, p0 = C.provincesOf(S.player).map((p) => p.id);
     const ids = Object.keys(S.factions).filter((f) => S.factions[f].alive && f !== 'minor');
     expelFromTerritory();
     // AI planning
@@ -1141,12 +1329,14 @@
       if (S.winner) break;
       if (m.type === 'peace-offer' && atWar(m.from, S.player)) {
         const ok = await H().offer(m);
-        if (ok) makePeace(m.from, S.player);
+        if (ok) { if (m.demand) { S.factions[S.player].gold -= m.demand; S.factions[m.from].gold += m.demand; } makePeace(m.from, S.player); }
       } else if (m.type === 'alliance-offer' && !allied(m.from, S.player)) {
         const ok = await H().offer(m);
         if (ok) makeAlliance(m.from, S.player);
       }
     }
+    const p1 = C.provincesOf(S.player).map((p) => p.id);
+    S.summary = { gold0: g0, gold1: S.factions[S.player].gold, income: C.factionIncome(S.player), upkeep: C.factionUpkeep(S.player), gained: p1.filter((x) => !p0.includes(x)), lost: p0.filter((x) => !p1.includes(x)), entries: S.turnLog.slice(), date: C.dateStr() };
     const v = checkVictory();
     if (v && !S.noVictory) S.winner = v;
     S.busy = false;

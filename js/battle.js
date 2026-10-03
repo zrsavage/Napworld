@@ -51,10 +51,15 @@
       this.initialMen = [0, 0];
       this.deadGen = [];
       this.genDead = [false, false];
+      const W = spec.weather || 'clear';
+      this.wx = { fire: W === 'rain' ? 0.65 : 1, artFire: W === 'rain' ? 0.85 : 1, speed: W === 'rain' ? 0.9 : W === 'snow' ? 0.85 : 1, range: W === 'fog' ? 0.7 : 1, fat: W === 'snow' ? 1.3 : 1 };
+      this.timeLimit = spec.tod === 'dusk' ? 420 : 600;
+      this.weatherName = { clear: 'Clear', rain: 'Rain', fog: 'Fog', snow: 'Snow' }[W] + ({ dawn: ' · Dawn', day: '', dusk: ' · Dusk' }[spec.tod || 'day']);
       const att = spec.playerIsAttacker, mtn = spec.terrain === 'm' ? 40 : 0;
       this.zoneR = (att ? 540 : 680) - mtn;               // player's deployment limit (x)
       this.zoneL = FW - ((att ? 680 : 540) - mtn);        // enemy's deployment limit (x)
       this.rec = []; this.recAcc = 0; this.recStatic = null;
+      if (NAP.audio) NAP.audio.music('battle');
       this.buildTerrain();
       this.prerender();
       this.deploy();
@@ -81,6 +86,13 @@
       T.forests.forEach((f) => (f.trees = f.trees.filter((t) => t[0] * t[0] + t[1] * t[1] <= 1)));
       // fortification marker for siege defences (decor only)
       T.fort = this.spec.fort || 0;
+      T.works = [];
+      if (T.fort > 0 && this.spec.fortSide >= 0) {
+        const att = this.spec.playerIsAttacker, side = this.spec.fortSide;
+        const bx = side === 0 ? (att ? 310 : 410) : (att ? 1200 : 1290);
+        const n = 3 + 2 * T.fort, span = (FH - 180) / n;
+        for (let i = 0; i < n; i++) T.works.push({ x: bx, y: 90 + span * (i + 0.5), w: 38, h: span * 0.82 });
+      }
       T.noise = Array.from({ length: 180 }, () => [r() * FW, r() * FH, 20 + r() * 50, r()]);
       this.terrain = T;
     }
@@ -88,6 +100,7 @@
     terrainAt(x, y) {
       const T = this.terrain;
       let speed = 1, cover = 1, hill = false, forest = false, village = false;
+      for (const w of T.works) if (Math.abs(x - w.x) < w.w / 2 && Math.abs(y - w.y) < w.h / 2) { cover *= 0.55; speed *= 0.7; }
       for (const h of T.hills) if ((x - h.x) ** 2 + (y - h.y) ** 2 < h.r * h.r) { hill = true; speed *= 0.85; cover *= 0.88; }
       for (const f of T.forests) if (((x - f.x) / f.rx) ** 2 + ((y - f.y) / f.ry) ** 2 < 1) { forest = true; speed *= 0.6; cover *= 0.72; }
       for (const v of T.villages) if (Math.abs(x - v.x) < 45 && Math.abs(y - v.y) < 35) { village = true; speed *= 0.7; cover *= 0.7; }
@@ -104,7 +117,7 @@
         id: this.nextId++, side, ref: src.ref, type: src.type, cls: base.cls, faction: src.faction,
         x, y, facing: side === 0 ? 0 : Math.PI, men: src.men, max: src.max,
         baseMorale: clamp(base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0), 30, 110),
-        morale: 0, fatigue: 0, formation: bt.forms[0], wantForm: null, formT: 0,
+        morale: 0, fatigue: src.fatigue || 0, formation: bt.forms[0], wantForm: null, formT: 0,
         state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
         kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
         fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1),
@@ -136,7 +149,9 @@
         };
         // infantry in two lines
         const first = inf.slice(0, Math.ceil(inf.length * 0.6)), second = inf.slice(Math.ceil(inf.length * 0.6));
-        place(first, baseX, 74, 6); place(second, baseX - dir * 70, 80, 8);
+        place(first, baseX, 74, 6);
+        const i0 = this.units.length; place(second, baseX - dir * 70, 80, 8);
+        for (let i = i0; i < this.units.length; i++) this.units[i].reserve = true;
         place(art, baseX + dir * 45, 90, 10);
         // cavalry on the wings
         cav.forEach((src, i) => {
@@ -297,7 +312,7 @@
         const gp = this.gap(u, e);
         if (gp < 3 && gp < mg) { mg = gp; melee = e; }
       }
-      const maxRange = bt.range * (tinfo.hill ? 1.08 : 1) * (u.cls === 'art' ? 1 : 1);
+      const maxRange = bt.range * (tinfo.hill ? 1.08 : 1) * this.wx.range;
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
@@ -325,7 +340,7 @@
             u.facing = turnToward(u.facing, want, bt.turn * dt);
             if (da < 1.0 || u.cls === 'cav') {
               moving = true;
-              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * (1 - u.fatigue / 220);
+              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220);
               u.charging = false;
               const chargeNow = (u.cls === 'cav' && u.order.type === 'attack' && d < 260) || (u.order.charge && d < 170);
               if (u.order.type === 'move' && u.order.run) sp *= 1.35;
@@ -343,7 +358,7 @@
         }
       }
       if (!moving) { u.charging = u.charging && !!melee; }
-      u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) : melee ? 1.2 : -1.5) * dt, 0, 100);
+      u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly separation
       for (const f of this.units) {
         if (f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
@@ -367,7 +382,7 @@
         if (u.cls === 'cav') vuln = melee.cls === 'cav' ? 1 : melee.cls === 'art' ? 1.8 : (FORM_CAV_VULN[melee.formation] || 1);
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
-          u.impacted = true; u.cooldown = 5;
+          u.impacted = true; u.cooldown = 5; if (NAP.audio) NAP.audio.sfx('charge', 1.2);
           const shock = u.cls === 'cav' ? 0.8 : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
           const instant = u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
@@ -419,11 +434,11 @@
                 const guns = u.men / 80;
                 const base = guns * 5.5 * (1 - 0.6 * d / maxRange) * (d < 100 ? 2.2 : 1);
                 const vuln = tgt.cls === 'cav' ? 1.1 : tgt.cls === 'art' ? 0.8 : (FORM_ART_VULN[tgt.formation] || 1);
-                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * (1 - u.fatigue / 300);
+                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.artFire * (1 - u.fatigue / 300);
               } else {
                 const acc = 0.45 + 0.55 * (1 - d / maxRange);
                 const vuln = tgt.cls === 'cav' ? 0.95 : tgt.cls === 'art' ? 0.8 : 1;
-                cas = u.men * bt.fire * (FORM_FIRE[u.formation] || 1) * acc * vuln * ex * tt.cover * mor * u.fireMul * aura * (1 - u.fatigue / 300);
+                cas = u.men * bt.fire * (FORM_FIRE[u.formation] || 1) * acc * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.fire * (1 - u.fatigue / 300);
               }
               this.damage(tgt, cas * dt, u, ex > 1 ? 1.35 : 1);
               firing = true;
@@ -431,6 +446,7 @@
               if (u.reload <= 0) {
                 u.reload = u.cls === 'art' ? 2.6 + rnd() : 3.5 + rnd() * 2;
                 const fx = u.x + Math.cos(u.facing) * (u.d / 2 + 4), fy = u.y + Math.sin(u.facing) * (u.d / 2 + 4);
+                if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
                 this.puffs.push({ x: fx, y: fy, t: 0, life: u.cls === 'art' ? 4.5 : 2.6, r: u.cls === 'art' ? 13 : 8, c: 'rgba(235,235,235,' });
                 this.shots.push({ x0: fx, y0: fy, x1: tgt.x + (rnd() - 0.5) * tgt.w * 0.6, y1: tgt.y + (rnd() - 0.5) * tgt.d * 0.6, t: 0, art: u.cls === 'art' });
               }
@@ -450,7 +466,7 @@
       if (u.morale <= thresh && u.state !== 'routing') {
         u.state = 'routing'; u.order = null; u.target = null; u.routT = 0; u.charging = false;
         if (u.formation === 'square' || u.formation === 'column') { u.formation = BT[u.type].forms[0]; u.wantForm = null; [u.w, u.d] = dims(u); }
-        this.msg(`${NAP.FACTIONS[u.faction].adj} ${u.name} breaks and runs!`);
+        this.msg(`${NAP.FACTIONS[u.faction].adj} ${u.name} breaks and runs!`); if (NAP.audio) NAP.audio.sfx('rout', 1.5);
         for (const f of this.units) if (f !== u && f.cls !== 'gen' && this.alive(f) && Math.hypot(f.x - u.x, f.y - u.y) < 200) f.morale += f.side === u.side ? -9 : 4;
       }
     }
@@ -480,6 +496,25 @@
         const e = this.nearest(u, en); if (!e) continue;
         const d = Math.hypot(e.x - u.x, e.y - u.y);
         const bt = BT[u.type];
+        if (u.cls === 'inf' && u.reserve) {
+          const front = my.filter((f) => f.cls === 'inf' && !f.reserve);
+          const frontBad = front.some((f) => f.state === 'routing') || front.some((f) => f.men < f.max * 0.5);
+          if (this.t > 50 || frontBad || d < 175) { u.reserve = false; }
+          else { u.order = null; continue; }
+        }
+        if (u.cls === 'inf' && u.type === 'light' && goAttack && u.formation !== 'square') {
+          const dir = s === 0 ? 1 : -1;
+          const cavThreat = en.some((c) => c.cls === 'cav' && c.state !== 'routing' && c.charging && Math.hypot(c.x - u.x, c.y - u.y) < 170);
+          if (cavThreat || d < 48) {
+            const bx = frontX - dir * 50;
+            if (!u.order || u.order.type !== 'move') u.order = { type: 'move', x: bx, y: u.y };
+            continue;
+          }
+          const sx = clamp(frontX + dir * 65, 40, FW - 40);
+          if (d > bt.range * 0.9) { if (!u.order || (u.order.type === 'move' && Math.abs(u.order.x - sx) > 20)) u.order = { type: 'move', x: sx, y: clamp(e.y, 80, FH - 80) }; }
+          else if (u.order) u.order = null;
+          continue;
+        }
         if (u.cls === 'inf') {
           // square vs charging cavalry
           const threat = en.find((c) => c.cls === 'cav' && c.state !== 'routing' && Math.hypot(c.x - u.x, c.y - u.y) < 125 && c.charging);
@@ -512,7 +547,7 @@
           else if (inRange && u.order && u.order.type === 'move') u.order = null;
           // retire guns in danger
           const close = en.find((c) => c.cls === 'cav' && c.state !== 'routing' && Math.hypot(c.x - u.x, c.y - u.y) < 100);
-          if (close && my.some((f) => f.cls === 'inf' && Math.hypot(f.x - u.x, f.y - u.y) < 80)) { /* stay; infantry protect */ }
+          if (close && !my.some((f) => f.cls === 'inf' && f.state !== 'routing' && Math.hypot(f.x - u.x, f.y - u.y) < 75) && !(u.order && u.order.type === 'move')) u.order = { type: 'move', x: u.x - (s === 0 ? 1 : -1) * 75, y: u.y };
         } else if (u.cls === 'cav') {
           if (u.cooldown > 0) u.cooldown -= 0.6;
           if (u.order && u.order.type === 'attack' && !this.alive(u.order.target)) u.order = null;
@@ -587,13 +622,14 @@
       const b0 = broken(0, s0, t0, this.initialMen[0]), b1 = broken(1, s1, t1, this.initialMen[1]);
       if (b0 && b1) winner = s0 >= s1 ? 0 : 1;
       else if (b0) winner = 1; else if (b1) winner = 0;
-      else if (this.t > 600) winner = s0 >= s1 ? 0 : 1;
+      else if (this.t > this.timeLimit) winner = s0 >= s1 ? 0 : 1;
       if (this.forced !== undefined) winner = this.forced;
       if (winner !== null) this.finish(winner);
     }
 
     finish(winner) {
       this.record();
+      if (NAP.audio) NAP.audio.sfx(winner === 0 ? 'fanfare' : 'defeat');
       this.over = true; this.paused = true; this.winner = winner;
       const loser = 1 - winner;
       const casualties = [0, 0];
@@ -700,6 +736,11 @@
       }
       for (const v of T.villages) for (const h of v.hs) { ctx.fillStyle = '#b98f66'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], h[3]); ctx.fillStyle = '#8a4a3a'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], 3); }
       for (const r of T.rocks) { ctx.fillStyle = '#7d786c'; ctx.beginPath(); for (let i = 0; i < 7; i++) { const a = r.a + i * TAU / 7, rr = r.r * (0.75 + 0.25 * ((i * 7) % 3) / 2); ctx.lineTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#4a463d'; ctx.stroke(); }
+      for (const w of T.works) {
+        ctx.fillStyle = '#8a8478'; ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
+        ctx.fillStyle = '#5b574d'; for (let yy = w.y - w.h / 2; yy < w.y + w.h / 2 - 4; yy += 8) ctx.fillRect(w.x - w.w / 2, yy, 8, 4);
+        ctx.strokeStyle = '#3a372f'; ctx.lineWidth = 1.5; ctx.strokeRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
+      }
       this.terrainCanvas = cv;
     }
 
@@ -731,7 +772,12 @@
       ctx.setLineDash([]);
       // units (routing first so living units draw on top)
       const sorted = this.units.filter((u) => !u.fled && (u.cls === 'gen' ? !u.dead : !u.dead)).sort((a, b) => (a.state === 'routing' ? 0 : 1) - (b.state === 'routing' ? 0 : 1));
-      for (const u of sorted) this.drawUnit(ctx, u);
+      const fog = (this.spec.weather === 'fog') && !this.replay && !this.over;
+      const mine = fog ? this.units.filter((m) => m.side === 0 && this.alive(m)) : null;
+      for (const u of sorted) {
+        if (fog && u.side === 1 && !mine.some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 400)) continue;
+        this.drawUnit(ctx, u);
+      }
       // shots
       for (const s of this.shots) {
         const f = s.t / 0.35;
@@ -752,6 +798,24 @@
       }
       // field border
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, FW, FH);
+      this.drawWeather(ctx);
+    }
+
+    drawWeather(ctx) {
+      const W = this.spec.weather || 'clear', tod = this.spec.tod || 'day', tt = this.t;
+      if (tod === 'dawn') { ctx.fillStyle = 'rgba(255,170,90,0.10)'; ctx.fillRect(0, 0, FW, FH); }
+      if (tod === 'dusk') { const f = Math.min(1, this.t / 420); ctx.fillStyle = `rgba(190,90,40,${0.10 + 0.22 * f})`; ctx.fillRect(0, 0, FW, FH); }
+      if (W === 'fog') { ctx.fillStyle = 'rgba(205,215,225,0.28)'; ctx.fillRect(0, 0, FW, FH); }
+      if (W === 'rain') {
+        ctx.strokeStyle = 'rgba(190,210,235,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+        for (let i = 0; i < 170; i++) { const x = (i * 97 + tt * 140) % FW, y = (i * 53 + tt * 520) % FH; ctx.moveTo(x, y); ctx.lineTo(x - 5, y + 14); }
+        ctx.stroke(); ctx.fillStyle = 'rgba(60,80,110,0.12)'; ctx.fillRect(0, 0, FW, FH);
+      }
+      if (W === 'snow') {
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        for (let i = 0; i < 160; i++) { const x = (i * 131 + Math.sin(tt + i) * 20 + tt * 14) % FW, y = (i * 71 + tt * 60) % FH; ctx.fillRect(x, y, 2.2, 2.2); }
+        ctx.fillStyle = 'rgba(230,240,255,0.14)'; ctx.fillRect(0, 0, FW, FH);
+      }
     }
 
     drawUnit(ctx, u) {
@@ -818,6 +882,7 @@
         <div class="b-stage" id="b-stage"><canvas id="b-canvas"></canvas>
           <div class="b-banner" id="b-banner"></div>
           <div class="b-feed" id="b-feed"></div>
+          <div class="b-tip" id="b-tip" hidden></div>
           <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel: zoom &middot; WASD: pan &middot; Space: pause</div>
         </div>
         <div class="b-bottom">
@@ -834,6 +899,7 @@
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
             <button data-sp="1" class="b-sp on">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
+            <button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
             <button data-a="withdraw" class="danger">Withdraw</button>
           </div>
         </div>`;
@@ -845,7 +911,7 @@
       r.querySelector('#b-n0').innerHTML = nm(0); r.querySelector('#b-n1').innerHTML = nm(1);
       r.querySelector('.b-s0').style.setProperty('--c', NAP.FACTIONS[sd[0].faction].color);
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
-      r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''}`;
+      r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
       r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with Q/W/E/R, then press <b>Space</b> to begin.</p>`;
     }
@@ -921,6 +987,7 @@
         else if (b.dataset.a === 'halt') this.halt();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
+        else if (b.dataset.a === 'mute') { if (NAP.audio) { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); b.innerHTML = NAP.audio.muted ? '&#128263;' : '&#128266;'; } }
       }));
     }
 
@@ -1023,8 +1090,31 @@
       this.raf = requestAnimationFrame((t) => this.frame(t));
     }
 
+    updateTip() {
+      const tips = NAP.guide && NAP.guide.BATTLE_TIPS; if (!tips) return;
+      const order = ['cav', 'rout', 'deploy', 'advance', 'range', 'win'];
+      const now = performance.now();
+      const el = this.root.querySelector('#b-tip');
+      if (this.tipOff || this.over || this.replay) { el.hidden = true; return; }
+      let cand = null;
+      for (const id of order) { const t = tips.find((x) => x.id === id); if (t && (!this.tipSeen || !this.tipSeen[id] || id === 'deploy') && t.when(this)) { cand = t; break; } }
+      if (!this.tipCur || (cand && cand.id !== this.tipCur.id && now > this.tipCur.until)) {
+        if (cand) { this.tipCur = { id: cand.id, until: now + 7000 }; (this.tipSeen = this.tipSeen || {})[cand.id] = true; }
+      }
+      const show = this.tipCur && tips.find((x) => x.id === this.tipCur.id);
+      if (!show || (this.tipCur.id !== 'deploy' && now > this.tipCur.until + 5000) || (this.tipCur.id === 'deploy' && !this.deployPhase)) {
+        if (this.tipCur && this.tipCur.id === 'deploy' && !this.deployPhase) this.tipCur.until = 0;
+        if (!cand) { el.hidden = true; this.tipCur = null; return; }
+      }
+      const cur = this.tipCur && tips.find((x) => x.id === this.tipCur.id);
+      if (!cur) { el.hidden = true; return; }
+      if (el.dataset.id !== cur.id) { el.innerHTML = cur.text + '<button class="tipx" title="Hide tips">&times;</button>'; el.dataset.id = cur.id; el.querySelector('.tipx').onclick = () => { this.tipOff = true; el.hidden = true; }; }
+      el.hidden = false;
+    }
+
     hud() {
       const r = this.root;
+      if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {
         const tot = this.totalMen(s), init = this.initialMen[s] || 1;
         r.querySelector('#b-f' + s).style.width = clamp((tot / init) * 100, 0, 100) + '%';
@@ -1095,6 +1185,7 @@
     }
 
     close() {
+      if (NAP.audio) NAP.audio.music('map');
       if (this.replay) this.stopReplay();
       this.stopped = true;
       cancelAnimationFrame(this.raf);

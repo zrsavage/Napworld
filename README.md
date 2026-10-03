@@ -25,11 +25,21 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - Win by holding 55% of Europe or eliminating every rival; survive to the end of 1815 for a territorial score.
   Save/load via browser storage.
 
+**Campaign depth added in v3**
+- **War score & peace terms:** battles and conquests build war score; negotiate white peace, demand gold or an occupied province, pay tribute or return land. AI nations may offer peace for a price.
+- **Unrest & occupation:** conquered provinces grow restless unless garrisoned (income penalties, then revolt). Province **policies** (taxation / conscription / martial order).
+- **Supply & fatigue:** armies far from friendly soil suffer attrition; marching tires armies; **forced marches** move two provinces per turn.
+- **Sieges:** starve a fortress out or **storm the walls**; relief armies break sieges. Britain subsidises its allies.
+- **Turn report & autosave:** a monthly summary of money, battles and gains/losses; autosave every turn.
+- **Tutorial:** guided first-turn tutorial (Start screen), practice battle with live tips, in-game help, period-style event illustrations, procedural sound and music.
+
 **Tactical battles** (real-time, rectangles on a field)
 - Regiments as blocks with **formations** (line, column, square, skirmish), facing, **flanking / rear** bonuses,
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
+- **Weather & time of day:** rain weakens muskets, fog shortens sight, snow slows and tires, dusk ends the battle at nightfall. Fortified provinces put walls on the field.
+- **Smarter AI:** reserves, skirmish screens and artillery that withdraws from cavalry.
 - **Manual deployment:** before the battle starts, place and re-form your regiments inside a shaded deployment zone. The zone depends on the situation (defenders deploy deeper, mountains shrink it, rocks block placement) and AI defenders dig in on hills.
 - **After-action report and replay:** per-regiment losses, kills and fates, plus a replay of the whole battle at up to 24x.
 - Select with click / drag-box, right-click to move or attack, right-drag to draw a battle line.
@@ -62,6 +72,8 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 index.html        page shell
 css/style.css     UI styling
 js/data.js        coastlines, provinces, factions, units, generals, starting armies
+js/audio.js       procedural sound effects and music (WebAudio)
+js/guide.js       tutorial steps, battle tips, practice battle, event illustrations
 js/world.js       province raster generation (geodesic Voronoi on land) and map rendering
 js/campaign.js    game state, economy, movement, sieges, diplomacy, AI, events
 js/battle.js      real-time tactical battle engine + enemy AI
