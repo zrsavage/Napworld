@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Napworld — Europe 1805</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="start"></div>
+
+  <div id="game" hidden>
+    <header id="topbar"></header>
+    <div id="mapwrap">
+      <canvas id="map"></canvas>
+      <div id="tip" hidden></div>
+      <aside id="side"></aside>
+      <div id="log"><div id="logbar"><b>Dispatches</b><label><input type="checkbox" id="logminor"> world news</label><button id="logtoggle" title="Collapse">&minus;</button></div><div id="loglist"></div></div>
+      <div id="hint">Left-click: select &middot; Right-click: move army &middot; Drag: pan &middot; Wheel: zoom &middot; Enter: end turn</div>
+    </div>
+  </div>
+
+  <div id="battle" hidden></div>
+  <div id="modal" hidden></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/world.js"></script>
+<script src="js/campaign.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
