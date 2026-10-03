@@ -52,6 +52,7 @@
       this.deadGen = [];
       this.genDead = [false, false];
       this.buildTerrain();
+      this.prerender();
       this.deploy();
       this.buildHUD();
       this.bind();
@@ -634,7 +635,6 @@
       const c = this.canvas; if (!c) return;
       const r = this.stage.getBoundingClientRect();
       c.width = Math.max(300, r.width * devicePixelRatio); c.height = Math.max(200, r.height * devicePixelRatio);
-      c.style.width = r.width + 'px'; c.style.height = r.height + 'px';
       this.fit = Math.min(c.width / FW, c.height / FH) * 0.98;
     }
     toWorld(px, py) {
@@ -642,13 +642,10 @@
       return { x: (px * devicePixelRatio - c.width / 2) / k + this.cam.x, y: (py * devicePixelRatio - c.height / 2) / k + this.cam.y };
     }
 
-    draw() {
-      const c = this.canvas, ctx = this.ctx;
-      const k = this.fit * this.cam.z;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#2b3a22'; ctx.fillRect(0, 0, c.width, c.height);
-      ctx.translate(c.width / 2 - this.cam.x * k, c.height / 2 - this.cam.y * k);
-      ctx.scale(k, k);
+    prerender() {
+      const S = 1.5;
+      const cv = document.createElement('canvas'); cv.width = FW * S; cv.height = FH * S;
+      const ctx = cv.getContext('2d'); ctx.scale(S, S);
       const T = this.terrain;
       // ground
       ctx.fillStyle = T.base; ctx.fillRect(0, 0, FW, FH);
@@ -666,6 +663,17 @@
       }
       for (const v of T.villages) for (const h of v.hs) { ctx.fillStyle = '#b98f66'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], h[3]); ctx.fillStyle = '#8a4a3a'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], 3); }
       for (const r of T.rocks) { ctx.fillStyle = '#7d786c'; ctx.beginPath(); for (let i = 0; i < 7; i++) { const a = r.a + i * TAU / 7, rr = r.r * (0.75 + 0.25 * ((i * 7) % 3) / 2); ctx.lineTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#4a463d'; ctx.stroke(); }
+      this.terrainCanvas = cv;
+    }
+
+    draw() {
+      const c = this.canvas, ctx = this.ctx;
+      const k = this.fit * this.cam.z;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#2b3a22'; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.translate(c.width / 2 - this.cam.x * k, c.height / 2 - this.cam.y * k);
+      ctx.scale(k, k);
+      ctx.drawImage(this.terrainCanvas, 0, 0, FW, FH);
       // fallen
       for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
       // order lines for selection
@@ -797,6 +805,7 @@
       const r = this.root, st = this.stage;
       this.onResize = () => this.resize();
       window.addEventListener('resize', this.onResize);
+      if (window.ResizeObserver) { this.ro = new ResizeObserver(() => this.resize()); this.ro.observe(this.stage); }
       const pos = (e) => { const b = this.canvas.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
       this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
       this.canvas.addEventListener('mousedown', (e) => {
@@ -993,6 +1002,7 @@
       this.stopped = true;
       cancelAnimationFrame(this.raf);
       window.removeEventListener('resize', this.onResize);
+      if (this.ro) this.ro.disconnect();
       window.removeEventListener('mousemove', this.mm); window.removeEventListener('mouseup', this.mu);
       window.removeEventListener('keydown', this.kd); window.removeEventListener('keyup', this.ku);
       this.root.innerHTML = '';

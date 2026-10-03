@@ -314,12 +314,11 @@
     // sea labels
     ctx.font = 'italic 12px Georgia, serif'; ctx.fillStyle = 'rgba(30,60,90,0.55)'; ctx.textAlign = 'center';
     for (const [t, lo, la] of NAP.SEA_LABELS) { const [x, y] = NAP.proj(lo, la); ctx.save(); ctx.translate(x, y); if ('letterSpacing' in ctx) ctx.letterSpacing = '3px'; ctx.fillText(t, 0, 0); ctx.restore(); }
-    // sea links (when an army is selected)
-    if (opts.showSea) {
-      ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.2;
-      for (const p of w.provs) for (const q of p.sea) if (q > p.idx) {
-        const o = w.provs[q]; ctx.beginPath(); ctx.moveTo(p.cx, p.cy); ctx.lineTo(o.cx, o.cy); ctx.stroke();
-      }
+    // sea links from the selected army's port
+    if (opts.seaFrom) {
+      const p = w.byId[opts.seaFrom];
+      ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.6;
+      for (const q of p.sea) { const o = w.provs[q]; ctx.beginPath(); ctx.moveTo(p.cx, p.cy); ctx.lineTo(o.cx, o.cy); ctx.stroke(); }
       ctx.setLineDash([]);
     }
     // province labels

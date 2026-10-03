@@ -141,6 +141,8 @@
     let v = 0;
     for (const p of C.provincesOf(f)) v += C.provIncome(S.provinces[p.id]);
     v += (COLONIAL[f] || 0) * INCOME_K * (S.factions[f].alive ? 1 : 0);
+    const n = C.provincesOf(f).length;
+    v *= 1 - clamp((n - 22) * 0.015, 0, 0.45); // overextension
     return Math.round(v * S.factions[f].incomeMult);
   };
   C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0), 0);
@@ -306,6 +308,7 @@
   C.breakAlliance = function (a, b) { delete S.allies[pkey(a, b)]; addRel(a, b, -25); plog(`${F(a).name} breaks its alliance with ${F(b).name}.`, 'diplomacy', [a, b]); };
   // After peace, armies standing in provinces they can no longer occupy are pushed back
   function expelFromTerritory() {
+    // armies standing where they are no longer welcome are pushed back to friendly soil
     for (const a of S.armies.slice()) {
       if (canEnter(a.owner, a.prov)) continue;
       const ps = S.provinces[a.prov];
@@ -316,7 +319,7 @@
         const own = Object.keys(bf).filter((id) => S.provinces[id].owner === a.owner).sort((x, y) => bf[x] - bf[y]);
         dest = own[0];
       }
-      if (dest) { a.prov = dest; a.path = []; } else removeArmy(a);
+      if (dest) { a.prov = dest; a.path = []; a.from = dest; plog(`${F(a.owner).adj} forces withdraw from ${C.def(ps.id).name}.`, 'info', [a.owner]); } else removeArmy(a);
       if (ps.siege && ps.siege.by === a.owner) ps.siege = null;
     }
   }
@@ -722,7 +725,7 @@
       if (wantsPeace) {
         if (e === S.player) {
           // offer to player (resolved asynchronously by UI)
-          S.msgs.push({ type: 'peace-offer', from: f });
+          if (!S.msgs.some((m) => m.type === 'peace-offer' && m.from === f)) S.msgs.push({ type: 'peace-offer', from: f });
         } else if (C.acceptsPeace(e, f)[0] || rnd() < 0.15) makePeace(f, e);
       }
     }
@@ -731,7 +734,7 @@
       for (const x of Object.keys(S.factions)) {
         if (x === f || x === e || x === 'minor' || !S.factions[x].alive || allied(f, x) || atWar(f, x)) continue;
         if (atWar(x, e) && C.rel(f, x) > -10 && rnd() < 0.18) {
-          if (x === S.player) S.msgs.push({ type: 'alliance-offer', from: f });
+          if (x === S.player) { if (!S.msgs.some((m) => m.type === 'alliance-offer' && m.from === f)) S.msgs.push({ type: 'alliance-offer', from: f }); }
           else makeAlliance(f, x);
         }
       }
@@ -833,7 +836,7 @@
         let seaHops = 0; let c = id; while (c && prev[c]) { if (isSea(prev[c], c)) seaHops++; c = prev[c]; }
         if (seaHops) {
           const enemyNavy = Math.max(0, ...en.map((x) => S.factions[x].navy));
-          if (seaHops > 1 || enemyNavy > S.factions[f].navy || myPow < 7000 || a.units.length < 8) continue;
+          if (S.turn < 6 || seaHops > 1 || enemyNavy > S.factions[f].navy || myPow < 7000 || a.units.length < 8 || rnd() < 0.6) continue;
         }
         const score = val / (d + 0.6);
         if (score > bscore) { bscore = score; best = id; }
@@ -1055,6 +1058,7 @@
     S.busy = true;
     S.msgs = [];
     const ids = Object.keys(S.factions).filter((f) => S.factions[f].alive && f !== 'minor');
+    expelFromTerritory();
     // AI planning
     for (const f of ids) if (f !== S.player) C.aiPlan(f);
     // The player's own faction: no AI planning besides recruiting handled by the user

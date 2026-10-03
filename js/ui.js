@@ -46,7 +46,7 @@
     const has = !!localStorage.getItem(SAVE_KEY);
     let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
-      ${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}</div><div class="cards">`;
+      ${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="helpbtn">How to play</button></div><div class="cards">`;
     const order = ['france', 'britain', 'austria', 'prussia', 'russia', 'ottoman', 'spain', 'portugal', 'sweden', 'denmark', 'naples', 'bavaria'];
     for (const id of order) {
       const f = F(id), st = startFactionStats(id), d = DIFF[id] || 3;
@@ -59,6 +59,7 @@
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => { ui.picked = c.dataset.f; $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c)); }));
     $('#beginbtn').onclick = () => beginGame(ui.picked);
+    $('#helpbtn').onclick = showHelp;
     if (has) $('#loadbtn').onclick = loadGame;
   }
 
@@ -90,16 +91,16 @@
     const at = C.warsOf(p).filter((x) => x !== 'minor' || true).map((x) => F(x).adj);
     $('#topbar').innerHTML = `
       <span class="flag" style="background:${F(p).color}"></span><span class="fname">${esc(F(p).name)}</span>
-      <span class="stat" title="Treasury / net per turn">&#128176; <b>${fmt(fs.gold)}</b> <small class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${fmt(net)}</small> <small>(${fmt(inc)} − ${fmt(up)})</small></span>
+      <span class="stat" title="Treasury / net per turn (income ${fmt(inc)} - upkeep ${fmt(up)})">&#128176; <b>${fmt(fs.gold)}</b> <small class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${fmt(net)}</small> <small>(${fmt(inc)} − ${fmt(up)})</small></span>
       <span class="stat" title="Manpower pool / monthly growth">&#128100; <b>${fmt(fs.manpower)}</b> <small>+${fmt(C.manpowerGain(p))}</small></span>
       <span class="stat" title="Provinces held; win at 55%">&#9873; <b>${provs}</b><small>/${total}</small></span>
-      <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).length}</b> <small>armies, ${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)} regts</small></span>
+      <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? '<span class="bad">War: ' + at.join(', ') + '</span>' : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
       <button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
-    $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-save').onclick = saveGame;
+    $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = endTurn;
   }
@@ -213,7 +214,7 @@
       else if (act === 'merge') { const others = S().armies.filter((x) => x !== a && x.prov === a.prov && x.owner === a.owner); let n = 0; others.forEach((o) => { if (C.mergeArmies(a, o)) n++; }); toast(n ? `Merged ${n} army` : 'Nothing to merge (stack limit?)'); }
       else if (act === 'stop') a.path = [];
       else if (act === 'disband') { const idx = checked(); if (!idx.length) return toast('Tick regiments to disband'); idx.sort((x, y) => y - x).forEach((i) => C.disbandUnit(a, i)); if (!S().armies.includes(a)) ui.sel.army = null; }
-      else if (act === 'relieve') { C.assignGeneral; const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
+      else if (act === 'relieve') { const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
       refresh();
     }));
     const gp = $('#genpick');
@@ -221,6 +222,15 @@
   }
 
   // ------------------------------------------------------------------ dialogs
+  async function showHelp() {
+    await modal(`<h2>How to play</h2><div class="body" style="font-size:13.5px;line-height:1.55">
+      <p><b>Goal:</b> hold 55% of Europe's provinces (or eliminate every rival power). Survive to the end of 1815 for a score by territory. One turn is one month.</p>
+      <p><b>Campaign map:</b> left-click a province or an army (the small flag) to select it. With an army selected, <b>right-click</b> a destination to give a march order &mdash; armies advance one province per turn; a dashed line previews the route. Armies cross the sea between ports if you have a navy (hostile fleets cause heavy losses). Enemy provinces must be besieged: fortified ones take several turns, and artillery speeds sieges up.</p>
+      <p><b>Economy:</b> provinces produce gold and manpower. Recruit regiments and build Markets, Barracks and Fortifications from the province panel. Regiments cost gold to raise and upkeep every month &mdash; go bankrupt and they desert. Stacks hold up to 20 regiments; split and merge them in the army panel. Appoint a general to boost an army.</p>
+      <p><b>Diplomacy:</b> declare war, offer peace, propose alliances. Allies of a defender may join the war. Watch for historical events.</p>
+      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, Q/W/E/R for Line/Column/Square/Skirmish, X to charge, H to halt, G to rally with your general, Space to pause. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
+      </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
+  }
   function relBar(v) {
     const w = Math.abs(v) / 100 * 30;
     return `<span class="relbar"><i style="left:${v >= 0 ? 30 : 30 - w}px;width:${w}px;background:${v >= 0 ? '#5cb85c' : '#d9534f'}"></i></span> ${v > 0 ? '+' : ''}${Math.round(v)}`;
@@ -416,7 +426,7 @@
     opts.selProv = ui.sel.prov; opts.hoverProv = ui.hover;
     opts.selArmy = ui.sel.army;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
-    opts.showSea = !!(a && a.owner === s.player);
+    opts.seaFrom = a && a.owner === s.player && s.factions[a.owner].navy > 0 && NAP.world.byId[a.prov].port ? a.prov : null;
     opts.pathProvs = a ? [a.prov, ...(a.path.length ? a.path : ui.preview || [])] : null;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);
