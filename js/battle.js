@@ -41,7 +41,7 @@
   class Battle {
     constructor(spec, root, done) {
       this.spec = spec; this.root = root; this.done = done;
-      this.t = 0; this.speed = 1; this.paused = true; this.over = false; this.acc = 0;
+      this.t = 0; this.deployPhase = true; this.speed = 1; this.paused = true; this.over = false; this.acc = 0;
       this.units = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
       this.cam = { x: FW / 2, y: FH / 2, z: 1 };
@@ -538,6 +538,7 @@
 
     setFormation(u, f) {
       if (!BT[u.type].forms.includes(f) || u.formation === f || u.wantForm === f) return;
+      if (this.deployPhase && u.side === 0) { u.formation = f; [u.w, u.d] = dims(u); return; }
       u.wantForm = f; u.formT = 2.4 + (u.cls === 'inf' ? 0 : 1);
     }
 
@@ -590,6 +591,12 @@
     }
 
     // ---------------------------------------------------------- orders (player)
+    // During deployment orders place units instantly inside the player's zone.
+    deployPlace(u, o) {
+      u.x = clamp(o.x, 30, 570); u.y = clamp(o.y, 30, FH - 30);
+      if (o.fa !== undefined) u.facing = o.fa;
+      u.order = null; u.target = null;
+    }
     selectedUnits() { return [...this.sel].filter((u) => this.alive(u) || u.cls === 'gen'); }
     orderMove(units, x, y, run) {
       const us = units.filter((u) => u.cls !== 'gen' && this.alive(u));
@@ -597,9 +604,13 @@
       // keep relative offsets around group centroid
       if (us.length) {
         const cx = us.reduce((a, u) => a + u.x, 0) / us.length, cy = us.reduce((a, u) => a + u.y, 0) / us.length;
-        us.forEach((u) => { if (u.state === 'routing') return; u.order = { type: 'move', x: clamp(x + (u.x - cx), 10, FW - 10), y: clamp(y + (u.y - cy), 10, FH - 10), run: !!run }; u.target = null; });
+        us.forEach((u) => {
+          if (u.state === 'routing') return;
+          const o = { type: 'move', x: clamp(x + (u.x - cx), 10, FW - 10), y: clamp(y + (u.y - cy), 10, FH - 10), run: !!run };
+          if (this.deployPhase) this.deployPlace(u, o); else { u.order = o; u.target = null; }
+        });
       }
-      gens.forEach((g) => (g.order = { type: 'move', x, y }));
+      gens.forEach((g) => { if (this.deployPhase) { g.x = clamp(x, 30, 570); g.y = clamp(y, 30, FH - 30); } else g.order = { type: 'move', x, y }; });
     }
     orderLine(units, p0, p1) {
       const us = units.filter((u) => u.cls !== 'gen' && this.alive(u) && u.state !== 'routing');
@@ -616,11 +627,12 @@
       const fa = Math.atan2(ny, nx);
       us.forEach((u, i) => {
         const t = us.length === 1 ? 0.5 : i / (us.length - 1);
-        u.order = { type: 'move', x: clamp(p0.x + dx * t, 10, FW - 10), y: clamp(p0.y + dy * t, 10, FH - 10), fa };
-        u.target = null;
+        const o = { type: 'move', x: clamp(p0.x + dx * t, 10, FW - 10), y: clamp(p0.y + dy * t, 10, FH - 10), fa };
+        if (this.deployPhase) this.deployPlace(u, o); else { u.order = o; u.target = null; }
       });
     }
     orderAttack(units, target, charge) {
+      if (this.deployPhase) return;
       units.forEach((u) => {
         if (u.cls === 'gen' || !this.alive(u) || u.state === 'routing') return;
         if (u.type === 'art') { u.order = null; u.target = target; return; }
@@ -674,6 +686,7 @@
       ctx.translate(c.width / 2 - this.cam.x * k, c.height / 2 - this.cam.y * k);
       ctx.scale(k, k);
       ctx.drawImage(this.terrainCanvas, 0, 0, FW, FH);
+      if (this.deployPhase) { ctx.fillStyle = 'rgba(60,110,230,0.13)'; ctx.fillRect(0, 0, 580, FH); ctx.strokeStyle = 'rgba(120,170,255,0.7)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(580, 0); ctx.lineTo(580, FH); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(200,220,255,0.8)'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center'; ctx.fillText('DEPLOYMENT ZONE', 290, 36); }
       // fallen
       for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
       // order lines for selection
@@ -798,7 +811,8 @@
       r.querySelector('.b-s0').style.setProperty('--c', NAP.FACTIONS[sd[0].faction].color);
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''}`;
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} Issue your orders, then press <b>Space</b> to begin.</p>`;
+      r.querySelector('#b-banner').classList.add('deploy');
+      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with Q/W/E/R, then press <b>Space</b> to begin.</p>`;
     }
 
     bind() {
@@ -924,6 +938,7 @@
     togglePause() {
       if (this.over) return;
       this.paused = !this.paused;
+      if (!this.paused) this.deployPhase = false;
       this.root.querySelector('#b-pause').innerHTML = this.paused ? '&#9654; Resume <kbd>Space</kbd>' : '&#10074;&#10074; Pause <kbd>Space</kbd>';
       this.root.querySelector('#b-banner').classList.toggle('hide', !this.paused ? true : this.t > 0);
       this.root.querySelector('#b-help').classList.add('hide');
@@ -990,7 +1005,7 @@
 
     showEnd(winner, cas) {
       const b = this.root.querySelector('#b-banner');
-      b.classList.remove('hide');
+      b.classList.remove('hide', 'deploy');
       const win = winner === 0;
       b.innerHTML = `<h2 class="${win ? 'good' : 'bad'}">${win ? 'Victory!' : 'Defeat'}</h2>
         <p>Your losses: <b>${Math.round(cas[0])}</b> &middot; Enemy losses: <b>${Math.round(cas[1])}</b></p>

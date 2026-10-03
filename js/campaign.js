@@ -12,6 +12,7 @@
   const INCOME_K = 8;
   const MP_K = 25;
   const MAX_STACK = 20;
+  const SEA_CAP = 12; // regiments a single sea crossing can carry (water logistics)
   const WIN_SHARE = 0.55;
   const COLONIAL = { britain: 16, spain: 9, portugal: 5, france: 4, denmark: 3, ottoman: 2 };
   NAP.MONTHS = MONTHS;
@@ -47,7 +48,7 @@
       const n = w.provs.filter((p) => p.owner === id).length;
       const cap = w.provs.find((p) => p.owner === id && p.capital);
       S.factions[id] = {
-        id, alive: n > 0, gold: Math.round(F(id).gold * 1.5), manpower: 2500 + n * 450, navy: F(id).navy,
+        id, alive: n > 0, gold: Math.round(F(id).gold * 1.5), manpower: 2500 + n * 450,
         incomeMult: 1, cap: cap ? cap.id : null, wonBattles: 0, lostBattles: 0
       };
       S.pool[id] = [];
@@ -165,7 +166,7 @@
     const p = W().byId[pid];
     const out = [];
     for (const i of p.adj) { const q = W().provs[i].id; if (canEnter(f, q)) out.push(q); }
-    if (S.factions[f].navy > 0 && p.port) for (const i of p.sea) { const q = W().provs[i].id; if (canEnter(f, q)) out.push(q); }
+    if (p.port) for (const i of p.sea) { const q = W().provs[i].id; if (canEnter(f, q)) out.push(q); }
     return out;
   }
   C.neighbors = nbrs;
@@ -199,6 +200,8 @@
     if (dest === army.prov) { army.path = []; return true; }
     const p = C.findPath(army.owner, army.prov, dest);
     if (!p) return false;
+    let from = army.prov;
+    for (const q of p) { if (isSea(from, q) && army.units.length > SEA_CAP) { C.lastError = `Too many regiments to sail (max ${SEA_CAP} per crossing) \u2014 split the army.`; return false; } from = q; }
     army.path = p;
     return true;
   };
@@ -229,7 +232,7 @@
     army.units.splice(idx, 1);
     if (!army.units.length) removeArmy(army);
   };
-  C.stackLimit = MAX_STACK;
+  C.stackLimit = MAX_STACK; C.seaCap = SEA_CAP;
 
   // -------------------------------------------------------------------- recruiting & building
   C.recruitCheck = function (pid, type) {
@@ -502,16 +505,7 @@
     const sea = isSea(from, dest);
     a.path.shift();
     a.from = from;
-    if (sea) {
-      const enemyNavy = Math.max(0, ...wars(a.owner).map((f) => S.factions[f].navy));
-      const mine = S.factions[a.owner].navy;
-      if (enemyNavy > mine) {
-        const loss = clamp((enemyNavy - mine) * 0.07, 0, 0.65);
-        applyCasualties([a], loss);
-        plog(`${F(a.owner).adj} transports are harassed by enemy ships, losing ${Math.round(loss * 100)}% of their men.`, 'bad', [a.owner]);
-        if (!a.units.length) { removeArmy(a); return; }
-      }
-    }
+    if (sea && a.units.length > SEA_CAP) { plog(`The ${F(a.owner).adj} army is too large to sail (max ${SEA_CAP} regiments).`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
     const enemies = S.armies.filter((x) => x.prov === dest && atWar(x.owner, a.owner));
     if (enemies.length) {
       const prevProv = a.prov;
@@ -754,7 +748,7 @@
         const d = C.def(p.id);
         if (d.adj.some((i) => S.provinces[W().provs[i].id].owner === e)) { near = true; break; }
       }
-      if (!near && !(S.factions[f].navy > 3)) continue;
+      if (!near) continue;
       const theirP = factionPower(e) + alliesOf(e).reduce((s, x) => s + factionPower(x) * 0.7, 0);
       const ratio = (myP + 1) / (theirP + 1);
       if (ratio < 1.15) continue;
@@ -835,8 +829,7 @@
         // sea transport only for aggressive navies
         let seaHops = 0; let c = id; while (c && prev[c]) { if (isSea(prev[c], c)) seaHops++; c = prev[c]; }
         if (seaHops) {
-          const enemyNavy = Math.max(0, ...en.map((x) => S.factions[x].navy));
-          if (S.turn < 6 || seaHops > 1 || enemyNavy > S.factions[f].navy || myPow < 7000 || a.units.length < 8 || rnd() < 0.6) continue;
+          if (S.turn < 6 || seaHops > 1 || a.units.length > SEA_CAP || a.units.length < 6 || myPow < 4500 || rnd() < 0.6) continue;
         }
         const score = val / (d + 0.6);
         if (score > bscore) { bscore = score; best = id; }
@@ -886,12 +879,11 @@
     },
     {
       id: 'trafalgar', y: 1805, m: 10, title: 'Trafalgar',
-      text: 'Nelson destroys the Franco-Spanish fleet off Cape Trafalgar. British supremacy at sea is assured; French and Spanish navies are shattered.',
+      text: 'Nelson destroys the Franco-Spanish fleet off Cape Trafalgar. British trade and supply routes are secure; French and Spanish overseas commerce suffers.',
       run: () => {
         if (!atWar('britain', 'france') && !atWar('britain', 'spain')) return;
-        S.factions.britain.navy += 1; S.factions.britain.gold += 150;
-        S.factions.france.navy = Math.max(0, S.factions.france.navy - 2);
-        S.factions.spain.navy = Math.max(0, S.factions.spain.navy - 3);
+        S.factions.britain.gold += 150;
+        S.factions.france.gold -= 100; S.factions.spain.gold -= 150;
       }
     },
     {
@@ -966,6 +958,58 @@
       run: () => coalition(['prussia', 'austria', 'sweden', 'russia', 'britain'], 'france', 'Sixth Coalition')
     },
     {
+      id: 'hre', y: 1806, m: 8, title: 'End of the Holy Roman Empire',
+      text: 'Francis II lays down the imperial crown. A thousand years of German tradition ends; Austria\'s prestige is shaken and the German princes look to Paris.',
+      run: () => { if (alive('austria') && alive('bavaria')) { addRel('austria', 'bavaria', -15); addRel('france', 'bavaria', 15); } if (alive('austria')) S.factions.austria.gold -= 100; }
+    },
+    {
+      id: 'fontainebleau', y: 1807, m: 10, title: 'Treaty of Fontainebleau',
+      text: 'France and Spain agree to partition Portugal, Britain\'s oldest ally. French columns march toward Lisbon.',
+      cond: () => alive('france') && alive('portugal') && S.player !== 'france' && !atWar('france', 'portugal') && !allied('france', 'portugal'),
+      run: () => { sameWar('france', 'portugal', 'Treaty of Fontainebleau'); if (alive('spain') && allied('france', 'spain')) sameWar('spain', 'portugal', 'Treaty of Fontainebleau'); }
+    },
+    {
+      id: 'copenhagen', y: 1807, m: 9, title: 'The Bombardment of Copenhagen',
+      text: 'Fearing the Danish fleet will fall to Napoleon, Britain strikes first. Denmark-Norway is driven into the French camp.',
+      cond: () => alive('britain') && alive('denmark') && S.player !== 'britain' && !atWar('britain', 'denmark'),
+      run: () => { S.factions.denmark.gold -= 150; if (S.player !== 'denmark') sameWar('denmark', 'britain', 'bombardment of Copenhagen'); addRel('denmark', 'france', 30); }
+    },
+    {
+      id: 'finnishwar', y: 1808, m: 2, title: 'The Finnish War',
+      text: 'Russia, bound to Napoleon by Tilsit, invades Swedish Finland.',
+      cond: () => alive('russia') && alive('sweden') && S.player !== 'russia' && !atWar('russia', 'sweden') && !allied('russia', 'sweden'),
+      run: () => sameWar('russia', 'sweden', 'Finnish War')
+    },
+    {
+      id: 'torres', y: 1810, m: 10, title: 'The Lines of Torres Vedras',
+      text: 'Wellington\'s engineers fortify the approaches to Lisbon. The French will break themselves upon the lines.',
+      cond: () => alive('portugal') && S.provinces.lisbon.owner === 'portugal',
+      run: () => { S.provinces.lisbon.fort = Math.min(3, S.provinces.lisbon.fort + 1); }
+    },
+    {
+      id: 'serbia', y: 1807, m: 5, title: 'Serbian Uprising',
+      text: 'Karadjordje\'s rebels throw off Ottoman rule in the Balkans, tying down the Sultan\'s armies.',
+      cond: () => alive('ottoman') && S.provinces.serbia.owner === 'ottoman',
+      run: () => { const a = S.armies.filter((x) => x.prov === 'serbia' && x.owner === 'ottoman'); applyCasualties(a, 0.15); S.factions.ottoman.gold -= 120; }
+    },
+    {
+      id: 'bucharest', y: 1812, m: 5, title: 'Treaty of Bucharest',
+      text: 'With Napoleon\'s invasion looming, Russia makes peace with the Ottomans to free its southern armies.',
+      cond: () => atWar('russia', 'ottoman'),
+      run: () => { if (S.player !== 'russia' && S.player !== 'ottoman') makePeace('russia', 'ottoman'); else { S.factions.russia.gold += 100; } }
+    },
+    {
+      id: 'leipzig', y: 1813, m: 10, title: 'Defection after Leipzig',
+      text: 'The Battle of the Nations goes against Napoleon. Bavaria abandons the French alliance and joins the coalition.',
+      cond: () => alive('bavaria') && alive('france') && S.player !== 'bavaria' && allied('france', 'bavaria'),
+      run: () => { delete S.allies[pkey('france', 'bavaria')]; sameWar('bavaria', 'france', 'defection after Leipzig'); }
+    },
+    {
+      id: 'vienna', y: 1814, m: 9, title: 'The Congress of Vienna',
+      text: 'The powers gather in Vienna to remake Europe. Exhausted by two decades of war, the AI nations lay down their arms.',
+      run: () => { for (const k of Object.keys(S.wars)) { const [a, b] = k.split('|'); if (a !== S.player && b !== S.player && a !== 'minor' && b !== 'minor') makePeace(a, b); } }
+    },
+    {
       id: 'hundred', y: 1815, m: 3, title: 'The Hundred Days',
       text: 'Napoleon escapes from Elba and marches on Paris. The old guard rally to the eagles once more!',
       cond: () => alive('france') && C.provincesOf('france').length < 12 && S.player !== 'france',
@@ -983,6 +1027,9 @@
     { t: 'Financial crisis', text: (f) => `Banks falter in ${F(f).name}. -150 gold.`, run: (f) => { S.factions[f].gold -= 150; } },
     { t: 'Patriotic fervour', text: (f) => `A wave of patriotism sweeps ${F(f).name}. +800 manpower.`, run: (f) => { S.factions[f].manpower += 800; } },
     { t: 'Typhus outbreak', text: (f) => `Camp fever spreads through the armies of ${F(f).name}.`, run: (f) => { applyCasualties(C.armiesOf(f), 0.04); } },
+    { t: 'Army reforms', text: (f) => `Reformers modernise the army of ${F(f).name}. Veterans rally to the colours (+600 manpower).`, run: (f) => { S.factions[f].manpower += 600; } },
+    { t: 'Smuggling boom', text: (f) => `Smugglers bring tariff-free goods into ${F(f).name}. +100 gold.`, run: (f) => { S.factions[f].gold += 100; } },
+    { t: 'Mutiny', text: (f) => `Unpaid troops mutiny in the army of ${F(f).name}.`, run: (f) => { const a = C.armiesOf(f); if (a.length) applyCasualties([a[Math.floor(rnd() * a.length)]], 0.1); } },
     { t: 'Merchant loans', text: (f) => `Bankers extend a generous loan to ${F(f).name}. +200 gold.`, run: (f) => { S.factions[f].gold += 200; } }
   ];
 

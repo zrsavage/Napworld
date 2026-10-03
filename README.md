@@ -12,13 +12,13 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - 12 playable factions + neutral states: France, Britain, Austria, Prussia, Russia, Ottomans, Spain,
   Portugal, Sweden, Denmark-Norway, Naples, Bavaria & allies.
 - **Armies & conquest:** move armies province-to-province (BFS pathing, multi-turn orders), sea transport
-  between ports (needs a navy; hostile fleets cause losses), sieges of fortified provinces (artillery speeds them up),
+  between ports (abstract water logistics: no fleets, up to 12 regiments per crossing), sieges of fortified provinces (artillery speeds them up),
   winter attrition in Russia and foraging attrition in enemy lands.
 - **Economy & recruitment:** province income and manpower, upkeep, six unit types (line, light, guard,
   light/heavy cavalry, artillery), recruitment queues, Market / Barracks / Fortification buildings.
 - **Diplomacy & AI:** wars, peace, alliances, relations, allies joining wars, AI factions that recruit,
   build, plan campaigns, declare wars and sue for peace.
-- **Generals & events:** historical generals (Napoleon, Wellington, Kutuzov, Blücher, Archduke Charles…) with
+- **Generals & events:** ~90 historical generals (Napoleon, Wellington, Kutuzov, Blücher, Archduke Charles…) with
   attack/defence/leadership stats, XP and level-ups, historical arrival dates; scripted events
   (Third Coalition, Trafalgar, Continental System, Tilsit, Spanish Uprising, Russia 1812, Sixth Coalition,
   Hundred Days…) plus random events.
@@ -30,6 +30,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
+- **Manual deployment:** before the battle starts, place and re-form your regiments inside a shaded deployment zone.
 - Select with click / drag-box, right-click to move or attack, right-drag to draw a battle line.
   Or just **auto-resolve** any battle.
 
@@ -41,6 +42,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 | Right-click | order selected army to move (shows route preview) |
 | Drag / wheel | pan / zoom |
 | Enter | end turn |
+| Minimap | click / drag (bottom-left) to jump around the map |
 | D | diplomacy |
 
 | Battle | |

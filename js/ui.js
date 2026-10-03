@@ -51,7 +51,7 @@
     for (const id of order) {
       const f = F(id), st = startFactionStats(id), d = DIFF[id] || 3;
       html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}"><h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div><p>${esc(f.desc)}</p>
-        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span><span>Navy ${f.navy}</span><span class="diff">${'★'.repeat(6 - d)}${'☆'.repeat(d - 1)} <span class="muted">ease</span></span></div></div>`;
+        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span><span class="diff">${'★'.repeat(6 - d)}${'☆'.repeat(d - 1)} <span class="muted">ease</span></span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;
     $('#start').innerHTML = html; $('#start').hidden = false;
@@ -225,7 +225,7 @@
   async function showHelp() {
     await modal(`<h2>How to play</h2><div class="body" style="font-size:13.5px;line-height:1.55">
       <p><b>Goal:</b> hold 55% of Europe's provinces (or eliminate every rival power). Survive to the end of 1815 for a score by territory. One turn is one month.</p>
-      <p><b>Campaign map:</b> left-click a province or an army (the small flag) to select it. With an army selected, <b>right-click</b> a destination to give a march order &mdash; armies advance one province per turn; a dashed line previews the route. Armies cross the sea between ports if you have a navy (hostile fleets cause heavy losses). Enemy provinces must be besieged: fortified ones take several turns, and artillery speeds sieges up.</p>
+      <p><b>Campaign map:</b> left-click a province or an army (the small flag) to select it. With an army selected, <b>right-click</b> a destination to give a march order &mdash; armies advance one province per turn; a dashed line previews the route. Armies of up to 12 regiments can cross the sea between ports (dashed lines show the routes) \u2014 a pure supply-and-transport abstraction, there are no fleets. Enemy provinces must be besieged: fortified ones take several turns, and artillery speeds sieges up.</p>
       <p><b>Economy:</b> provinces produce gold and manpower. Recruit regiments and build Markets, Barracks and Fortifications from the province panel. Regiments cost gold to raise and upkeep every month &mdash; go bankrupt and they desert. Stacks hold up to 20 regiments; split and merge them in the army panel. Appoint a general to boost an army.</p>
       <p><b>Diplomacy:</b> declare war, offer peace, propose alliances. Allies of a defender may join the war. Watch for historical events.</p>
       <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, Q/W/E/R for Line/Column/Square/Skirmish, X to charge, H to halt, G to rally with your general, Space to pause. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
@@ -388,7 +388,7 @@
     if (!pr) return;
     if (pr.id === a.prov) { a.path = []; refresh(); return; }
     if (C.orderMove(a, pr.id)) { toast(`Marching to ${pr.name} (${a.path.length} turn${a.path.length > 1 ? 's' : ''})`); }
-    else toast('No route there (diplomatic or sea restrictions)');
+    else toast(C.lastError || 'No route there (diplomatic or sea restrictions)');
     refresh();
   });
   canvas.addEventListener('wheel', (e) => {
@@ -415,6 +415,33 @@
   $('#logtoggle').onclick = () => { $('#log').classList.toggle('min'); $('#logtoggle').textContent = $('#log').classList.contains('min') ? '+' : '−'; };
   $('#logminor').onchange = (e) => { $('#loglist').querySelectorAll('[data-minor]').forEach((d) => (d.hidden = !e.target.checked)); };
 
+  // ------------------------------------------------------------------ minimap
+  const mm = $('#minimap'), mmx = mm.getContext('2d');
+  function drawMinimap() {
+    const k = mm.width / NAP.MAP.W;
+    mmx.setTransform(1, 0, 0, 1, 0, 0);
+    mmx.fillStyle = '#7fa6b8'; mmx.fillRect(0, 0, mm.width, mm.height);
+    mmx.imageSmoothingEnabled = true;
+    mmx.drawImage(NAP.world.colorCanvas, 0, 0, NAP.MAP.W * k, NAP.MAP.H * k);
+    const s = S();
+    for (const a of s.armies) {
+      const p = NAP.world.byId[a.prov];
+      mmx.fillStyle = F(a.owner).color; mmx.strokeStyle = '#000'; mmx.lineWidth = 1;
+      mmx.fillRect(p.cx * k - 2, p.cy * k - 2, 4, 4); mmx.strokeRect(p.cx * k - 2, p.cy * k - 2, 4, 4);
+    }
+    const w = vw / ui.cam.z * k, h = vh / ui.cam.z * k;
+    mmx.strokeStyle = '#fff'; mmx.lineWidth = 1.5;
+    mmx.strokeRect(ui.cam.x * k - w / 2, ui.cam.y * k - h / 2, w, h);
+  }
+  let mmDrag = false;
+  const mmMove = (e) => {
+    const r = mm.getBoundingClientRect(), k = NAP.MAP.W / r.width;
+    ui.cam.x = (e.clientX - r.left) * k; ui.cam.y = (e.clientY - r.top) * k; clampCam(); dirty = true;
+  };
+  mm.addEventListener('mousedown', (e) => { mmDrag = true; mmMove(e); e.stopPropagation(); });
+  window.addEventListener('mousemove', (e) => { if (mmDrag) mmMove(e); });
+  window.addEventListener('mouseup', () => { mmDrag = false; });
+
   // ------------------------------------------------------------------ render loop
   function refresh() { if (!S()) return; renderTop(); renderSide(); dirty = true; }
   function frame() {
@@ -426,10 +453,11 @@
     opts.selProv = ui.sel.prov; opts.hoverProv = ui.hover;
     opts.selArmy = ui.sel.army;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
-    opts.seaFrom = a && a.owner === s.player && s.factions[a.owner].navy > 0 && NAP.world.byId[a.prov].port ? a.prov : null;
+    opts.seaFrom = a && a.owner === s.player && NAP.world.byId[a.prov].port ? a.prov : null;
     opts.pathProvs = a ? [a.prov, ...(a.path.length ? a.path : ui.preview || [])] : null;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);
+    drawMinimap();
   }
 
   // ------------------------------------------------------------------ boot
