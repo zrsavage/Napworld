@@ -24,15 +24,15 @@
 
   function dims(u) {
     const base = NAP.UNITS[u.type];
-    const f = u.formation, n = u.men / base.men;
+    const f = u.formation, n = clamp(u.men / base.men, 0.1, 1), sq = Math.sqrt(n);
     if (u.cls === 'inf') {
-      if (f === 'line') return [base.w * (0.45 + 0.55 * n) + 18, 11];
-      if (f === 'column') return [26, 36 + 26 * n];
-      if (f === 'square') return [38 * (0.6 + 0.4 * n), 38 * (0.6 + 0.4 * n)];
-      return [base.w * (0.45 + 0.55 * n) + 34, 20];
+      if (f === 'line') return [base.w * (0.28 + 0.72 * sq) + 14, 11];
+      if (f === 'column') return [24, 22 + 40 * sq];
+      if (f === 'square') { const e = 40 * (0.42 + 0.58 * sq); return [e, e]; }
+      return [base.w * (0.35 + 0.65 * sq) + 30, 20];
     }
-    if (u.cls === 'cav') return [22 + 28 * n, 11];
-    return [30, 14];
+    if (u.cls === 'cav') return [14 + 36 * sq, 11];
+    return [14 + 16 * sq, 14];
   }
 
   function angDiff(a, b) { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; }
@@ -44,7 +44,7 @@
       this.t = 0; this.deployPhase = true; this.speed = 1; this.paused = true; this.over = false; this.acc = 0;
       this.units = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
-      this.cam = { x: FW / 2, y: FH / 2, z: 1 };
+      this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
       this.nextId = 1;
       this.rallyCd = [0, 0];
@@ -818,6 +818,81 @@
       }
     }
 
+    keys4(u) {
+      if (!u._k) {
+        let sd = (u.id * 7919 + 13) >>> 0; const rn = () => ((sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296);
+        u._k = Array.from({ length: 130 }, () => [rn(), rn(), rn(), rn()]);
+      }
+      return u._k;
+    }
+
+    // Individual soldiers: the block thins out, shrinks and frays as men fall
+    drawFigures(ctx, u, w, d, fc, sk, r, sel, flash) {
+      const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
+      const wob = (routing ? 1.6 : 0) + (1 - moraleF) * 1.1;          // nervous shuffling
+      const frayed = (1 - r) * 3.2 + (1 - moraleF) * 1.4 + (routing ? 2.5 : 0); // looseness of the ranks
+      const detail = sk > 2.2;
+      // faint hull so the unit still reads as one body (fades as it dies)
+      ctx.fillStyle = flash ? 'rgba(255,255,255,0.4)' : fc.color; ctx.globalAlpha *= 0.16 + 0.14 * r;
+      ctx.fillRect(-d / 2, -w / 2, d, w); ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
+      if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail); }
+      else {
+        const per = u.cls === 'cav' ? 10 : 16, maxF = u.cls === 'cav' ? 26 : 50;
+        const nVis = clamp(Math.ceil(u.men / per), 1, maxF);
+        const nSlots = Math.min(130, Math.ceil(nVis * (1 + 0.65 * (1 - r))));
+        const ranks = form === 'column' ? Math.max(4, Math.ceil(nSlots / 3)) : form === 'square' ? Math.ceil(Math.sqrt(nSlots)) : form === 'skirmish' ? 0 : u.cls === 'cav' ? 2 : nSlots > 34 ? 3 : 2;
+        const cols = ranks ? Math.ceil(nSlots / ranks) : 0;
+        const keep = nVis / nSlots;
+        const fs = u.cls === 'cav' ? 3.6 : 2.6;
+        const t = this.t;
+        for (let j = 0; j < nSlots; j++) {
+          const k = K[j];
+          if (k[0] > keep) continue; // fallen / missing
+          let x, y;
+          if (ranks) {
+            const rk = Math.floor(j / cols), cl = j % cols;
+            x = -d / 2 + (rk + 0.5) / ranks * d + (k[1] - 0.5) * frayed * 0.9;
+            y = -w / 2 + (cl + 0.5) / cols * w + (k[2] - 0.5) * frayed;
+          } else { x = -d / 2 + k[1] * d; y = -w / 2 + k[2] * w; }
+          if (wob > 0.05) { x += Math.sin(t * 4 + j * 1.7) * wob * 0.5; y += Math.cos(t * 3.3 + j * 2.1) * wob * 0.5; }
+          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8 + 0.8, fs + 0.8); else ctx.fillRect(x - fs / 2 - 0.4, y - fs / 2 - 0.4, fs + 0.8, fs + 0.8);
+          ctx.fillStyle = flash ? '#fff' : (k[3] < 0.1 && r < 0.6 ? 'rgba(80,80,80,0.9)' : fc.color); // some men already look worn
+          if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8, fs); else ctx.fillRect(x - fs / 2, y - fs / 2, fs, fs);
+          if (detail) {
+            ctx.fillStyle = u.type === 'guard' ? '#f0c040' : '#e8e0d0'; ctx.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
+            ctx.strokeStyle = 'rgba(30,30,30,0.9)'; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(x + 0.4, y); ctx.lineTo(x + (u.cls === 'cav' ? 4.2 : 3.4), y); ctx.stroke();
+          }
+        }
+      }
+      // standard-bearer at the front centre (lost with the regiment's strength)
+      if (r > 0.18 && u.cls !== 'art') {
+        const px = d / 2 + 1.5;
+        ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(px - 4, 0); ctx.lineTo(px + 4, 0); ctx.stroke();
+        ctx.fillStyle = fc.color; ctx.fillRect(px + 1, -3.2, 3.4, 3); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.4; ctx.strokeRect(px + 1, -3.2, 3.4, 3);
+      }
+      if (u.type === 'guard') { ctx.strokeStyle = 'rgba(240,192,64,0.8)'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]); ctx.strokeRect(-d / 2 - 1, -w / 2 - 1, d + 2, w + 2); ctx.setLineDash([]); }
+      if (u.formation === 'square') { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.7; ctx.strokeRect(-d / 2, -w / 2, d, w); }
+      if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.4, 2 / Math.max(0.6, sk)); ctx.setLineDash([5, 3]); ctx.strokeRect(-d / 2 - 3, -w / 2 - 3, d + 6, w + 6); ctx.setLineDash([]); }
+    }
+
+    drawGuns(ctx, u, w, d, fc, K, r, detail) {
+      const guns = clamp(Math.ceil(u.men / 10), 1, 8), crew = clamp(Math.ceil(u.men / 8), 1, 10);
+      const span = Math.max(w, 18);
+      for (let g = 0; g < guns; g++) {
+        const y = guns === 1 ? 0 : -span / 2 + (g + 0.5) / guns * span + (K[g][1] - 0.5) * (1 - r) * 4;
+        const x = -2 + (K[g][2] - 0.5) * (1 - r) * 3;
+        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, TAU); ctx.fill();
+        ctx.fillRect(x, y - 0.8, 8, 1.6);
+        ctx.fillStyle = fc.color; ctx.fillRect(x - 5, y - 1.3, 3, 2.6);
+        if (detail) { ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 0.5; ctx.strokeRect(x - 5, y - 1.3, 3, 2.6); }
+      }
+      for (let c = 0; c < crew; c++) {
+        const k = K[40 + c]; ctx.fillStyle = fc.color;
+        ctx.fillRect(-7 - k[0] * 5, -span / 2 + k[1] * span, 2, 2);
+      }
+    }
+
     drawUnit(ctx, u) {
       const fc = NAP.FACTIONS[u.faction];
       ctx.save();
@@ -829,42 +904,41 @@
         if (this.sel.has(u)) { ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(0, 0, 230, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
         ctx.restore(); return;
       }
-      ctx.rotate(u.facing);
       const w = u.w, d = u.d; // d along facing
+      const sk = this.fit * this.cam.z; // device px per world unit
+      const r = clamp(u.men / u.max, 0, 1);
+      const sel = this.sel.has(u);
       const flash = u.state === 'routing' && Math.floor(this.t * 4) % 2 === 0;
-      let body = fc.color;
-      ctx.globalAlpha = u.state === 'routing' ? 0.75 : 1;
-      if (u.formation === 'skirmish') {
-        ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(-d / 2, -w / 2, d, w);
-        ctx.fillStyle = body;
-        const n = Math.max(6, Math.round(u.men / 40));
-        for (let i = 0; i < n; i++) { const a = ((i * 97) % 100) / 100, b = ((i * 61) % 100) / 100; ctx.fillRect(-d / 2 + a * d, -w / 2 + b * w, 2.6, 2.6); }
-        ctx.strokeStyle = this.sel.has(u) ? '#fff' : 'rgba(0,0,0,0.5)'; ctx.lineWidth = this.sel.has(u) ? 2 : 1; ctx.strokeRect(-d / 2, -w / 2, d, w);
-      } else {
-        ctx.fillStyle = flash ? '#fff' : body;
-        ctx.fillRect(-d / 2, -w / 2, d, w);
-        // front edge
-        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(d / 2 - 2.2, -w / 2, 2.2, w);
-        if (u.cls === 'cav') { ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-d / 2 + 1, -w / 2 + 1); ctx.lineTo(d / 2 - 1, w / 2 - 1); ctx.stroke(); }
-        if (u.cls === 'art') { ctx.fillStyle = '#111'; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(2, i * (w / 3.5), 2.3, 0, TAU); ctx.fill(); ctx.fillRect(2, i * (w / 3.5) - 0.7, 8, 1.4); } }
-        if (u.type === 'guard') { ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 1.5; ctx.strokeRect(-d / 2 + 1, -w / 2 + 1, d - 2, w - 2); }
-        if (u.formation === 'square') { ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-d / 2, -w / 2); ctx.lineTo(d / 2, w / 2); ctx.moveTo(d / 2, -w / 2); ctx.lineTo(-d / 2, w / 2); ctx.stroke(); }
-        ctx.strokeStyle = this.sel.has(u) ? '#fff' : 'rgba(0,0,0,0.75)'; ctx.lineWidth = this.sel.has(u) ? 2.4 : 1.1;
-        ctx.strokeRect(-d / 2, -w / 2, d, w);
-      }
+      ctx.rotate(u.facing);
+      ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
+      if (Math.max(w, d) * sk < 46) {
+        // far zoom: simple block, kept visible
+        const boost = Math.min(3, Math.max(1, 7 / (Math.min(w, d) * sk)));
+        const K = this.keys4(u), segs = 9, sw = w * boost / segs, keep = r > 0.85 ? 2 : 0.25 + 0.75 * r;
+        ctx.fillStyle = flash ? '#fff' : fc.color;
+        for (let i = 0; i < segs; i++) { if (K[i][0] > keep) continue; ctx.fillRect(-d / 2 + (K[i][1] - 0.5) * (1 - r) * 3, -w * boost / 2 + i * sw, d, sw * 0.92); }
+        ctx.strokeStyle = sel ? '#fff' : 'rgba(0,0,0,0.8)'; ctx.lineWidth = (sel ? 2.4 : 1.1) / Math.max(0.5, sk);
+        if (sel || r > 0.85) ctx.strokeRect(-d / 2, -w * boost / 2, d, w * boost);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
+      } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, flash);
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
-      // morale bar
-      const bw = Math.max(26, Math.min(w, d) + 8), my = -Math.max(w, d) / 2 - 7;
-      const mp = clamp(u.morale / u.baseMorale, 0, 1);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, my, bw, 3.2);
-      ctx.fillStyle = mp > 0.6 ? '#4c4' : mp > 0.3 ? '#ec3' : '#e44'; ctx.fillRect(-bw / 2, my, bw * mp, 3.2);
-      const hp = clamp(u.men / u.max, 0, 1);
-      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, my + 3.6, bw, 2.2);
-      ctx.fillStyle = '#ddd'; ctx.fillRect(-bw / 2, my + 3.6, bw * hp, 2.2);
-      ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const label = String(Math.round(u.men));
-      ctx.strokeText(label, 0, Math.max(w, d) / 2 + 3); ctx.fillText(label, 0, Math.max(w, d) / 2 + 3);
+      // bars and label scale gently with zoom so they stay readable
+      const us = clamp(Math.pow(this.cam.z, -0.55), 0.4, 1.7), ext = Math.max(w, d) / 2;
+      ctx.save(); ctx.translate(0, -ext - 6 * us); ctx.scale(us, us);
+      const bw = 30, mp = clamp(u.morale / u.baseMorale, 0, 1), hp = r;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, 0, bw, 3.2);
+      ctx.fillStyle = mp > 0.6 ? '#4c4' : mp > 0.3 ? '#ec3' : '#e44'; ctx.fillRect(-bw / 2, 0, bw * mp, 3.2);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, 3.6, bw, 2.2);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(-bw / 2, 3.6, bw * hp, 2.2);
+      ctx.restore();
+      if (sk > 0.5) {
+        ctx.save(); ctx.translate(0, ext + 3 * us); ctx.scale(us, us);
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        const label = String(Math.round(u.men));
+        ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
+        ctx.restore();
+      }
       if (u.state === 'routing') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textBaseline = 'middle'; ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0); }
       if (u.wantForm) { ctx.fillStyle = '#fc6'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('↻', 0, 0); }
       ctx.restore();
@@ -883,7 +957,7 @@
           <div class="b-banner" id="b-banner"></div>
           <div class="b-feed" id="b-feed"></div>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel: zoom &middot; WASD: pan &middot; Space: pause</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom (0.4x-8x) &middot; Home: fit &middot; F: focus selection &middot; Middle-drag or arrows: pan &middot; Space: pause</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -899,6 +973,7 @@
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
             <button data-sp="1" class="b-sp on">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
+            <span class="b-sep"></span><button data-z="out" title="Zoom out (PageDown)">&minus;</button><span id="b-zoom" class="b-zoomlbl">100%</span><button data-z="in" title="Zoom in (PageUp)">+</button><button data-z="fit" title="Fit whole field (Home)">Fit</button><button data-z="focus" title="Focus selection (F)">Focus</button>
             <button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
             <button data-a="withdraw" class="danger">Withdraw</button>
           </div>
@@ -959,10 +1034,8 @@
       });
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const before = this.toWorld(pos(e).x, pos(e).y);
-        this.cam.z = clamp(this.cam.z * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.6, 3.5);
-        const after = this.toWorld(pos(e).x, pos(e).y);
-        this.cam.x += before.x - after.x; this.cam.y += before.y - after.y;
+        const f = Math.pow(1.0018, -e.deltaY * (e.deltaMode === 1 ? 20 : 1));
+        this.zoomBy(f, pos(e).x, pos(e).y);
       }, { passive: false });
       window.addEventListener('keydown', this.kd = (e) => {
         if (!this.canvas.isConnected) return;
@@ -977,11 +1050,14 @@
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
         else if (k === '+' || k === '=') this.setSpeed(Math.min(4, this.speed * 2)); else if (k === '-') this.setSpeed(Math.max(1, this.speed / 2));
         else if (k === 'tab') { e.preventDefault(); }
+        else if (k === 'pageup') { this.zoomBy(1.4); e.preventDefault(); } else if (k === 'pagedown') { this.zoomBy(1 / 1.4); e.preventDefault(); }
+        else if (k === 'home') { this.zoomFit(); e.preventDefault(); } else if (k === 'f') { this.focusSelection(); }
       });
       window.addEventListener('keyup', this.ku = (e) => { this.keys[e.key.toLowerCase()] = false; });
       r.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
         if (b.dataset.f) this.setForm(b.dataset.f);
         else if (b.dataset.sp) this.setSpeed(+b.dataset.sp);
+        else if (b.dataset.z) { const z = b.dataset.z; if (z === 'in') this.zoomBy(1.4); else if (z === 'out') this.zoomBy(1 / 1.4); else if (z === 'fit') this.zoomFit(); else this.focusSelection(); }
         else if (b.dataset.a === 'pause') this.togglePause();
         else if (b.dataset.a === 'charge') this.doCharge();
         else if (b.dataset.a === 'halt') this.halt();
@@ -991,13 +1067,30 @@
       }));
     }
 
+    zoomBy(f, px, py) {
+      const r = this.canvas.getBoundingClientRect();
+      if (px === undefined) { px = r.width / 2; py = r.height / 2; }
+      this.zt = clamp(this.zt * f, 0.4, 8);
+      const w = this.toWorld(px, py);
+      this.zAnchor = { px, py, wx: w.x, wy: w.y };
+    }
+    zoomFit() { this.zt = 1; this.zAnchor = null; this.camGoal = { x: FW / 2, y: FH / 2 }; }
+    focusSelection() {
+      const us = this.selectedUnits().filter((u) => u.cls !== 'gen' || !u.dead);
+      const list = us.length ? us : this.units.filter((u) => u.side === 0 && u.cls !== 'gen' && this.alive(u));
+      if (!list.length) return;
+      const cx = list.reduce((a, u) => a + u.x, 0) / list.length, cy = list.reduce((a, u) => a + u.y, 0) / list.length;
+      let ext = 120; for (const u of list) ext = Math.max(ext, Math.hypot(u.x - cx, u.y - cy) + 60);
+      this.zt = clamp(Math.min(FW, FH * 1.6) / (ext * 3.2), 0.9, 6); this.zAnchor = null; this.camGoal = { x: cx, y: cy };
+    }
+
     clickSelect(p, add, dbl) {
       const w = this.toWorld(p.x, p.y);
       let hit = null, bd = 1e9;
       for (const u of this.units) {
         if (u.side !== 0 || (u.cls !== 'gen' && !this.alive(u)) || u.dead || u.fled) continue;
         const d = u.cls === 'gen' ? Math.hypot(u.x - w.x, u.y - w.y) - 4 : this.pointGap(u, w);
-        if (d < 6 && d < bd) { bd = d; hit = u; }
+        if (d < clamp(8 / this.cam.z, 4, 22) && d < bd) { bd = d; hit = u; }
       }
       if (!add) this.sel.clear();
       if (hit) {
@@ -1072,8 +1165,15 @@
     frame(now) {
       if (this.stopped) return;
       const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
+      // smooth zoom toward the target, keeping the point under the cursor fixed
+      if (Math.abs(this.zt - this.cam.z) > 0.0005) {
+        this.cam.z += (this.zt - this.cam.z) * (1 - Math.exp(-dt * 14));
+        if (this.zAnchor) { const a = this.zAnchor, w = this.toWorld(a.px, a.py); this.cam.x += a.wx - w.x; this.cam.y += a.wy - w.y; }
+      }
+      if (this.camGoal) { const g = this.camGoal, k = 1 - Math.exp(-dt * 10); this.cam.x += (g.x - this.cam.x) * k; this.cam.y += (g.y - this.cam.y) * k; if (Math.hypot(g.x - this.cam.x, g.y - this.cam.y) < 1) this.camGoal = null; }
       // camera keys
       const ks = 520 * dt / this.cam.z;
+      if (this.keys.arrowleft || this.keys.arrowright || this.keys.arrowup || this.keys.arrowdown || this.keys.a || this.keys.d || this.keys.s) this.camGoal = null;
       if (this.keys.a && !this.keys.control) this.cam.x -= ks; if (this.keys.d) this.cam.x += ks;
       if (this.keys.arrowleft) this.cam.x -= ks; if (this.keys.arrowright) this.cam.x += ks;
       if (this.keys.arrowup) this.cam.y -= ks; if (this.keys.arrowdown) this.cam.y += ks;
@@ -1120,6 +1220,7 @@
         r.querySelector('#b-f' + s).style.width = clamp((tot / init) * 100, 0, 100) + '%';
         r.querySelector('#b-m' + s).textContent = `${Math.round(tot)} / ${init}`;
       }
+      const zl = r.querySelector('#b-zoom'); if (zl) zl.textContent = Math.round(this.cam.z * 100) + '%';
       const t = Math.floor(this.t);
       r.querySelector('#b-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
       const feed = r.querySelector('#b-feed');

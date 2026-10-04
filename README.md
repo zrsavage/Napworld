@@ -38,6 +38,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
+- **Zoomable battlefield (0.4x–8x):** smooth wheel zoom toward the cursor, PageUp/PageDown, Fit (Home), Focus selection (F), middle-drag or arrow-key panning. Zoomed in, every regiment is drawn soldier by soldier; as men fall the block shrinks, its ranks thin out and fray, standards are lost and morale makes the line shuffle and scatter.
 - **Weather & time of day:** rain weakens muskets, fog shortens sight, snow slows and tires, dusk ends the battle at nightfall. Fortified provinces put walls on the field.
 - **Smarter AI:** reserves, skirmish screens and artillery that withdraws from cavalry.
 - **Manual deployment:** before the battle starts, place and re-form your regiments inside a shaded deployment zone. The zone depends on the situation (defenders deploy deeper, mountains shrink it, rocks block placement) and AI defenders dig in on hills.
