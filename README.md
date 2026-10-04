@@ -38,6 +38,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
+- **Battle minimap** (bottom right; click/drag to move the view) and two-finger pinch zoom on touch screens.
 - **Zoomable battlefield (0.4x–8x):** smooth wheel zoom toward the cursor, PageUp/PageDown, Fit (Home), Focus selection (F), middle-drag or arrow-key panning. Zoomed in, every regiment is drawn soldier by soldier; as men fall the block shrinks, its ranks thin out and fray, standards are lost and morale makes the line shuffle and scatter.
 - **Weather & time of day:** rain weakens muskets, fog shortens sight, snow slows and tires, dusk ends the battle at nightfall. Fortified provinces put walls on the field.
 - **Smarter AI:** reserves, skirmish screens and artillery that withdraws from cavalry.
@@ -45,6 +46,11 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **After-action report and replay:** per-regiment losses, kills and fates, plus a replay of the whole battle at up to 24x.
 - Select with click / drag-box, right-click to move or attack, right-drag to draw a battle line.
   Or just **auto-resolve** any battle.
+
+## Playable single-file build
+
+`python3 tools/build_single.py` bundles everything into `dist/napworld.html` (a standalone page; just open it) and
+`dist/napworld.artifact.html` (body-only fragment for hosts that provide their own `<html>`). Rebuild after changing any source file.
 
 ## Controls
 

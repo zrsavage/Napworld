@@ -7,6 +7,7 @@
   const U = NAP.UNITS;
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const SAVE_KEY = 'napworld-save-v1', AUTOSAVE_KEY = 'napworld-autosave-v1', SUMMARY_KEY = 'napworld-summary-off';
 
   const ui = (NAP.ui = {
@@ -44,7 +45,7 @@
   function showStart() {
     if (ui.tut && ui.tut.on) tutEnd();
     $('#game').hidden = true; $('#battle').hidden = true;
-    const has = !!localStorage.getItem(SAVE_KEY), hasAuto = !!localStorage.getItem(AUTOSAVE_KEY);
+    const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
       ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div><div class="cards">`;
@@ -65,7 +66,8 @@
     $('#practbtn').onclick = startPractice;
     if (has) $('#loadbtn').onclick = () => loadGame(SAVE_KEY);
     if (hasAuto) $('#autobtn').onclick = () => loadGame(AUTOSAVE_KEY);
-    if (!localStorage.getItem('napworld-seen')) {
+    if (!ui.seenIntro && !lsGet('napworld-seen')) {
+      ui.seenIntro = true;
       try { localStorage.setItem('napworld-seen', '1'); } catch (e) {}
       modal(`<h2>Welcome to Napworld</h2>${NAP.guide.eventArt({ art: 'flags' })}<div class="body"><p style="font-size:15px">Europe, 1805. Napoleon stands at the head of France, Britain funds coalition after coalition, and the old crowns of Austria, Russia and Prussia prepare to fight. Take any of twelve nations through the Napoleonic Wars with a turn-based campaign map and real-time battles.</p><p>New here? The short guided tutorial teaches the controls in a few minutes.</p></div><div class="foot"><button data-r="no">I'll figure it out</button><button class="primary" data-r="yes">Start the tutorial</button></div>`, 'event').then((r) => { if (r === 'yes') startTutorial(); });
     }
@@ -89,7 +91,7 @@
   }
   function saveGame() { try { localStorage.setItem(SAVE_KEY, C.serialize()); toast('Game saved'); } catch (e) { toast('Could not save'); } }
   function loadGame(key) {
-    try { C.deserialize(localStorage.getItem(key || SAVE_KEY)); enterGame(); const f = S().player; const cap = NAP.world.byId[S().factions[f].cap]; ui.cam = { x: cap.cx, y: cap.cy, z: 1.1 }; ui.sel = { prov: null, army: null }; refresh(); toast('Game loaded'); }
+    try { C.deserialize(lsGet(key || SAVE_KEY)); enterGame(); const f = S().player; const cap = NAP.world.byId[S().factions[f].cap]; ui.cam = { x: cap.cx, y: cap.cy, z: 1.1 }; ui.sel = { prov: null, army: null }; refresh(); toast('Game loaded'); }
     catch (e) { console.error(e); toast('Save is corrupted'); }
   }
 
@@ -134,7 +136,7 @@
   // ---- end-of-turn summary
   async function showSummary() {
     const s = S(), sm = s.summary;
-    if (!sm || localStorage.getItem(SUMMARY_KEY) === '1' || (ui.tut && ui.tut.on)) return;
+    if (!sm || lsGet(SUMMARY_KEY) === '1' || (ui.tut && ui.tut.on)) return;
     const entries = sm.entries.filter((e) => !(e.kind || '').endsWith('-minor') && e.kind !== 'info' || /captur|besiege|battle|revolt|storm/i.test(e.text) && !(e.kind || '').endsWith('-minor'));
     const gained = sm.gained.map((id) => NAP.world.byId[id].name), lost = sm.lost.map((id) => NAP.world.byId[id].name);
     if (!entries.length && !gained.length && !lost.length) return;
@@ -465,6 +467,20 @@
     const after = toWorld(p.x, p.y);
     ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true;
   }, { passive: false });
+  // two-finger pinch zoom and pan (touch / trackpad-free devices)
+  (function () {
+    let t0 = null;
+    const info = (e) => { const a = e.touches[0], b = e.touches[1], r = canvas.getBoundingClientRect(); return { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), x: (a.clientX + b.clientX) / 2 - r.left, y: (a.clientY + b.clientY) / 2 - r.top }; };
+    canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { t0 = info(e); drag = null; e.preventDefault(); } }, { passive: false });
+    canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 2 || !t0) return; e.preventDefault();
+      const t1 = info(e), before = toWorld(t0.x, t0.y);
+      ui.cam.z = Math.max(0.45, Math.min(4, ui.cam.z * (t1.d / t0.d)));
+      const after = toWorld(t1.x, t1.y);
+      ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true; t0 = t1;
+    }, { passive: false });
+    canvas.addEventListener('touchend', () => { t0 = null; });
+  })();
   function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
   function selArmy() { const s = S(); return s && ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null; }
 

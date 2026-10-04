@@ -956,6 +956,7 @@
         <div class="b-stage" id="b-stage"><canvas id="b-canvas"></canvas>
           <div class="b-banner" id="b-banner"></div>
           <div class="b-feed" id="b-feed"></div>
+          <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
           <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom (0.4x-8x) &middot; Home: fit &middot; F: focus selection &middot; Middle-drag or arrows: pan &middot; Space: pause</div>
         </div>
@@ -1034,9 +1035,25 @@
       });
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const f = Math.pow(1.0018, -e.deltaY * (e.deltaMode === 1 ? 20 : 1));
+        const f = Math.pow(e.ctrlKey ? 1.012 : 1.0018, -e.deltaY * (e.deltaMode === 1 ? 20 : 1));
         this.zoomBy(f, pos(e).x, pos(e).y);
       }, { passive: false });
+      const mini = r.querySelector('#b-mini');
+      const miniMove = (e) => { const b = mini.getBoundingClientRect(); this.camGoal = null; this.cam.x = clamp((e.clientX - b.left) / b.width * FW, 0, FW); this.cam.y = clamp((e.clientY - b.top) / b.height * FH, 0, FH); };
+      mini.addEventListener('mousedown', (e) => { this.miniDrag = true; miniMove(e); e.stopPropagation(); e.preventDefault(); });
+      window.addEventListener('mousemove', this.mmini = (e) => { if (this.miniDrag) miniMove(e); });
+      window.addEventListener('mouseup', this.umini = () => { this.miniDrag = false; });
+      // two-finger pinch zoom + pan
+      let t0 = null;
+      const tinfo = (e) => { const a = e.touches[0], b2 = e.touches[1], bb = this.canvas.getBoundingClientRect(); return { d: Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY), x: (a.clientX + b2.clientX) / 2 - bb.left, y: (a.clientY + b2.clientY) / 2 - bb.top }; };
+      this.canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { t0 = tinfo(e); this.box = null; e.preventDefault(); } }, { passive: false });
+      this.canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length !== 2 || !t0) return; e.preventDefault();
+        const t1 = tinfo(e), before = this.toWorld(t0.x, t0.y);
+        this.zt = this.cam.z = clamp(this.cam.z * (t1.d / t0.d), 0.4, 8); this.zAnchor = null;
+        const after = this.toWorld(t1.x, t1.y); this.cam.x += before.x - after.x; this.cam.y += before.y - after.y; t0 = t1;
+      }, { passive: false });
+      this.canvas.addEventListener('touchend', () => { t0 = null; });
       window.addEventListener('keydown', this.kd = (e) => {
         if (!this.canvas.isConnected) return;
         if (e.target && /input|textarea/i.test(e.target.tagName)) return;
@@ -1141,7 +1158,13 @@
     setSpeed(s) { this.speed = s; this.root.querySelectorAll('.b-sp').forEach((b) => b.classList.toggle('on', +b.dataset.sp === s)); }
     withdraw() {
       if (this.over) return;
-      if (!confirm('Withdraw from the field? Your army will suffer heavily and the battle is lost.')) return;
+      const wb = this.root.querySelector('[data-a="withdraw"]');
+      if (!this.wdArmed) { // in-page confirmation (browser dialogs are blocked in some viewers)
+        this.wdArmed = true; if (wb) wb.textContent = 'Really withdraw?';
+        setTimeout(() => { this.wdArmed = false; if (wb && !this.over) wb.textContent = 'Withdraw'; }, 3500);
+        this.msg('Press Withdraw again to confirm: your army will suffer heavily and the battle is lost.');
+        return;
+      }
       this.forced = 1;
       for (const u of this.units) if (u.side === 0 && u.cls !== 'gen' && this.alive(u)) u.state = 'routing';
       this.checkEnd();
@@ -1212,8 +1235,30 @@
       el.hidden = false;
     }
 
+    drawMini() {
+      const m = this.root.querySelector('#b-mini'); if (!m) return;
+      const x = m.getContext('2d'), k = m.width / FW;
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.fillStyle = this.terrain.base; x.fillRect(0, 0, m.width, m.height);
+      x.fillStyle = 'rgba(30,70,30,0.6)'; for (const f of this.terrain.forests) { x.beginPath(); x.ellipse(f.x * k, f.y * k, f.rx * k, f.ry * k, 0, 0, TAU); x.fill(); }
+      x.fillStyle = 'rgba(230,220,160,0.6)'; for (const h of this.terrain.hills) { x.beginPath(); x.arc(h.x * k, h.y * k, h.r * k, 0, TAU); x.fill(); }
+      const fog = this.spec.weather === 'fog' && !this.over && !this.replay;
+      const mine = fog ? this.units.filter((u) => u.side === 0 && this.alive(u)) : null;
+      for (const u of this.units) {
+        if (u.fled || u.dead) continue;
+        if (fog && u.side === 1 && !mine.some((q) => Math.hypot(q.x - u.x, q.y - u.y) < 400)) continue;
+        x.fillStyle = NAP.FACTIONS[u.faction].color; x.globalAlpha = u.state === 'routing' ? 0.5 : 1;
+        const sz = u.cls === 'gen' ? 3.2 : u.cls === 'art' ? 2.2 : 2.8 + 1.6 * clamp(u.men / u.max, 0, 1);
+        x.fillRect(u.x * k - sz / 2, u.y * k - sz / 2, sz, sz); x.globalAlpha = 1;
+        if (this.sel.has(u)) { x.strokeStyle = '#fff'; x.lineWidth = 1; x.strokeRect(u.x * k - sz / 2 - 1, u.y * k - sz / 2 - 1, sz + 2, sz + 2); }
+      }
+      const c = this.canvas, vw = c.width / (this.fit * this.cam.z), vh = c.height / (this.fit * this.cam.z);
+      x.strokeStyle = '#fff'; x.lineWidth = 1.4; x.strokeRect((this.cam.x - vw / 2) * k, (this.cam.y - vh / 2) * k, vw * k, vh * k);
+    }
+
     hud() {
       const r = this.root;
+      this.drawMini();
       if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {
         const tot = this.totalMen(s), init = this.initialMen[s] || 1;
@@ -1292,7 +1337,7 @@
       cancelAnimationFrame(this.raf);
       window.removeEventListener('resize', this.onResize);
       if (this.ro) this.ro.disconnect();
-      window.removeEventListener('mousemove', this.mm); window.removeEventListener('mouseup', this.mu);
+      window.removeEventListener('mousemove', this.mm); window.removeEventListener('mouseup', this.mu); window.removeEventListener('mousemove', this.mmini); window.removeEventListener('mouseup', this.umini);
       window.removeEventListener('keydown', this.kd); window.removeEventListener('keyup', this.ku);
       this.root.innerHTML = '';
       this.done(this.result);
