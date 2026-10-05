@@ -1269,7 +1269,7 @@
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with keys 1-4, then press <b>Space</b> to begin.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with <b>F1-F4</b>, then press <b>Space</b> to begin. Flagged circles are <b>objectives</b>: hold them to earn victory points.</p>`;
     }
 
     bind() {

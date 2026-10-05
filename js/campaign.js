@@ -37,7 +37,7 @@
   C.newGame = function (player, difficulty) {
     const w = W();
     S = {
-      player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
+      version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
       log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
@@ -119,6 +119,7 @@
     if (!t.size) t.add(g.lead >= 4 ? 'inspiring' : g.def >= g.atk ? 'defender' : 'aggressive');
     return [...t].slice(0, 2);
   }
+  C.VERSION = 5;
   C.hasTrait = (g, t) => !!g && (g.traits || []).includes(t);
   C.assignGeneral = function (army, gid) {
     if (army.general) { const old = S.generals[army.general]; if (old) old.assigned = null; if (old && old.alive) S.pool[old.owner].push(old.id); }
@@ -460,6 +461,7 @@
   }
   C.warScore = function (a, b) { const w = S.wars[pkey(a, b)]; return w && w.s ? (w.s[a] || 0) - (w.s[b] || 0) : 0; };
   const provValue = (pid) => { const d = C.def(pid); return 12 + d.income * 1.5 + (d.capital ? 25 : 0) + S.provinces[pid].fort * 4; };
+  C.provValue = provValue;
   // Options for the player ('from') when negotiating with 'to'
   C.peaceOptions = function (from, to) {
     const w0 = S.wars[pkey(from, to)], goal = w0 && w0.goal && w0.goal.by === from ? w0.goal : null;
@@ -1526,5 +1528,40 @@
 
   // Serialise
   C.serialize = () => JSON.stringify(S);
-  C.deserialize = (txt) => { S = JSON.parse(txt); NAP.recolor(S); return S; };
+  // ---- save versioning: older saves are upgraded in place, newer ones are refused
+  C.migrate = function (d) {
+    const v = d.version || 1;
+    if (v > C.VERSION) throw new Error('This save was made by a newer version of the game.');
+    for (const ps of Object.values(d.provinces)) {
+      for (const k of ['stables', 'arsenal', 'academy']) if (ps[k] === undefined) ps[k] = 0;
+      if (ps.unrest === undefined) ps.unrest = 0;
+      if (!ps.policy) ps.policy = 'balanced';
+      ps.foraged = false;
+    }
+    for (const g of Object.values(d.generals || {})) {
+      if (g.loyalty === undefined) g.loyalty = 75;
+      if (g.idle === undefined) g.idle = 0;
+      if (!g.traits) g.traits = deriveTraits(g);
+    }
+    for (const a of d.armies) {
+      if (a.fatigue === undefined) a.fatigue = 0;
+      if (a.forage === undefined) a.forage = false;
+      if (a.staff === undefined) a.staff = null;
+      for (const u of a.units) { if (u.vet === undefined) u.vet = 0; if (u.xp === undefined) u.xp = 0; }
+    }
+    for (const f of Object.values(d.factions)) {
+      if (f.wonBattles === undefined) f.wonBattles = 0;
+      if (f.lostBattles === undefined) f.lostBattles = 0;
+      if (f.incomeMult === undefined) f.incomeMult = 1;
+    }
+    for (const w of Object.values(d.wars || {})) { if (!w.s) w.s = {}; if (w.exh === undefined) w.exh = 0; if (!w.goal) w.goal = { by: null, type: 'none' }; }
+    if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
+    if (!d.truce) d.truce = {};
+    if (!d.turnLog) d.turnLog = [];
+    if (!d.msgs) d.msgs = [];
+    d.version = C.VERSION;
+    return d;
+  };
+  C.deserialize = (txt) => { const d = C.migrate(JSON.parse(txt)); S = d; NAP.recolor(S); return S; };
+
 })();

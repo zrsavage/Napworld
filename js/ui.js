@@ -106,6 +106,7 @@
     const s = S(), p = s.player, fs = s.factions[p];
     const inc = C.factionIncome(p), up = C.factionUpkeep(p), net = inc - up;
     const provs = C.provincesOf(p).length, total = NAP.world.provs.length;
+    const att = C.attention(p);
     const at = C.warsOf(p).filter((x) => x !== 'minor' || true).map((x) => F(x).adj);
     $('#topbar').innerHTML = `
       <span class="flag" style="background:${F(p).color}"></span><span class="fname">${esc(F(p).name)}</span>
@@ -115,25 +116,69 @@
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
-      <button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
+      <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
     $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
-    $('#endturn').onclick = endTurn;
+    $('#endturn').onclick = () => endTurn();
+    $('#advance').onclick = advance;
+    $('#b-att').onclick = showAttention;
   }
 
-  async function endTurn() {
+  async function showAttention() {
+    const list = C.attention(S().player);
+    const html = `<h2>Needs attention</h2><div class="body">${list.length ? list.map((x, i) => `<div class="attrow sev${x.sev}"><span>${esc(x.text)}</span><button data-r="${i}">Go</button></div>`).join('') : '<p class="muted">Nothing urgent. All armies have orders and no province is in trouble.</p>'}</div><div class="foot"><button data-r="x">Close</button></div>`;
+    const r = await modal(html);
+    if (r === null || r === 'x' || list[+r] === undefined) return;
+    focusAttention(list[+r]);
+  }
+  function focusAttention(x) {
+    const p = NAP.world.byId[x.prov]; if (!p) return;
+    ui.cam.x = p.cx; ui.cam.y = p.cy; ui.cam.z = Math.max(ui.cam.z, 1.2); clampCam();
+    ui.sel = { prov: x.prov, army: x.army || null };
+    ui.pulseProv = x.prov; setTimeout(() => { if (ui.pulseProv === x.prov) { ui.pulseProv = null; dirty = true; } }, 2500);
+    refresh();
+  }
+  async function endTurn(skipWarn) {
     const s = S();
     if (s.busy || s.winner) return;
-    // warn about idle armies? keep simple
+    if (!skipWarn && !ui.noIdleWarn && !(ui.tut && ui.tut.on)) {
+      const idle = C.attention(s.player).filter((x) => x.kind === 'idle' || x.kind === 'supply');
+      if (idle.length) {
+        const r = await modal(`<h2>Armies awaiting orders</h2><div class="body">${idle.slice(0, 6).map((x, i) => `<div class="attrow"><span>${esc(x.text)}</span><button data-r="g${i}">Go</button></div>`).join('')}<label class="muted" style="display:block;margin-top:10px"><input type="checkbox" id="idlewarn"> Don't warn me again</label></div><div class="foot"><button data-r="no">Review</button><button class="primary" data-r="yes">End turn anyway</button></div>`);
+        const chk = $('#idlewarn'); if (chk && chk.checked) ui.noIdleWarn = true;
+        if (r && r[0] === 'g') { focusAttention(idle[+r.slice(1)]); return; }
+        if (r !== 'yes') return;
+      }
+    }
+    await turnCore();
+    if (!s.winner) await showSummary();
+    if (s.winner) await showEnd(s.winner);
+    refresh();
+  }
+  async function turnCore() {
+    const s = S();
     $('#endturn').disabled = true; $('#endturn').textContent = 'Processing…';
     ui.sel.army = ui.sel.army && s.armies.find((a) => a.id === ui.sel.army) ? ui.sel.army : null;
     if (NAP.audio) NAP.audio.sfx('roll');
     try { await C.endTurn(); } catch (e) { console.error(e); toast('Error: ' + e.message); s.busy = false; }
     try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ }
     refresh();
+  }
+  // end turns until something needs the player
+  async function advance() {
+    const s = S();
+    if (s.busy || s.winner) return;
+    for (let i = 0; i < 6; i++) {
+      await turnCore();
+      if (s.winner) break;
+      const sm = s.summary || { entries: [], gained: [], lost: [] };
+      const key = sm.gained.length || sm.lost.length || sm.entries.some((e) => /battle|captur|besiege|revolt|storm|war on|peace|alliance/i.test(e.text) && !(e.kind || '').endsWith('-minor'));
+      const urgent = C.attention(s.player).filter((x) => x.sev >= 2);
+      if (key || urgent.length) { if (urgent.length) focusAttention(urgent[0]); break; }
+    }
     if (!s.winner) await showSummary();
     if (s.winner) await showEnd(s.winner);
     refresh();
@@ -170,8 +215,14 @@
 
   // ------------------------------------------------------------------ side panel
   function provTip(p) {
-    const ps = S().provinces[p.id];
-    return `${esc(p.name)} — ${esc(F(ps.owner).adj)}`;
+    const s = S(), ps = s.provinces[p.id], d = NAP.world.byId[p.id];
+    let h = `<b>${p.capital ? '\u2605 ' : ''}${esc(p.name)}</b> \u2014 ${esc(F(ps.owner).adj)}<br><span class="ttk">${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[p.terrain]}${p.port ? ' \u00B7 Port' : ''} \u00B7 Income ${fmt(C.provIncome(ps))} \u00B7 Manpower ${C.def(p.id).manpower}</span>`;
+    if ((ps.unrest || 0) > 5) h += `<br><span class="${ps.unrest >= 60 ? 'bad' : 'warn'}">Unrest ${Math.round(ps.unrest)}%</span>`;
+    const bl = ['market', 'barracks', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
+    if (bl.length) h += `<br><span class="ttk">${bl.join(', ')}</span>`;
+    const ar = s.armies.filter((a) => a.prov === p.id); if (ar.length) h += '<br>' + ar.map((a) => `${esc(F(a.owner).adj)} army (${a.units.length} regts)`).join('<br>');
+    if (ps.siege) h += `<br><span class="bad">Besieged by ${esc(F(ps.siege.by).adj)}</span>`;
+    return h;
   }
   const dots = (v, max) => '\u25CF'.repeat(Math.max(0, Math.min(max, v))) + '\u25CB'.repeat(max - Math.max(0, Math.min(max, v)));
   function unitTip(t, ps, err, cost) {
@@ -266,7 +317,7 @@
   function armyPanel(a) {
     const s = S(), mine = a.owner === s.player, g = a.general ? s.generals[a.general] : null;
     let html = `<div class="sec"><h4>${esc(F(a.owner).adj)} army · ${a.units.length}/${C.stackLimit} regiments</h4>`;
-    if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span></div>`;
+    if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
     const dpt = C.supplyDepth(a);
@@ -280,6 +331,8 @@
     if (mine) {
       const sErr = C.assaultCheck(a);
       html += `<div class="row"><label><input type="checkbox" data-act="forced" ${a.forced ? 'checked' : ''}> Forced march <span class="muted">(2 provinces/turn, −3% men, +fatigue)</span></label></div>`;
+      html += `<div class="row"><label data-tip="Living off the land: fewer losses from supply shortage, but the province is stripped and angered (unrest +8, income cut next month)."><input type="checkbox" data-act="forage" ${a.forage ? 'checked' : ''}> Forage <span class="muted">(fewer losses, ruins the province)</span></label></div>`;
+      html += `<div class="row"><select id="staffpick" data-tip="Staff officers cost gold once and a little upkeep each turn."><option value="">${a.staff ? 'Staff: ' + esc(NAP.STAFF[a.staff].name) + ' (change)' : 'Hire staff officer\u2026'}</option>${Object.keys(NAP.STAFF).filter((k) => k !== a.staff).map((k) => `<option value="${k}">${esc(NAP.STAFF[k].name)} \u2014 ${NAP.STAFF[k].cost}g: ${esc(NAP.STAFF[k].desc)}</option>`).join('')}${a.staff ? '<option value="none">Dismiss staff officer</option>' : ''}</select></div>`;
       if (!sErr) html += `<div class="row"><button data-act="storm" class="danger" title="Garrison about ${C.garrisonStrength(a.prov)} men">Storm the walls</button></div>`;
       html += `<div class="row"><button data-act="split">Split selected</button><button data-act="merge">Merge here</button><button data-act="stop">Halt</button><button data-act="disband" class="danger">Disband</button></div>`;
       const pool = C.availableGenerals(s.player);
@@ -294,6 +347,7 @@
     el.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       const act = b.dataset.act;
       if (act === 'forced') { a.forced = b.checked; return; }
+      if (act === 'forage') { a.forage = b.checked; return; }
       if (act === 'split') { const idx = checked(); if (!idx.length || idx.length >= a.units.length) return toast('Select some (not all) regiments'); const na = C.splitArmy(a, idx); if (na) ui.sel.army = na.id; }
       else if (act === 'merge') { const others = S().armies.filter((x) => x !== a && x.prov === a.prov && x.owner === a.owner); let n = 0; others.forEach((o) => { if (C.mergeArmies(a, o)) n++; }); toast(n ? `Merged ${n} army` : 'Nothing to merge (stack limit?)'); }
       else if (act === 'stop') a.path = [];
@@ -303,6 +357,8 @@
       else if (act === 'relieve') { const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
       refresh();
     }));
+    const sp = $('#staffpick');
+    if (sp) sp.onchange = () => { if (!sp.value) return; const e = C.setStaff(a, sp.value === 'none' ? null : sp.value); if (e) toast(e); refresh(); };
     const gp = $('#genpick');
     if (gp) gp.onchange = () => { if (gp.value) { C.assignGeneral(a, +gp.value); refresh(); } };
   }
@@ -316,7 +372,7 @@
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
-      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, keys 1-4 for Line/Column/Square/Skirmish, C to charge, H to halt, R to rally with your general, Space to pause. Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
+      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, F1-F4 for Line/Column/Square/Skirmish, Ctrl+1-9 to save a control group (press the digit to recall it, twice to centre), C to charge, H to halt, R to rally with your general, Space to pause (you can still give orders while paused). Hold the flagged objectives for victory points: hold them all for 75 seconds or lead by 25 VP at the time limit to win. Hover or select a regiment to see its flank arcs (green front, yellow flanks, red rear). Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
   }
   function relBar(v) {
@@ -333,7 +389,9 @@
         const war = C.atWar(me, f), al = C.allied(me, f), rel = C.rel(me, f);
         const ws = war ? C.warScore(me, f) : 0;
         const status = war ? `<span class="tag war">WAR</span> <small class="${ws >= 0 ? 'good' : 'bad'}" title="War score">${ws >= 0 ? '+' : ''}${Math.round(ws)}</small>` : al ? '<span class="tag ally">ALLY</span>' : '<span class="tag peace">PEACE</span>';
-        const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`;
+        const tr = (k, lbl, tip) => (C.hasTreaty(k, me, f) ? `<button data-d="un-${k}:${f}" class="on" data-tip="${tip} Click to cancel.">${lbl} \u2714</button>` : `<button data-d="${k}:${f}" data-tip="${tip}">${lbl}</button>`);
+        const treat = f !== 'minor' && !war ? tr('trade', 'Trade', '<b>Trade agreement</b><br>Both sides earn extra gold each turn. Needs fair relations.') + tr('access', 'Access', '<b>Military access</b><br>Lets armies cross each other\'s land without war (and keeps supply lines open).') + (al ? tr('marriage', 'Marriage', '<b>Royal marriage</b><br>Binds an alliance: harder to break, and the partner is far more likely to join your wars. Needs relations +30.') : '') : '';
+        const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : (al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`) + treat;
         return `<tr><td>${flag(f)}${esc(F(f).name)}</td><td>${status}</td><td>${relBar(rel)}</td><td>${C.provincesOf(f).length}</td><td class="btns">${btns}</td></tr>`;
       }).join('');
       m.innerHTML = `<div class="dlg"><h2>Diplomacy</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Status</th><th>Opinion</th><th>Prov</th><th>Actions</th></tr>${rows}</table><p class="muted" id="dipmsg" style="min-height:20px">${esc(msg || '')}</p></div><div class="foot"><button id="dipclose">Close</button></div></div>`;
@@ -341,11 +399,23 @@
       $('#dipclose').onclick = close;
       m.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => {
         const [act, f] = b.dataset.d.split(':');
-        if (act === 'war') { C.declareWar(me, f); refresh(); main(`You declare war on ${F(f).name}.`); }
+        if (act === 'war') warGoal(f);
+        else if (act === 'trade' || act === 'access' || act === 'marriage') { const [ok, why] = C.proposeTreaty(act, me, f); refresh(); main(why); }
+        else if (act.startsWith('un-')) { C.cancelTreaty(act.slice(3), me, f); refresh(); main('Treaty cancelled.'); }
         else if (act === 'peace') terms(f);
         else if (act === 'ally') { const [ok, why] = C.acceptsAlliance(f, me); if (ok) C.makeAlliance(me, f); refresh(); main(why); }
         else if (act === 'break') { C.breakAlliance(me, f); refresh(); main('Alliance broken.'); }
       }));
+    };
+    const warGoal = (f) => {
+      const cand = C.provincesOf(f).filter((p) => p.adj.some((i) => s.provinces[NAP.world.provs[i].id].owner === me) || p.port).map((p) => ({ p, v: C.provValue ? C.provValue(p.id) : p.income })).sort((x, y) => y.v - x.v).slice(0, 6);
+      m.innerHTML = `<div class="dlg"><h2>War against ${esc(F(f).name)}</h2><div class="body"><p>Choose your <b>war goal</b>. Demanding it at the peace table counts in your favour; other demands look illegitimate and are harder to win.</p>
+        ${cand.map((c, i) => `<label class="termopt"><input type="radio" name="goal" value="province:${c.p.id}" ${i === 0 ? 'checked' : ''}>Take ${esc(c.p.name)}</label>`).join('')}
+        <label class="termopt"><input type="radio" name="goal" value="gold" ${cand.length ? '' : 'checked'}>Win an indemnity (gold)</label>
+        <label class="termopt"><input type="radio" name="goal" value="none">No fixed goal</label></div>
+        <div class="foot"><button id="wback">Back</button><button class="danger" id="wgo">Declare war</button></div></div>`;
+      $('#wback').onclick = () => main('');
+      $('#wgo').onclick = () => { const v = m.querySelector('input[name=goal]:checked').value; const goal = v === 'gold' ? { by: me, type: 'gold' } : v === 'none' ? { by: me, type: 'none' } : { by: me, type: 'province', id: v.split(':')[1] }; C.declareWar(me, f, undefined, goal); refresh(); main(`You declare war on ${F(f).name}.`); };
     };
     const terms = (f) => {
       const opts = C.peaceOptions(me, f), ws = C.warScore(me, f);
@@ -420,6 +490,7 @@
   };
   C.hooks.offer = async (m) => {
     const f = F(m.from);
+    if (m.type === 'trade-offer') return (await modal(`<h2>Trade proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes a trade agreement: both nations will earn more gold each month.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Sign agreement</button></div>`, 'event')) === 'yes';
     const html = m.type === 'peace-offer'
       ? `<h2>Peace proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) offers peace${m.demand ? ` on condition that you pay <b>${m.demand} gold</b>` : ''}. Captured provinces will remain with their current owners.</p></div><div class="foot"><button data-r="no">Refuse</button><button class="primary" data-r="yes">Accept peace</button></div>`
       : `<h2>Alliance proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes an alliance against our common enemies.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Accept alliance</button></div>`;
@@ -629,6 +700,7 @@
     opts.selArmy = ui.sel.army; opts.pulse = ui.pulseProv || null;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
     opts.seaFrom = a && a.owner === s.player && NAP.world.byId[a.prov].port ? a.prov : null;
+    opts.supplyPaths = C.armiesOf(s.player).filter((x) => x === a || (x.supply || 0) >= 2).map((x) => C.supplyPath(x)).filter((q) => q.length > 1);
     opts.pathProvs = a ? [a.prov, ...(a.path.length ? a.path : ui.preview || [])] : null;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);

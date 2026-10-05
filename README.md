@@ -39,6 +39,18 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **Turn report & autosave:** a monthly summary of money, battles and gains/losses; autosave every turn.
 - **Tutorial:** guided first-turn tutorial (Start screen), practice battle with live tips, in-game help, period-style event illustrations, procedural sound and music.
 
+**v5: the big "do it all" update**
+- **Battle readability:** red target lines and rings for attack orders, move flags with facing arrows, flank arcs (green front, yellow flanks, red rear) for the selection and for whatever you hover, pause-and-plan (orders work while paused), control groups, casualty numbers floating off hit regiments and a red hit-flash.
+- **Objectives:** flagged points (village, hill, crossroads) are captured by presence. They score victory points; hold them all for 75 s or lead by 25 VP at the time limit. The AI contests them.
+- **Campaign pacing:** needs-attention panel, idle-army warning on End Turn, and **Advance ▶▶** (up to 6 turns, stops on battles, lost provinces, idle armies or supply trouble).
+- **Supply & seasons:** supply lines are drawn for armies out of supply, **Forage** (fewer losses, ruins the province), harsher winters, seasonal map tint.
+- **Generals as characters:** traits (Aggressive, Steadfast, Cavalryman, Gunner, Inspiring, Logistician), loyalty, rising colonels, hireable staff officers.
+- **Diplomacy:** trade agreements, military access, royal marriages, and a **war goal** chosen when you declare war (demanding it in peace talks is easier).
+- **Sound & polish:** positional battle sound, bugle/hoof cues, dust trails.
+- **Map:** province borders prefer to follow rivers and mountain ridges; hover a province for an info card.
+- **Tooling:** `node tools/balance.js battles|campaign|all` runs repeatable battle matchups and bot-played campaigns (needs Playwright + Chromium).
+- **Saves** are versioned and older saves are migrated; saves from a newer game version are refused politely.
+
 **Tactical battles** (real-time, rectangles on a field)
 - Regiments as blocks with **formations** (line, column, square, skirmish), facing, **flanking / rear** bonuses,
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
@@ -70,13 +82,16 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 | Enter | end turn |
 | Minimap | click / drag (bottom-left) to jump around the map |
 | D | diplomacy |
+| ⚑ button | needs-attention list (click an item to jump to it) |
+| ▶▶ button | advance turns until something needs you |
 
 | Battle | |
 |---|---|
 | Left-click / drag | select / box-select (double-click selects all of a type, Ctrl+A all) |
 | Right-click | move (on an enemy: attack; Ctrl/Shift+right-click: charge) |
 | Right-drag | draw a line to deploy selected units facing the enemy |
-| 1 / 2 / 3 / 4 | Line / Column / Square / Skirmish |
+| F1 / F2 / F3 / F4 (or Shift+1-4) | Line / Column / Square / Skirmish |
+| Ctrl+1-9 / 1-9 | save / recall a control group (press twice to centre the view) |
 | C / H / R | Charge / Halt / Rally (general) |
 | Space, + / − | Pause, game speed |
 | WASD / arrows, wheel | pan, zoom |

@@ -86,6 +86,20 @@
       return [sx, sy];
     });
 
+    // rivers and mountain ridges are costly to cross, so province borders tend to follow them
+    const bar = new Float32Array(gw * gh);
+    {
+      const bc = document.createElement('canvas'); bc.width = gw; bc.height = gh;
+      const bx = bc.getContext('2d', { willReadFrequently: true });
+      const trace = (lines, lw, ch) => {
+        bx.clearRect(0, 0, gw, gh); bx.strokeStyle = '#f00'; bx.lineWidth = lw; bx.lineJoin = 'round';
+        for (const r of lines) { bx.beginPath(); r.forEach((pt, i) => { const [x, y] = NAP.proj(pt[0], pt[1]); if (i) bx.lineTo(x / cs, y / cs); else bx.moveTo(x / cs, y / cs); }); bx.stroke(); }
+        const d = bx.getImageData(0, 0, gw, gh).data;
+        for (let i = 0; i < gw * gh; i++) if (d[i * 4 + 3] > 90) bar[i] += ch;
+      };
+      trace(NAP.RIVERS || [], 1.8, 5);
+      trace(NAP.MOUNTAINS || [], 2.6, 1.2);
+    }
     // 3. Geodesic Voronoi via Dijkstra across land pixels
     const pg = new Uint16Array(gw * gh);
     const dist = new Float32Array(gw * gh).fill(1e9);
@@ -102,7 +116,7 @@
         if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
         const ni = ny * gw + nx;
         if (!land[ni]) continue;
-        const nd = d0 + nb[k][2];
+        const nd = d0 + nb[k][2] * (1 + bar[ni]);
         if (nd < dist[ni]) { dist[ni] = nd; pg[ni] = o; heap.push(nd, ni); }
       }
     }
@@ -279,6 +293,8 @@
     if (opts.hoverProv) ctx.drawImage(hlCanvas([opts.hoverProv], [255, 255, 255, 50]), 0, 0, gw * cs, gh * cs);
     if (opts.targets && opts.targets.length) ctx.drawImage(hlCanvas(opts.targets, [255, 240, 120, 70]), 0, 0, gw * cs, gh * cs);
     if (opts.selProv) ctx.drawImage(hlCanvas([opts.selProv], [255, 255, 255, 95]), 0, 0, gw * cs, gh * cs);
+    { const mo = state.month, tint = (mo === 12 || mo <= 2) ? 'rgba(235,243,255,0.30)' : mo === 3 ? 'rgba(235,243,255,0.10)' : (mo === 10 || mo === 11) ? 'rgba(200,120,40,0.10)' : (mo >= 7 && mo <= 8) ? 'rgba(255,220,120,0.06)' : null;
+      if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, gw * cs, gh * cs); } }
     ctx.restore();
     // coast line
     ctx.strokeStyle = 'rgba(40,35,25,0.8)'; ctx.lineWidth = 1.2; ctx.lineJoin = 'round';
@@ -354,6 +370,11 @@
       ctx.stroke(); ctx.setLineDash([]);
       const last = w.byId[opts.pathProvs[opts.pathProvs.length - 1]];
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(last.cx, last.cy, 4, 0, 7); ctx.fill();
+    }
+    if (opts.supplyPaths && opts.supplyPaths.length) {
+      ctx.strokeStyle = 'rgba(230,140,40,0.95)'; ctx.lineWidth = 2.2; ctx.setLineDash([2, 5]);
+      for (const sp of opts.supplyPaths) { ctx.beginPath(); sp.forEach((id, i) => { const q = w.byId[id]; if (i) ctx.lineTo(q.cx, q.cy); else ctx.moveTo(q.cx, q.cy); }); ctx.stroke(); }
+      ctx.setLineDash([]);
     }
     if (opts.pulse && w.byId[opts.pulse]) {
       const pp = w.byId[opts.pulse], k = (performance.now() % 1200) / 1200;

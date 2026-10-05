@@ -186,6 +186,22 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .card .ribbon { position: absolute; top: -9px; right: 10px; background: linear-gradient(#e0bd63, #b8913c); color: #231a05; font-size: 11px; font-weight: 800; letter-spacing: .6px; padding: 2px 9px; border-radius: 3px; text-transform: uppercase; }
 .card .why { font-size: 12px; color: #d4cdb6; }
 
+/* battle: pause banner, objectives HUD */
+.b-paused { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(20,24,34,0.85); border: 1px solid #7cf; color: #cfe6ff; padding: 5px 16px; border-radius: 4px; font-size: 13px; letter-spacing: .08em; pointer-events: none; z-index: 4; }
+.b-paused[hidden] { display: none; }
+#b-obj { font-size: 12px; opacity: .95; }
+#b-obj .ob { margin: 0 2px; font-size: 13px; }
+#b-obj .ob-1 { color: #ddd; } #b-obj .ob0 { color: #6af; } #b-obj .ob1 { color: #f66; }
+#b-obj .ob-1 { color: #ddd; }
+.good { color: #6d6; } .bad { color: #e66; }
+
+/* campaign: attention panel, buttons */
+#b-att.attn { border-color: #e8b04a; color: #ffd98a; }
+.attrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid #ffffff14; font-size: 13px; }
+.attrow.sev3 span { color: #ff9a8a; } .attrow.sev2 span { color: #ffd98a; }
+#tip { white-space: normal; max-width: 260px; line-height: 1.35; }
+button.on { border-color: #6c6; }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -502,6 +518,30 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     bavaria:  { tier:'Expert', rank:12, war:false, why:'Tiny and sandwiched between Austria and France.', tips:['Stay close to your French ally.'] }
   };
 
+
+  // ---- General traits and staff officers ----
+  NAP.TRAITS = {
+    aggressive:  { name: 'Aggressive',   desc: '+6% firepower and melee for his army.' },
+    defender:    { name: 'Steadfast',    desc: 'His troops take 6% fewer casualties.' },
+    cavalry:     { name: 'Cavalryman',   desc: 'Cavalry charges hit 15% harder.' },
+    artillery:   { name: 'Gunner',       desc: 'Artillery fire is 12% deadlier.' },
+    inspiring:   { name: 'Inspiring',    desc: '+5 morale for the army; rallies broken troops faster.' },
+    logistician: { name: 'Logistician',  desc: 'Army suffers 30% less attrition and tires less on the march.' }
+  };
+  NAP.STAFF = {
+    quartermaster: { name: 'Quartermaster General', cost: 150, upkeep: 3, desc: 'Attrition -25%, and the army recovers from fatigue faster.' },
+    gunner:        { name: 'Chief of Artillery',    cost: 150, upkeep: 3, desc: 'Artillery fire +10% and sieges progress faster.' },
+    horse:         { name: 'Cavalry Marshal',       cost: 150, upkeep: 3, desc: 'Cavalry charges +10% harder.' },
+    engineer:      { name: 'Chief Engineer',        cost: 150, upkeep: 3, desc: 'Sieges progress faster; assaults on forts are easier.' }
+  };
+  NAP.COLONEL_NAMES = {
+    france: ['Gerard', 'Lasalle', 'Pajol', 'Excelmans', 'Rapp', 'Duhesme', 'Friant', 'Gudin'], britain: ['Craufurd', 'Colborne', 'Barnard', 'Pakenham', 'Vandeleur', 'Maitland'],
+    austria: ['Mohr', 'Vincent', 'Nostitz', 'Liechtenstein', 'Frimont', 'Zach'], prussia: ['Zieten', 'Steinmetz', 'Roder', 'Thielmann', 'Pirch', 'Borstell'],
+    russia: ['Kutaisov', 'Neverovsky', 'Paskevich', 'Uvarov', 'Vorontsov', 'Dibich'], ottoman: ['Mehmed Pasha', 'Osman Bey', 'Salih Pasha', 'Yusuf Bey'],
+    spain: ['Alava', 'Mina', 'Zayas', 'Girón', 'Whittingham'], portugal: ['Pamplona', 'Lecor', 'Stubbs'], sweden: ['Sandels', 'Platen', 'Vegesack'], denmark: ['Ewald', 'Waldeck', 'Hegermann'],
+    naples: ['Carrascosa', 'Filangieri', 'Colletta'], bavaria: ['Raglovich', 'Preysing', 'Zoller'], minor: ['Captain Local']
+  };
+
   // ---- Generals ----
   // [name, faction, atk, def, lead, from-year, trait]
   NAP.GENERALS = [
@@ -656,13 +696,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const c = A.ctx, s = c.createBufferSource(); s.buffer = A.noise; s.playbackRate.value = 0.6 + Math.random() * 0.8;
     const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq;
     const g = c.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(bus || A.sfxBus); s.start(t, Math.random() * 0.5, dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(bus || A.cur || A.sfxBus); s.start(t, Math.random() * 0.5, dur + 0.05);
   }
   function tone(t, freq, dur, type, gain, bus, slideTo) {
     const c = A.ctx, o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(bus || A.sfxBus); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(bus || A.cur || A.sfxBus); o.start(t); o.stop(t + dur + 0.05);
   }
   const SFX = {
     click: (t) => tone(t, 880, 0.05, 'triangle', 0.08),
@@ -675,12 +715,23 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     roll: (t) => { for (let i = 0; i < 6; i++) { noiseBurst(t + i * 0.05, 0.07, 1800, 'bandpass', 0.18); } tone(t, 110, 0.3, 'sine', 0.35, null, 60); },
     fanfare: (t) => { [392, 494, 587, 784].forEach((f, i) => tone(t + i * 0.16, f, i === 3 ? 0.9 : 0.22, 'sawtooth', 0.1)); },
     defeat: (t) => { [330, 311, 262, 196].forEach((f, i) => tone(t + i * 0.28, f, 0.5, 'triangle', 0.12)); },
+    bugle: (t) => { tone(t, 466, 0.16, 'sawtooth', 0.12); tone(t + 0.19, 622, 0.16, 'sawtooth', 0.12); tone(t + 0.38, 784, 0.55, 'sawtooth', 0.14); },
+    hooves: (t) => { for (let i = 0; i < 6; i++) { noiseBurst(t + i * 0.065, 0.05, 420, 'lowpass', 0.2); tone(t + i * 0.065, 75, 0.06, 'sine', 0.2); } },
     bell: (t) => { tone(t, 660, 1.2, 'sine', 0.1); tone(t, 1320, 0.8, 'sine', 0.04); }
   };
-  A.sfx = function (name, gap) {
+  // opts: { pan: -1..1, vol: 0..1 } for positional sound
+  A.sfx = function (name, gap, opts) {
     if (!A.ctx || A.muted) return;
     if (gap && !ok('s:' + name, gap)) return;
-    try { SFX[name](A.ctx.currentTime + 0.001); } catch (e) {}
+    let node = null;
+    if (opts && (opts.pan || opts.vol !== undefined)) {
+      const g = A.ctx.createGain(); g.gain.value = opts.vol === undefined ? 1 : opts.vol;
+      if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, opts.pan || 0)); g.connect(p); p.connect(A.sfxBus); } else g.connect(A.sfxBus);
+      node = g;
+    }
+    A.cur = node;
+    try { SFX[name](A.ctx.currentTime + 0.001); } catch (e) { /* ignore */ }
+    A.cur = null;
   };
 
   // ---- generative music: drone + marching drum, two moods
@@ -806,6 +857,20 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       return [sx, sy];
     });
 
+    // rivers and mountain ridges are costly to cross, so province borders tend to follow them
+    const bar = new Float32Array(gw * gh);
+    {
+      const bc = document.createElement('canvas'); bc.width = gw; bc.height = gh;
+      const bx = bc.getContext('2d', { willReadFrequently: true });
+      const trace = (lines, lw, ch) => {
+        bx.clearRect(0, 0, gw, gh); bx.strokeStyle = '#f00'; bx.lineWidth = lw; bx.lineJoin = 'round';
+        for (const r of lines) { bx.beginPath(); r.forEach((pt, i) => { const [x, y] = NAP.proj(pt[0], pt[1]); if (i) bx.lineTo(x / cs, y / cs); else bx.moveTo(x / cs, y / cs); }); bx.stroke(); }
+        const d = bx.getImageData(0, 0, gw, gh).data;
+        for (let i = 0; i < gw * gh; i++) if (d[i * 4 + 3] > 90) bar[i] += ch;
+      };
+      trace(NAP.RIVERS || [], 1.8, 5);
+      trace(NAP.MOUNTAINS || [], 2.6, 1.2);
+    }
     // 3. Geodesic Voronoi via Dijkstra across land pixels
     const pg = new Uint16Array(gw * gh);
     const dist = new Float32Array(gw * gh).fill(1e9);
@@ -822,7 +887,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
         const ni = ny * gw + nx;
         if (!land[ni]) continue;
-        const nd = d0 + nb[k][2];
+        const nd = d0 + nb[k][2] * (1 + bar[ni]);
         if (nd < dist[ni]) { dist[ni] = nd; pg[ni] = o; heap.push(nd, ni); }
       }
     }
@@ -999,6 +1064,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (opts.hoverProv) ctx.drawImage(hlCanvas([opts.hoverProv], [255, 255, 255, 50]), 0, 0, gw * cs, gh * cs);
     if (opts.targets && opts.targets.length) ctx.drawImage(hlCanvas(opts.targets, [255, 240, 120, 70]), 0, 0, gw * cs, gh * cs);
     if (opts.selProv) ctx.drawImage(hlCanvas([opts.selProv], [255, 255, 255, 95]), 0, 0, gw * cs, gh * cs);
+    { const mo = state.month, tint = (mo === 12 || mo <= 2) ? 'rgba(235,243,255,0.30)' : mo === 3 ? 'rgba(235,243,255,0.10)' : (mo === 10 || mo === 11) ? 'rgba(200,120,40,0.10)' : (mo >= 7 && mo <= 8) ? 'rgba(255,220,120,0.06)' : null;
+      if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, gw * cs, gh * cs); } }
     ctx.restore();
     // coast line
     ctx.strokeStyle = 'rgba(40,35,25,0.8)'; ctx.lineWidth = 1.2; ctx.lineJoin = 'round';
@@ -1075,6 +1142,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const last = w.byId[opts.pathProvs[opts.pathProvs.length - 1]];
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(last.cx, last.cy, 4, 0, 7); ctx.fill();
     }
+    if (opts.supplyPaths && opts.supplyPaths.length) {
+      ctx.strokeStyle = 'rgba(230,140,40,0.95)'; ctx.lineWidth = 2.2; ctx.setLineDash([2, 5]);
+      for (const sp of opts.supplyPaths) { ctx.beginPath(); sp.forEach((id, i) => { const q = w.byId[id]; if (i) ctx.lineTo(q.cx, q.cy); else ctx.moveTo(q.cx, q.cy); }); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
     if (opts.pulse && w.byId[opts.pulse]) {
       const pp = w.byId[opts.pulse], k = (performance.now() % 1200) / 1200;
       ctx.strokeStyle = `rgba(255,224,90,${1 - k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(pp.cx, pp.cy, 12 + 34 * k, 0, 7); ctx.stroke();
@@ -1149,7 +1221,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   C.newGame = function (player, difficulty) {
     const w = W();
     S = {
-      player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
+      version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
       log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
@@ -1173,7 +1245,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     for (const g of NAP.GENERALS) {
       const id = S.nextGen++;
-      S.generals[id] = { id, name: g[0], owner: g[1], atk: g[2], def: g[3], lead: g[4], from: g[5], trait: g[6], xp: 0, lvl: 1, alive: true, assigned: null, arrived: g[5] <= 1805 };
+      S.generals[id] = { id, name: g[0], owner: g[1], atk: g[2], def: g[3], lead: g[4], from: g[5], trait: g[6], xp: 0, lvl: 1, alive: true, assigned: null, arrived: g[5] <= 1805, loyalty: 72 + Math.floor(rnd() * 22), idle: 0 };
+      S.generals[id].traits = deriveTraits(S.generals[id]);
       if (g[5] <= 1805) S.pool[g[1]].push(id);
     }
     for (const f in NAP.START_ARMIES) {
@@ -1219,10 +1292,23 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     S.armies.push(a);
     return a;
   };
+  function deriveTraits(g) {
+    const t = new Set(), txt = (g.trait || '').toLowerCase();
+    if (/cavalry|dash|hussar|cossack/.test(txt)) t.add('cavalry');
+    if (/artillery|gunner|engineer/.test(txt)) t.add('artillery');
+    if (/bravest|fearless|forward|lion|impetuous|rash|aggress|fierce|energetic|zealot|spoiled|sharp|hardy|guerrilla/.test(txt) || g.atk >= 6) t.add('aggressive');
+    if (/cautious|methodical|careful|steady|defender|rock|steadfast|loyal|hesitant|aged|old guard|solid|statesman/.test(txt) || g.def >= 6) t.add('defender');
+    if (/staff|reformer|organiser|diplomat|governor|logist|reform/.test(txt)) t.add('logistician');
+    if (g.lead >= 6 || /master|marshal|iron duke|fox|inspir/.test(txt)) t.add('inspiring');
+    if (!t.size) t.add(g.lead >= 4 ? 'inspiring' : g.def >= g.atk ? 'defender' : 'aggressive');
+    return [...t].slice(0, 2);
+  }
+  C.VERSION = 5;
+  C.hasTrait = (g, t) => !!g && (g.traits || []).includes(t);
   C.assignGeneral = function (army, gid) {
     if (army.general) { const old = S.generals[army.general]; if (old) old.assigned = null; if (old && old.alive) S.pool[old.owner].push(old.id); }
     const g = S.generals[gid];
-    army.general = gid; g.assigned = army.id;
+    army.general = gid; g.assigned = army.id; g.idle = 0; if (!g.wasCommander) { g.loyalty = Math.min(100, (g.loyalty || 70) + 5); g.wasCommander = true; }
     const pl = S.pool[g.owner]; const i = pl.indexOf(gid); if (i >= 0) pl.splice(i, 1);
   };
 
@@ -1266,6 +1352,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const d = C.def(ps.id);
     let v = d.income * INCOME_K * (1 + 0.5 * ps.market);
     if (ps.siege) v *= 0.1;
+    if (ps.foraged) v *= 0.3;
     v *= { tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1;
     const u = ps.unrest || 0;
     v *= u >= 60 ? 0.5 : u >= 30 ? 0.8 : 1;
@@ -1275,12 +1362,20 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     let v = 0;
     for (const p of C.provincesOf(f)) v += C.provIncome(S.provinces[p.id]);
     v += (COLONIAL[f] || 0) * INCOME_K * (S.factions[f].alive ? 1 : 0);
+    for (const o of C.treatyPartners('trade', f)) if (S.factions[o].alive && !atWar(f, o)) v += Math.min(45, C.provincesOf(o).reduce((q, p) => q + C.provIncome(S.provinces[p.id]), 0) * 0.07);
     const n = C.provincesOf(f).length;
     v *= 1 - clamp((n - 22) * 0.015, 0, 0.45); // overextension
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
     return Math.round(v * S.factions[f].incomeMult * (dm || 1));
   };
-  C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0), 0);
+  C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0);
+  C.setStaff = function (army, id) {
+    if (!id) { army.staff = null; return null; }
+    const st = NAP.STAFF[id], fs = S.factions[army.owner];
+    if (army.staff === id) return null;
+    if (fs.gold < st.cost) return 'Not enough gold';
+    fs.gold -= st.cost; army.staff = id; return null;
+  };
   C.manpowerGain = function (f) {
     let v = 0;
     for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
@@ -1291,7 +1386,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   // -------------------------------------------------------------------- movement graph
   function canEnter(f, pid) {
     const o = S.provinces[pid].owner;
-    return o === f || allied(f, o) || atWar(f, o);
+    return o === f || allied(f, o) || atWar(f, o) || C.hasTreaty('access', f, o);
   }
   C.canEnter = canEnter;
   const isSea = (a, b) => W().byId[a].sea.includes(W().byId[b].idx);
@@ -1413,27 +1508,67 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   C.availableGenerals = (f) => S.pool[f].map((id) => S.generals[id]).filter((g) => g.alive);
 
   // -------------------------------------------------------------------- diplomacy
+  // ---- treaties: trade deals, military access, dynastic marriages ----
+  C.hasTreaty = (kind, a, b) => !!(S.treaties && S.treaties[kind] && S.treaties[kind][pkey(a, b)]);
+  C.treatyPartners = (kind, f) => (S.treaties && S.treaties[kind] ? Object.keys(S.treaties[kind]).filter((k) => k.split('|').includes(f)).map((k) => k.split('|').find((x) => x !== f)) : []);
+  function setTreaty(kind, a, b, on) {
+    S.treaties = S.treaties || { trade: {}, access: {}, marriage: {} };
+    S.treaties[kind] = S.treaties[kind] || {};
+    if (on) S.treaties[kind][pkey(a, b)] = true; else delete S.treaties[kind][pkey(a, b)];
+  }
+  C.treatyCheck = function (kind, ai, other) {
+    if (ai === 'minor' || other === 'minor') return [false, 'They have no interest.'];
+    if (atWar(ai, other)) return [false, 'You are at war.'];
+    if (C.hasTreaty(kind, ai, other)) return [false, 'Already in force.'];
+    const r = C.rel(ai, other);
+    if (kind === 'trade') return r >= -10 ? [true, 'A trade agreement is signed.'] : [false, 'They do not trust you enough to trade.'];
+    if (kind === 'access') return (allied(ai, other) || r >= 15) ? [true, 'Your armies may now cross their land.'] : [false, 'They will not let your soldiers cross their land.'];
+    if (kind === 'marriage') return r >= 30 && !wars(ai).includes(other) ? [true, 'The royal houses are united by marriage.'] : [false, 'Relations are not warm enough for a royal marriage (need +30).'];
+    return [false, 'Unknown treaty.'];
+  };
+  C.makeTreaty = function (kind, a, b) {
+    setTreaty(kind, a, b, true);
+    addRel(a, b, kind === 'marriage' ? 25 : kind === 'trade' ? 6 : 3);
+    const nm = { trade: 'a trade agreement', access: 'a military access treaty', marriage: 'a dynastic marriage' }[kind];
+    plog(`${F(a).name} and ${F(b).name} conclude ${nm}.`, 'alliance', [a, b]);
+    if (a !== S.player && b !== S.player) C.log(`${F(a).name} and ${F(b).name} conclude ${nm}.`, 'alliance-minor');
+  };
+  C.cancelTreaty = function (kind, a, b) { setTreaty(kind, a, b, false); addRel(a, b, kind === 'marriage' ? -30 : -8); };
+  C.proposeTreaty = function (kind, from, to) { const [ok, msg] = C.treatyCheck(kind, to, from); if (ok) C.makeTreaty(kind, from, to); return [ok, msg]; };
+
   function joinWars(a, b, depth) {
-    // allies of the defender may join; allies of the aggressor may join
+    // allies of the defender may join; allies of the aggressor may join (royal marriages always answer the call)
     for (const x of alliesOf(b)) if (x !== a && x !== S.player && !atWar(x, a) && !allied(x, a) && S.factions[x].alive) {
-      if (rnd() < 0.7) { declareWar(x, a, depth + 1, `honours the alliance with ${F(b).name}`); }
+      if (rnd() < (C.hasTreaty('marriage', x, b) ? 1 : 0.7)) { declareWar(x, a, depth + 1, `honours the alliance with ${F(b).name}`); }
     }
     for (const x of alliesOf(a)) if (x !== b && x !== S.player && !atWar(x, b) && !allied(x, b) && S.factions[x].alive && x !== 'minor') {
-      if (rnd() < 0.5 * (0.5 + F(x).aggr)) declareWar(x, b, depth + 1, `stands with ${F(a).name}`);
+      if (rnd() < (C.hasTreaty('marriage', x, a) ? 1 : 0.5 * (0.5 + F(x).aggr))) declareWar(x, b, depth + 1, `stands with ${F(a).name}`);
     }
   }
-  function declareWar(a, b, depth, why) {
+  // Pick the most valuable enemy province bordering our land as an AI war goal
+  function autoGoal(a, b) {
+    let best = null, bv = -1;
+    for (const p of C.provincesOf(b)) {
+      if (!p.adj.some((i) => S.provinces[W().provs[i].id].owner === a) && !(p.port && p.sea.length)) continue;
+      const v = provValue(p.id) - (p.adj.some((i) => S.provinces[W().provs[i].id].owner === a) ? 0 : 20);
+      if (v > bv) { bv = v; best = p.id; }
+    }
+    return best ? { by: a, type: 'province', id: best } : { by: a, type: 'gold' };
+  }
+  function declareWar(a, b, depth, why, goal) {
     if (atWar(a, b) || a === b || !S.factions[a].alive || !S.factions[b].alive) return false;
     if (allied(a, b)) delete S.allies[pkey(a, b)];
-    S.wars[pkey(a, b)] = { since: S.turn, exh: 0, s: {} };
+    for (const k of ['trade', 'access', 'marriage']) if (C.hasTreaty(k, a, b)) setTreaty(k, a, b, false);
+    S.wars[pkey(a, b)] = { since: S.turn, exh: 0, s: {}, goal: goal || (a === S.player && !S.autoplay ? { by: a, type: 'none' } : autoGoal(a, b)) };
     addRel(a, b, -40);
-    plog(`${F(a).name} declares war on ${F(b).name}${why ? ' (' + why + ')' : ''}!`, 'war', [a, b]);
+    const g = S.wars[pkey(a, b)].goal;
+    const gtxt = g && g.type === 'province' ? ` (war goal: ${C.def(g.id).name})` : g && g.type === 'gold' ? ' (war goal: indemnity)' : '';
+    plog(`${F(a).name} declares war on ${F(b).name}${why ? ' (' + why + ')' : ''}!${gtxt}`, 'war', [a, b]);
     if (a !== S.player && b !== S.player) C.log(`${F(a).name} declares war on ${F(b).name}.`, 'war-minor');
     if (!depth || depth < 2) joinWars(a, b, depth || 0);
-    // clear armies of former allies from foreign soil: they simply become hostile
     return true;
   }
-  C.declareWar = (a, b, why) => declareWar(a, b, 0, why);
+  C.declareWar = (a, b, why, goal) => declareWar(a, b, 0, why, goal);
   function makePeace(a, b) {
     if (!atWar(a, b)) return;
     delete S.wars[pkey(a, b)];
@@ -1451,7 +1586,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (a !== S.player && b !== S.player) C.log(`${F(a).name} and ${F(b).name} become allies.`, 'alliance-minor');
   }
   C.makeAlliance = makeAlliance;
-  C.breakAlliance = function (a, b) { delete S.allies[pkey(a, b)]; addRel(a, b, -25); plog(`${F(a).name} breaks its alliance with ${F(b).name}.`, 'diplomacy', [a, b]); };
+  C.breakAlliance = function (a, b) {
+    if (C.hasTreaty('marriage', a, b)) return false; // a royal marriage binds the alliance
+    delete S.allies[pkey(a, b)]; addRel(a, b, -25); plog(`${F(a).name} breaks its alliance with ${F(b).name}.`, 'diplomacy', [a, b]); return true;
+  };
   // After peace, armies standing in provinces they can no longer occupy are pushed back
   function expelFromTerritory() {
     // armies standing where they are no longer welcome are pushed back to friendly soil
@@ -1507,15 +1645,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   C.warScore = function (a, b) { const w = S.wars[pkey(a, b)]; return w && w.s ? (w.s[a] || 0) - (w.s[b] || 0) : 0; };
   const provValue = (pid) => { const d = C.def(pid); return 12 + d.income * 1.5 + (d.capital ? 25 : 0) + S.provinces[pid].fort * 4; };
+  C.provValue = provValue;
   // Options for the player ('from') when negotiating with 'to'
   C.peaceOptions = function (from, to) {
+    const w0 = S.wars[pkey(from, to)], goal = w0 && w0.goal && w0.goal.by === from ? w0.goal : null;
     const opts = [{ id: 'status', label: 'White peace (status quo)' }];
     const gTo = Math.max(0, Math.floor(S.factions[to].gold)), gFrom = Math.max(0, Math.floor(S.factions[from].gold));
-    if (gTo >= 100) opts.push({ id: 'gold', label: `Demand ${Math.min(300, gTo)} gold`, gold: Math.min(300, gTo) });
+    if (gTo >= 100) opts.push({ id: 'gold', label: `Demand ${Math.min(300, gTo)} gold${goal && goal.type === 'gold' ? '  \u2605 your war goal' : ''}`, gold: Math.min(300, gTo), goal: !!(goal && goal.type === 'gold') });
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
       if (ps.owner !== to) continue;
-      if (S.armies.some((a) => a.prov === p.id && a.owner === from) || (ps.siege && ps.siege.by === from)) opts.push({ id: 'province:' + p.id, label: `Demand ${p.name} (occupied)` });
+      const isGoal = !!(goal && goal.type === 'province' && goal.id === p.id);
+      if (S.armies.some((a) => a.prov === p.id && a.owner === from) || (ps.siege && ps.siege.by === from) || (isGoal && C.warScore(from, to) >= 30)) opts.push({ id: 'province:' + p.id, label: `Demand ${p.name}${isGoal ? '  \u2605 your war goal' : ' (occupied)'}`, goal: isGoal });
     }
     if (gFrom >= 100) opts.push({ id: 'tribute', label: `Pay ${Math.min(250, gFrom)} gold tribute`, gold: Math.min(250, gFrom) });
     for (const p of W().provs) {
@@ -1544,9 +1685,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (from === S.player) score += S.difficulty === 'easy' ? 10 : S.difficulty === 'hard' ? -8 : 0;
     const [kind, arg] = termId.split(':');
     let apply = () => {};
+    const wg = w.goal && w.goal.by === from ? w.goal : null;
     const optList = C.peaceOptions(from, to);
     const opt = optList.find((o) => o.id === termId);
     if (!opt) return [false, 'That term is no longer available.'];
+    if (opt.goal) score += 12; else if (kind === 'province' && wg && wg.type === 'province') score -= 8; // demands outside your war goal look illegitimate
     if (kind === 'gold') { score -= opt.gold / 25; apply = () => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }; }
     else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
     else if (kind === 'tribute') { score += opt.gold / 20; apply = () => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }; }
@@ -1598,7 +1741,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   C.assault = function (army) {
     const err = C.assaultCheck(army); if (err) return { ok: false, text: err };
     const ps = S.provinces[army.prov], d = C.def(army.prov);
-    const garrison = (500 + 450 * ps.fort) * (1 + 0.25 * ps.fort) * (TERRAIN_DEF[d.terrain] || 1);
+    const garrison = (500 + 450 * ps.fort) * (1 + 0.25 * ps.fort) * (TERRAIN_DEF[d.terrain] || 1) * (army.staff === 'engineer' ? 0.8 : 1);
     const arty = army.units.filter((u) => u.type === 'art').length;
     const att = C.armyPower(army) * (1 + Math.min(0.6, arty * 0.12)) * (1 - (army.fatigue || 0) / 250) * F(army.owner).morale;
     const r = (att / garrison) * (0.85 + rnd() * 0.3);
@@ -1640,11 +1783,21 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       a.units = a.units.filter((u) => u.men >= Math.max(15, u.max * 0.08));
     }
   }
+  function spawnColonel(f) {
+    const names = (NAP.COLONEL_NAMES[f] || ['Colonel Local']).filter((n) => !Object.values(S.generals).some((g) => g.name === n));
+    if (!names.length) return;
+    const id = S.nextGen++, nm = names[Math.floor(rnd() * names.length)];
+    const g = { id, name: nm, owner: f, atk: 2 + Math.floor(rnd() * 2), def: 2 + Math.floor(rnd() * 2), lead: 2 + Math.floor(rnd() * 2), from: S.year, trait: 'Rising colonel', xp: 0, lvl: 1, alive: true, assigned: null, arrived: true, loyalty: 82, idle: 0 };
+    g.traits = deriveTraits(g); S.generals[id] = g; S.pool[f].push(id);
+    plog(`Colonel ${nm} distinguishes himself and is promoted to general.`, 'good', [f]);
+  }
   function award(armies, victory) {
+    if (victory && armies.length && rnd() < 0.14) spawnColonel(armies[0].owner);
     for (const a of armies) {
       if (victory) for (const u of a.units) u.xp = (u.xp || 0) + 1;
       if (!a.general) continue;
       const g = S.generals[a.general];
+      g.loyalty = Math.max(0, Math.min(100, (g.loyalty || 70) + (victory ? 4 : -6)));
       g.xp += victory ? 30 : 10;
       const need = [0, 40, 100, 200, 350, 550, 800][g.lvl] || 9999;
       if (g.xp >= need && g.lvl < 7) {
@@ -1765,7 +1918,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const g = genBonus(armies);
     return {
       faction: armies[0].owner, armies, units,
-      general: g ? { id: g.id, name: g.name, atk: g.atk, def: g.def, lead: g.lead, trait: g.trait } : null
+      general: g ? { id: g.id, name: g.name, atk: g.atk, def: g.def, lead: g.lead, trait: g.trait, traits: g.traits || [] } : null,
+      staff: [...new Set(armies.map((a) => a.staff).filter(Boolean))]
     };
   }
 
@@ -1808,7 +1962,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (!atWar(f, ps.owner)) continue;
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -1864,6 +2018,44 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     return 4;
   }
   C.supplyDepth = supplyDepth;
+  // route (province ids) from the army back to the nearest friendly province; [] when at home
+  C.supplyPath = function (a) {
+    const home = (id) => { const o = S.provinces[id].owner; return o === a.owner || allied(a.owner, o); };
+    if (home(a.prov)) return [];
+    const prev = { [a.prov]: null }; let q = [a.prov];
+    for (let d = 0; d < 6 && q.length; d++) {
+      const nq = [];
+      for (const cur of q) for (const i of W().byId[cur].adj) {
+        const id = W().provs[i].id; if (id in prev) continue; prev[id] = cur;
+        if (home(id)) { const path = [id]; let c = cur; while (c) { path.unshift(c); c = prev[c]; } return path.reverse().reverse(); }
+        nq.push(id);
+      }
+      q = nq;
+    }
+    return [];
+  };
+  // things the player should look at before ending the turn
+  C.attention = function (f) {
+    const out = [], fs = S.factions[f], warNow = wars(f).length > 0;
+    for (const a of C.armiesOf(f)) {
+      const ps = S.provinces[a.prov], nm = C.def(a.prov).name, home = ps.owner === f || allied(f, ps.owner), besieging = ps.siege && ps.siege.by === f;
+      if (!a.path.length && !besieging && !home) out.push({ kind: 'idle', sev: 2, army: a.id, prov: a.prov, text: `${a.units.length}-regiment army idle in ${nm}` });
+      else if (!a.path.length && home && warNow && a.units.length >= 8) out.push({ kind: 'idle-home', sev: 1, army: a.id, prov: a.prov, text: `Large army (${a.units.length} regts) waiting in ${nm}` });
+      if ((a.supply || 0) >= 2) out.push({ kind: 'supply', sev: 2, army: a.id, prov: a.prov, text: `Army in ${nm} is short of supply` });
+      if (!a.general && a.units.length >= 5 && C.availableGenerals(f).length) out.push({ kind: 'general', sev: 1, army: a.id, prov: a.prov, text: `Army in ${nm} has no general (one is available)` });
+    }
+    for (const p of C.provincesOf(f)) {
+      const ps = S.provinces[p.id];
+      if (ps.siege) out.push({ kind: 'siege', sev: 3, prov: p.id, text: `${p.name} is under siege` });
+      if ((ps.unrest || 0) >= 60) out.push({ kind: 'unrest', sev: 3, prov: p.id, text: `Unrest in ${p.name} is ${Math.round(ps.unrest)}%` });
+    }
+    if (fs.gold > 1000) out.push({ kind: 'gold', sev: 1, prov: fs.cap, text: `${Math.round(fs.gold).toLocaleString('en-US')} gold unspent` });
+    if (warNow && fs.gold > 500 && fs.manpower > 1000) {
+      const empty = C.provincesOf(f).filter((p) => !S.provinces[p.id].queue.length && !S.provinces[p.id].siege).length;
+      if (empty >= 3) out.push({ kind: 'queue', sev: 1, prov: fs.cap, text: `At war with ${Math.round(fs.gold)} gold in the treasury, but ${empty} provinces are recruiting nothing` });
+    }
+    return out.sort((x, y) => y.sev - x.sev);
+  };
   function attrition() {
     const month = S.month;
     for (const a of S.armies.slice()) {
@@ -1871,11 +2063,16 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       let loss = 0;
       const home = ps.owner === a.owner || allied(a.owner, ps.owner);
       const depth = supplyDepth(a); a.supply = depth;
+      const gen = a.general ? S.generals[a.general] : null, winter = month === 12 || month <= 2;
+      let mult = (C.hasTrait(gen, 'logistician') ? 0.7 : 1) * (a.staff === 'quartermaster' ? 0.75 : 1);
       if (!home) loss += 0.012 * (1 + a.units.length / 12) * (depth <= 1 ? 1.5 : depth === 2 ? 2.2 : 3.2);
+      if (!home && winter) loss += 0.02 + (d.terrain === 'm' ? 0.02 : 0);
       if (!home && d.terrain === 'm') loss += 0.01;
       if ((month === 12 || month <= 2) && d.owner === 'russia' && a.owner !== 'russia' && !allied(a.owner, 'russia')) loss += 0.10;
+      if (!home && a.forage) { mult *= 0.4; ps.foraged = true; ps.unrest = Math.min(100, (ps.unrest || 0) + 8); } // living off the land: fewer losses, a ruined province
+      loss *= mult;
       // marching fatigue
-      if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25);
+      if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7) * (C.hasTrait(gen, 'logistician') ? 0.7 : 1)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25 - (a.staff === 'quartermaster' ? 10 : 0));
       a.moved = false; a.forcedMarch = false;
       if (loss > 0) {
         applyCasualties([a], loss);
@@ -1903,6 +2100,27 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
   }
 
+  const rating = (g) => g.atk + g.def + g.lead;
+  function retireGeneral(g) {
+    const a = S.armies.find((x) => x.general === g.id); if (a) a.general = null;
+    const i = S.pool[g.owner].indexOf(g.id); if (i >= 0) S.pool[g.owner].splice(i, 1);
+    g.alive = false; g.retired = true; g.assigned = null;
+    plog(`${g.name} resigns his commission in disgust.`, 'bad', [g.owner]);
+  }
+  function generalsPhase() {
+    for (const g of Object.values(S.generals)) {
+      if (!g.alive || !g.arrived || !S.factions[g.owner] || !S.factions[g.owner].alive) continue;
+      if (g.assigned) { g.idle = 0; g.loyalty = Math.min(100, (g.loyalty || 70) + 0.35); }
+      else {
+        g.idle = (g.idle || 0) + 1;
+        if (g.idle > 8) g.loyalty = (g.loyalty || 70) - 1.2;
+        if (C.armiesOf(g.owner).some((a) => a.general && S.generals[a.general] && rating(g) > rating(S.generals[a.general]) + 2)) g.loyalty -= 0.6; // resents a lesser rival
+      }
+      if (g.loyalty < 38 && !g.warned && g.owner === S.player) { g.warned = true; plog(`${g.name} grumbles about being passed over. Give him a command soon.`, 'bad', [g.owner]); }
+      if (g.loyalty <= 15) retireGeneral(g);
+    }
+  }
+
   function economyPhase() {
     unrestPhase();
     S.report = {};
@@ -1924,6 +2142,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       S.report[id] = { income: inc, upkeep: up };
     }
     subsidies();
+    for (const ps of Object.values(S.provinces)) ps.foraged = false;
     // build queues
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
@@ -2051,6 +2270,15 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         }
       }
     }
+    // treaties: trade deals and royal marriages
+    if (rnd() < 0.025) {
+      const others = Object.keys(S.factions).filter((x) => x !== f && x !== 'minor' && S.factions[x].alive && !atWar(f, x) && C.rel(f, x) > 10 && !C.hasTreaty('trade', f, x));
+      if (others.length) {
+        const x = others[Math.floor(rnd() * others.length)];
+        if (x === S.player) { if (!S.msgs.some((m) => m.type === 'trade-offer' && m.from === f)) S.msgs.push({ type: 'trade-offer', from: f }); } else C.makeTreaty('trade', f, x);
+      }
+    }
+    if (rnd() < 0.008) for (const x of alliesOf(f)) if (x !== S.player && x !== 'minor' && C.rel(f, x) >= 40 && !C.hasTreaty('marriage', f, x)) { C.makeTreaty('marriage', f, x); break; }
     // declare war
     if (S.turn < 4) return;
     const engaged = wars(f).filter((x) => x !== 'minor').length;
@@ -2109,7 +2337,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const mainPower = list.length ? C.armyPower(list[0]) : 0;
     list.forEach((a, idx) => {
       if (!S.armies.includes(a)) return;
-      a.path = [];
+      a.path = []; a.forage = (a.supply || 0) >= 2;
       const ps = S.provinces[a.prov];
       const myPow = C.armyPower(a);
       // keep besieging
@@ -2446,6 +2674,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     // minor faction sieges (they never move) - none
     attrition();
+    generalsPhase();
     for (const a of S.armies.slice()) if (!a.units.length) removeArmy(a);
     economyPhase();
     arrivals();
@@ -2462,6 +2691,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (m.type === 'peace-offer' && atWar(m.from, S.player)) {
         const ok = await H().offer(m);
         if (ok) { if (m.demand) { S.factions[S.player].gold -= m.demand; S.factions[m.from].gold += m.demand; } makePeace(m.from, S.player); }
+      } else if (m.type === 'trade-offer' && !C.hasTreaty('trade', m.from, S.player) && !atWar(m.from, S.player)) {
+        const ok = await H().offer(m);
+        if (ok) C.makeTreaty('trade', m.from, S.player);
       } else if (m.type === 'alliance-offer' && !allied(m.from, S.player)) {
         const ok = await H().offer(m);
         if (ok) makeAlliance(m.from, S.player);
@@ -2480,7 +2712,42 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
   // Serialise
   C.serialize = () => JSON.stringify(S);
-  C.deserialize = (txt) => { S = JSON.parse(txt); NAP.recolor(S); return S; };
+  // ---- save versioning: older saves are upgraded in place, newer ones are refused
+  C.migrate = function (d) {
+    const v = d.version || 1;
+    if (v > C.VERSION) throw new Error('This save was made by a newer version of the game.');
+    for (const ps of Object.values(d.provinces)) {
+      for (const k of ['stables', 'arsenal', 'academy']) if (ps[k] === undefined) ps[k] = 0;
+      if (ps.unrest === undefined) ps.unrest = 0;
+      if (!ps.policy) ps.policy = 'balanced';
+      ps.foraged = false;
+    }
+    for (const g of Object.values(d.generals || {})) {
+      if (g.loyalty === undefined) g.loyalty = 75;
+      if (g.idle === undefined) g.idle = 0;
+      if (!g.traits) g.traits = deriveTraits(g);
+    }
+    for (const a of d.armies) {
+      if (a.fatigue === undefined) a.fatigue = 0;
+      if (a.forage === undefined) a.forage = false;
+      if (a.staff === undefined) a.staff = null;
+      for (const u of a.units) { if (u.vet === undefined) u.vet = 0; if (u.xp === undefined) u.xp = 0; }
+    }
+    for (const f of Object.values(d.factions)) {
+      if (f.wonBattles === undefined) f.wonBattles = 0;
+      if (f.lostBattles === undefined) f.lostBattles = 0;
+      if (f.incomeMult === undefined) f.incomeMult = 1;
+    }
+    for (const w of Object.values(d.wars || {})) { if (!w.s) w.s = {}; if (w.exh === undefined) w.exh = 0; if (!w.goal) w.goal = { by: null, type: 'none' }; }
+    if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
+    if (!d.truce) d.truce = {};
+    if (!d.turnLog) d.turnLog = [];
+    if (!d.msgs) d.msgs = [];
+    d.version = C.VERSION;
+    return d;
+  };
+  C.deserialize = (txt) => { const d = C.migrate(JSON.parse(txt)); S = d; NAP.recolor(S); return S; };
+
 })();
 
 /* ---- js/battle.js ---- */
@@ -2540,7 +2807,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     constructor(spec, root, done) {
       this.spec = spec; this.root = root; this.done = done;
       this.t = 0; this.deployPhase = true; this.speed = 0.5; this.paused = true; this.over = false; this.acc = 0;
-      this.units = []; this.proj = []; this.sparks = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
+      this.units = []; this.proj = []; this.sparks = []; this.floaters = []; this.groups = {}; this.hoverUnit = null; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
@@ -2561,6 +2828,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       this.buildTerrain();
       this.prerender();
       this.deploy();
+      this.objs = (this.terrain.objs || []).map((o) => ({ ...o, c: 0, owner: -1, p: [0, 0] }));
+      this.vp = [0, 0]; this.vpT = 0; this.holdT = [0, 0]; this.endReason = '';
+      this.rallyBase = [0, 1].map((sd) => (((this.spec.sides[sd].general || {}).traits || []).includes('inspiring') ? 28 : 35));
       this.buildHUD();
       this.bind();
       this.resize();
@@ -2601,6 +2871,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ...T.villages.map((v) => ({ x: v.x, y: v.y - 54, t: 'VILLAGE', c: 'rgba(110,45,22,0.9)' })),
         ...T.rocks.slice(0, 3).map((k) => ({ x: k.x, y: k.y - k.r - 8, t: 'CRAGS', c: 'rgba(70,66,58,0.9)' }))
       ];
+      T.objs = [];
+      if (T.villages.length) T.objs.push({ x: T.villages[0].x, y: T.villages[0].y, r: 75, name: 'Village' });
+      if (T.hills.length) { const h = [...T.hills].sort((a, b) => b.r - a.r)[0]; T.objs.push({ x: h.x, y: h.y, r: Math.min(95, h.r), name: 'Hill' }); }
+      while (T.objs.length < 2) T.objs.push({ x: 800 + (T.objs.length ? (r() - 0.5) * 240 : 0), y: 160 + r() * 580, r: 80, name: 'Crossroads' });
       T.noise = Array.from({ length: 180 }, () => [r() * FW, r() * FH, 20 + r() * 50, r()]);
       this.terrain = T;
     }
@@ -2629,8 +2903,17 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
         kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
         fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1) * (1 + 0.05 * (src.vet || 0)),
-        takeMul: g ? 1 - (g.def - 3) * 0.025 : 1
+        takeMul: g ? 1 - (g.def - 3) * 0.025 : 1,
+        shockMul: 1, hitT: 0, cumHit: 0, floatT: 1, dustT: 0, hoofT: 0
       };
+      // general traits and staff officers
+      const tr = (g && g.traits) || [], staff = this.spec.sides[side].staff || [];
+      if (tr.includes('aggressive')) u.fireMul *= 1.06;
+      if (tr.includes('defender')) u.takeMul *= 0.94;
+      if (tr.includes('inspiring')) u.baseMorale += 5;
+      if (tr.includes('artillery') && base.cls === 'art') u.fireMul *= 1.12;
+      if (staff.includes('gunner') && base.cls === 'art') u.fireMul *= 1.10;
+      if (base.cls === 'cav') u.shockMul = (tr.includes('cavalry') ? 1.15 : 1) * (staff.includes('horse') ? 1.10 : 1);
       u.morale = u.baseMorale;
       if (u.type === 'light') u.formation = 'skirmish';
       [u.w, u.d] = dims(u);
@@ -2722,7 +3005,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       cas = Math.min(target.men, cas * target.takeMul * (FORM_TAKE[target.formation] || 1));
       if (cas <= 0) return;
       target.men -= cas;
-      target.sinceHit = 0;
+      target.sinceHit = 0; target.hitT = 0.3; target.cumHit = (target.cumHit || 0) + cas;
       if (src) src.kills += cas;
       const m = (cas / target.max) * 100 * 1.7 * (moraleMul || 1);
       target.morale -= m;
@@ -2736,11 +3019,39 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : u.state === 'fighting' ? 2 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
     }
 
+    // ---- capture objectives (victory points)
+    stepObjectives(dt) {
+      for (const o of this.objs) {
+        let p0 = 0, p1 = 0;
+        for (const u of this.units) {
+          if (u.cls === 'gen' || !this.alive(u) || u.state === 'routing') continue;
+          if (Math.hypot(u.x - o.x, u.y - o.y) < o.r) { const m = u.men * (u.cls === 'art' ? 0.5 : 1); if (u.side === 0) p0 += m; else p1 += m; }
+        }
+        o.p = [p0, p1];
+        if (p0 > p1 * 1.25 && p0 > 100) o.c = Math.max(-1, o.c - 0.1 * dt);
+        else if (p1 > p0 * 1.25 && p1 > 100) o.c = Math.min(1, o.c + 0.1 * dt);
+        else if (p0 + p1 === 0) o.c *= 1 - 0.02 * dt;
+        o.owner = o.c <= -0.6 ? 0 : o.c >= 0.6 ? 1 : -1;
+      }
+      this.vpT += dt;
+      if (this.vpT >= 1) { this.vpT -= 1; for (const o of this.objs) if (o.owner >= 0) this.vp[o.owner]++; }
+      for (const sd of [0, 1]) this.holdT[sd] = this.objs.length && this.objs.every((o) => o.owner === sd) ? this.holdT[sd] + dt : 0;
+    }
+
+    // positional sound: pan and loudness follow the camera
+    snd(name, gap, x, y) {
+      if (!NAP.audio || this.replay || !this.canvas) return;
+      const sk = this.fit * this.cam.z, hw = this.canvas.width / 2, hh = this.canvas.height / 2;
+      const sx = (x - this.cam.x) * sk, sy = (y - this.cam.y) * sk;
+      const off = Math.abs(sx) > hw || Math.abs(sy) > hh;
+      NAP.audio.sfx(name, gap, { pan: clamp(sx / hw, -1, 1) * 0.9, vol: (off ? 0.4 : 1) * clamp(0.55 + 0.2 * this.cam.z, 0.55, 1) });
+    }
+
     // Visible fire: muzzle flashes, tracer dashes, round shot, impacts
     fireVolley(u, tgt) {
       const ca = Math.cos(u.facing), sa = Math.sin(u.facing);
       const mx = u.x + ca * (u.d / 2 + 3), my = u.y + sa * (u.d / 2 + 3);
-      if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
+      this.snd(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09, u.x, u.y);
       const room = this.proj.length < 650;
       if (u.cls === 'art') {
         const guns = clamp(Math.ceil(u.men / 10), 1, 8);
@@ -2785,9 +3096,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         this.stepUnit(u, dt);
       }
       // morale contagion handled in stepUnit via routing events
+      this.stepObjectives(dt);
       // effects decay
       for (const p of this.puffs) p.t += dt;
       this.puffs = this.puffs.filter((p) => p.t < p.life);
+      for (const f of this.floaters) f.t += dt;
+      this.floaters = this.floaters.filter((f) => f.t < 1.6);
       for (const s of this.shots) s.t += dt;
       this.shots = this.shots.filter((s) => s.t < 0.7);
       for (const p of this.proj) {
@@ -2833,6 +3147,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const bt = BT[u.type], s = u.side;
       const en = this.enemies(s);
       u.sinceHit += dt;
+      if (u.hitT > 0) u.hitT -= dt;
+      u.floatT -= dt;
+      if (u.floatT <= 0) { u.floatT = 1.0; if (u.cumHit >= 3) { this.floaters.push({ x: u.x, y: u.y - Math.max(u.w, u.d) / 2 - 14, txt: '-' + Math.round(u.cumHit), t: 0, side: u.side }); u.cumHit = 0; } }
       // formation transition
       if (u.wantForm) { u.formT -= dt; if (u.formT <= 0) { u.formation = u.wantForm; u.wantForm = null; [u.w, u.d] = dims(u); } }
       else [u.w, u.d] = dims(u);
@@ -2915,6 +3232,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         }
       }
       if (!moving) { u.charging = u.charging && !!melee; }
+      if (!u.charging) u._bugled = false;
+      else if (!u._bugled && u.cls === 'cav') { u._bugled = true; this.snd('bugle', 3, u.x, u.y); }
+      if (u.cls === 'cav' && moving && (u.charging || moveSpeed > bt.speed * 1.3)) {
+        u.dustT -= dt; u.hoofT -= dt;
+        if (u.dustT <= 0) { u.dustT = 0.1; this.puffs.push({ x: u.x - Math.cos(u.facing) * u.d / 2, y: u.y - Math.sin(u.facing) * u.d / 2 + (rnd() - 0.5) * u.w * 0.6, t: 0, life: 0.9, r: 4 + rnd() * 3, c: 'rgba(190,165,120,', a: 0.5 }); }
+        if (u.hoofT <= 0) { u.hoofT = 0.55; this.snd('hooves', 0.5, u.x, u.y); }
+      }
       u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly separation
       for (const f of this.units) {
@@ -2939,10 +3263,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (u.cls === 'cav') vuln = melee.cls === 'cav' ? 1 : melee.cls === 'art' ? 1.8 : (FORM_CAV_VULN[melee.formation] || 1);
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
-          u.impacted = true; u.cooldown = 5; if (NAP.audio) NAP.audio.sfx('charge', 1.2);
+          u.impacted = true; u.cooldown = 5; this.snd('charge', 1.2, u.x, u.y);
           const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
-          const instant = u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
+          const instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
           this.damage(melee, instant, u, melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1));
           if (melee.cls === 'inf' && melee.formation === 'square' && u.cls === 'cav') this.damage(u, melee.men * 0.06, melee, 1.8);
           else if (u.cls === 'cav' && melee.cls !== 'cav' && melee.cls !== 'art') this.damage(u, melee.men * 0.015, melee, 0.8);
@@ -3020,7 +3344,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (u.morale <= thresh && u.state !== 'routing') {
         u.state = 'routing'; u.order = null; u.target = null; u.routT = 0; u.charging = false;
         if (u.formation === 'square' || u.formation === 'column') { u.formation = BT[u.type].forms[0]; u.wantForm = null; [u.w, u.d] = dims(u); }
-        this.msg(`${NAP.FACTIONS[u.faction].adj} ${u.name} breaks and runs!`); if (NAP.audio) NAP.audio.sfx('rout', 1.5);
+        this.msg(`${NAP.FACTIONS[u.faction].adj} ${u.name} breaks and runs!`); this.snd('rout', 1.5, u.x, u.y);
         for (const f of this.units) if (f !== u && f.cls !== 'gen' && this.alive(f) && Math.hypot(f.x - u.x, f.y - u.y) < 200) f.morale += f.side === u.side ? -9 : 4;
       }
     }
@@ -3043,10 +3367,36 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const goAttack = mode === 'attack' || this.t > 100 || my.some((u) => nearestEnemyDist(u) < 190) || this.strength(s) < this.strength(1 - s) * 0.7;
       const infFront = my.filter((u) => u.cls === 'inf' && u.state !== 'routing');
       const frontX = infFront.length ? (s === 0 ? Math.max(...infFront.map((u) => u.x)) : Math.min(...infFront.map((u) => u.x))) : (s === 0 ? 400 : 1200);
+      // objective play: send units to capture, and keep one unit holding each captured point
+      const tasked = new Set();
+      if (this.objs && this.objs.length) {
+        const cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        const quota = mode === 'defend' ? 2 : 1, used = new Set();
+        let n = 0;
+        const free = this.objs.filter((o) => o.owner !== s).sort((a, b) => Math.abs(a.x - (s === 0 ? 0 : FW)) - Math.abs(b.x - (s === 0 ? 0 : FW)));
+        for (const o of free) {
+          if (n >= quota) break;
+          let best = null, bd = 1e9;
+          for (const u of cand) { if (used.has(u)) continue; const dd = Math.hypot(u.x - o.x, u.y - o.y); if (dd < bd) { bd = dd; best = u; } }
+          if (!best) continue;
+          const e0 = this.nearest(best, en), ed = e0 ? Math.hypot(e0.x - best.x, e0.y - best.y) : 1e9;
+          if (ed > 110) {
+            used.add(best); tasked.add(best); n++;
+            if (!best.order || best.order.type !== 'move' || Math.hypot(best.order.x - o.x, best.order.y - o.y) > 15) best.order = { type: 'move', x: o.x, y: o.y };
+            if (best.formation === 'line' && bd > 250 && !best.wantForm) this.setFormation(best, 'column');
+            else if (bd < 120 && best.formation === 'column' && !best.wantForm) this.setFormation(best, BT[best.type].forms[0]);
+          }
+        }
+        for (const o of this.objs.filter((q) => q.owner === s)) {
+          const inside = cand.filter((u) => Math.hypot(u.x - o.x, u.y - o.y) < o.r).sort((a, b) => b.men - a.men);
+          if (inside.length) tasked.add(inside[0]);
+        }
+      }
       // retreat decision
       const routed = my.filter((u) => u.state === 'routing').length;
       for (const u of my) {
         if (u.state === 'routing') continue;
+        if (tasked.has(u)) continue;
         const e = this.nearest(u, en); if (!e) continue;
         const d = Math.hypot(e.x - u.x, e.y - u.y);
         const bt = BT[u.type];
@@ -3162,7 +3512,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           u.morale = Math.max(u.morale, 48); u.state = 'idle'; u.order = null; u.routT = 0; n++;
         }
       }
-      if (n) { this.rallyCd[s] = 35; this.msg(`${g.name} rallies ${n} unit${n > 1 ? 's' : ''}!`); return true; }
+      if (n) { this.rallyCd[s] = this.rallyBase[s]; this.msg(`${g.name} rallies ${n} unit${n > 1 ? 's' : ''}!`); return true; }
       return false;
     }
 
@@ -3176,7 +3526,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const b0 = broken(0, s0, t0, this.initialMen[0]), b1 = broken(1, s1, t1, this.initialMen[1]);
       if (b0 && b1) winner = s0 >= s1 ? 0 : 1;
       else if (b0) winner = 1; else if (b1) winner = 0;
-      else if (this.t > this.timeLimit) winner = s0 >= s1 ? 0 : 1;
+      else if (this.holdT[0] >= 75) { winner = 0; this.endReason = 'Your army held every objective'; }
+      else if (this.holdT[1] >= 75) { winner = 1; this.endReason = 'The enemy held every objective'; }
+      else if (this.t > this.timeLimit) {
+        const dv = this.vp[0] - this.vp[1];
+        if (Math.abs(dv) >= 25) { winner = dv > 0 ? 0 : 1; this.endReason = 'Decided on objectives at ' + (this.spec.tod === 'dusk' ? 'nightfall' : 'the time limit'); }
+        else { winner = s0 >= s1 ? 0 : 1; this.endReason = 'Decided on strength at ' + (this.spec.tod === 'dusk' ? 'nightfall' : 'the time limit'); }
+      }
       if (this.forced !== undefined) winner = this.forced;
       if (winner !== null) this.finish(winner);
     }
@@ -3319,11 +3675,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       }
       // fallen
       for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
-      // order lines for selection
-      ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
-      for (const u of this.sel) if (u.order && u.order.type === 'move') { ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.x, u.order.y); ctx.stroke(); }
-        else if (u.order && u.order.type === 'attack' && u.order.target) { ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.target.x, u.order.target.y); ctx.stroke(); }
-      ctx.setLineDash([]);
+      // objectives, flank arcs and order markers (under the units)
+      this.drawObjectives(ctx);
+      this.drawOverlays(ctx);
       // terrain captions: constant on-screen size, drawn under the units
       { const sk0 = this.fit * this.cam.z, fs = clamp(12 * devicePixelRatio / sk0, 5, 26);
         if (sk0 > 0.3) { ctx.font = `italic 600 ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
@@ -3358,6 +3712,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       for (const q of this.sparks) { ctx.fillStyle = `rgba(70,50,30,${1 - q.t / q.life})`; ctx.fillRect(q.x - 1, q.y - 1, 2, 2); }
       // smoke
       for (const p of this.puffs) { if (p.t < 0) continue; const f = p.t / p.life; ctx.fillStyle = p.c + ((p.a || 0.55) * (1 - f)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x + (p.nd ? 0 : f * 6), p.y - (p.nd ? 0 : f * 8), p.r * (p.nd ? 0.8 + 0.5 * f : 0.6 + f), 0, TAU); ctx.fill(); }
+      // casualty floaters
+      { const fs = clamp(11 * devicePixelRatio / k, 5, 20); ctx.font = `bold ${fs}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        for (const f of this.floaters) { const a = 1 - f.t / 1.6; ctx.globalAlpha = Math.max(0, a); ctx.fillStyle = f.side === 0 ? '#ff8a8a' : '#ffd36a'; const yy = f.y - f.t * 22; ctx.strokeText(f.txt, f.x, yy); ctx.fillText(f.txt, f.x, yy); } ctx.globalAlpha = 1; }
       // selection box
       if (this.box) {
         const a = this.toWorld(this.box.x0, this.box.y0), b = this.toWorld(this.box.x1, this.box.y1);
@@ -3371,6 +3728,65 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // field border
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, FW, FH);
       this.drawWeather(ctx);
+    }
+
+    drawObjectives(ctx) {
+      const sk = this.fit * this.cam.z, fs = clamp(11 * devicePixelRatio / sk, 5, 24);
+      for (const o of this.objs || []) {
+        const col = o.owner === 0 ? '60,130,255' : o.owner === 1 ? '230,70,70' : '235,235,235';
+        ctx.save();
+        ctx.setLineDash([9, 7]); ctx.lineWidth = 2 / Math.max(0.5, sk) * devicePixelRatio; ctx.strokeStyle = `rgba(${col},0.75)`; ctx.fillStyle = `rgba(${col},0.07)`;
+        ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        // capture progress arc (blue grows for you, red for the enemy)
+        if (Math.abs(o.c) > 0.02) {
+          ctx.lineWidth = 5 / Math.max(0.5, sk) * devicePixelRatio; ctx.strokeStyle = o.c < 0 ? 'rgba(80,150,255,0.9)' : 'rgba(240,80,80,0.9)';
+          ctx.beginPath(); ctx.arc(o.x, o.y, o.r + 5, -Math.PI / 2, -Math.PI / 2 + TAU * Math.abs(o.c)); ctx.stroke();
+        }
+        // flagpole
+        ctx.strokeStyle = '#2a2018'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(o.x, o.y + 6); ctx.lineTo(o.x, o.y - 22); ctx.stroke();
+        ctx.fillStyle = `rgb(${col})`; const wv = Math.sin(this.t * 3 + o.x) * 2;
+        ctx.beginPath(); ctx.moveTo(o.x, o.y - 22); ctx.lineTo(o.x + 16, o.y - 18 + wv); ctx.lineTo(o.x, o.y - 12); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.font = `bold ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
+        ctx.strokeText(o.name, o.x, o.y + o.r + fs); ctx.fillText(o.name, o.x, o.y + o.r + fs);
+        ctx.restore();
+      }
+    }
+
+    // flank arcs for selected / hovered unit; order lines and markers for the selection
+    drawOverlays(ctx) {
+      const sk = this.fit * this.cam.z, lw = 1.4 * devicePixelRatio / Math.max(0.5, sk);
+      const arcs = [...this.sel].filter((u) => u.cls !== 'gen' && this.alive(u)).slice(0, 6);
+      const hu = this.hoverUnit; if (hu && hu.cls !== 'gen' && this.alive(hu) && !arcs.includes(hu)) arcs.push(hu);
+      for (const u of arcs) {
+        const rad = Math.max(u.w, u.d) / 2 + 26, f = u.facing;
+        ctx.save(); ctx.translate(u.x, u.y);
+        if (u.formation === 'square' || u.formation === 'skirmish' || u.cls === 'art') {
+          ctx.strokeStyle = 'rgba(120,230,120,0.4)'; ctx.lineWidth = lw; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(0, 0, rad, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+        } else {
+          const A = 1.05, seg = (a0, a1, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, rad, a0, a1); ctx.closePath(); ctx.fill(); };
+          seg(f - A, f + A, 'rgba(90,220,110,0.13)');
+          seg(f + A, f + Math.PI - A, 'rgba(240,210,70,0.16)'); seg(f - Math.PI + A, f - A, 'rgba(240,210,70,0.16)');
+          seg(f + Math.PI - A, f + Math.PI + A, 'rgba(240,70,70,0.2)');
+          ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = lw; ctx.beginPath();
+          for (const a of [f + A, f - A, f + Math.PI - A, f - Math.PI + A]) { ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); } ctx.stroke();
+        }
+        ctx.restore();
+      }
+      ctx.lineWidth = lw; 
+      for (const u of this.sel) {
+        const o = u.order; if (!u.x || u.dead || u.fled) continue;
+        if (o && o.type === 'move') {
+          ctx.setLineDash([6, 5]); ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(o.x, o.y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x, o.y - 14); ctx.stroke();
+          ctx.fillStyle = '#7cf'; ctx.beginPath(); ctx.moveTo(o.x, o.y - 14); ctx.lineTo(o.x + 9, o.y - 11); ctx.lineTo(o.x, o.y - 8); ctx.closePath(); ctx.fill();
+          if (o.fa !== undefined) { ctx.strokeStyle = '#7cf'; ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + Math.cos(o.fa) * 22, o.y + Math.sin(o.fa) * 22); ctx.stroke(); }
+        } else if (o && o.type === 'attack' && o.target && this.alive(o.target)) {
+          ctx.strokeStyle = 'rgba(255,70,70,0.85)'; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(o.target.x, o.target.y); ctx.stroke(); ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(o.target.x, o.target.y, Math.max(o.target.w, o.target.d) / 2 + 8, 0, TAU); ctx.stroke();
+        } else if (u.target && this.alive(u.target) && u.cls !== 'gen') {
+          ctx.strokeStyle = 'rgba(255,170,90,0.4)'; ctx.setLineDash([2, 5]); ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.target.x, u.target.y); ctx.stroke(); ctx.setLineDash([]);
+        }
+      }
     }
 
     // A readable village: dirt road, cottages with pitched tiled roofs, a church, walled gardens and crop fields
@@ -3521,6 +3937,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const r = clamp(u.men / u.max, 0, 1);
       const sel = this.sel.has(u);
       // slow white pulse while locked in melee; solid white once the regiment breaks
+      const hitF = u.hitT > 0 ? Math.min(1, u.hitT / 0.3) : 0;
       const wh = u.state === 'routing' ? 1 : u.state === 'fighting' ? 0.12 + 0.5 * (0.5 + 0.5 * Math.sin(this.t * 3.2 + u.id)) : 0;
       ctx.rotate(u.facing);
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
@@ -3535,6 +3952,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (sel || r > 0.85) ctx.strokeRect(-d / 2, -w * boost / 2, d, w * boost);
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
       } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
+      if (hitF > 0) { ctx.fillStyle = `rgba(255,40,40,${0.35 * hitF})`; ctx.fillRect(-d / 2, -w / 2, d, w); }
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
       // bars and label scale gently with zoom so they stay readable
@@ -3549,7 +3967,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (sk > 0.5) {
         ctx.save(); ctx.translate(0, ext + 3 * us); ctx.scale(us, us);
         ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const label = String(Math.round(u.men)) + (u.vet ? ' ' + '\u2605'.repeat(u.vet) : '');
+        const label = (u.grp ? '[' + u.grp + '] ' : '') + String(Math.round(u.men)) + (u.vet ? ' ' + '\u2605'.repeat(u.vet) : '');
         ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
         ctx.restore();
       }
@@ -3564,23 +3982,24 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       r.innerHTML = `
         <div class="b-top">
           <div class="b-side b-s0"><b id="b-n0"></b><div class="b-bar"><i id="b-f0"></i></div><span id="b-m0"></span></div>
-          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span></div>
+          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span><br><span id="b-obj" data-tip="<b>Objectives</b><br>Hold flagged points to earn victory points (1 per point per second). Hold all of them for 75 seconds, or lead by 25 VP at the time limit, to win."></span></div>
           <div class="b-side b-s1"><b id="b-n1"></b><div class="b-bar"><i id="b-f1"></i></div><span id="b-m1"></span></div>
         </div>
         <div class="b-stage" id="b-stage"><canvas id="b-canvas"></canvas>
           <div class="b-banner" id="b-banner"></div>
+          <div class="b-paused" id="b-paused" hidden>PAUSED &mdash; you can still give orders</div>
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; 1-4: formations &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
           <div class="b-btns">
-            <button data-f="line" data-tip="<b>Line</b> (key 1)<br>Best firepower. Slow to move. Vulnerable on the flanks and rear.">Line <kbd>1</kbd></button>
-            <button data-f="column" data-tip="<b>Column</b> (key 2)<br>Fast marching, poor firepower. Weak against guns and cavalry. Use it to cross open ground.">Column <kbd>2</kbd></button>
-            <button data-f="square" data-tip="<b>Square</b> (key 3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>3</kbd></button>
-            <button data-f="skirmish" data-tip="<b>Skirmish</b> (key 4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>4</kbd></button>
+            <button data-f="line" data-tip="<b>Line</b> (key F1)<br>Best firepower. Slow to move. Vulnerable on the flanks and rear.">Line <kbd>F1</kbd></button>
+            <button data-f="column" data-tip="<b>Column</b> (key F2)<br>Fast marching, poor firepower. Weak against guns and cavalry. Use it to cross open ground.">Column <kbd>F2</kbd></button>
+            <button data-f="square" data-tip="<b>Square</b> (key F3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>F3</kbd></button>
+            <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
             <button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
             <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
@@ -3603,7 +4022,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with keys 1-4, then press <b>Space</b> to begin.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with <b>F1-F4</b>, then press <b>Space</b> to begin. Flagged circles are <b>objectives</b>: hold them to earn victory points.</p>`;
     }
 
     bind() {
@@ -3623,6 +4042,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (!this.canvas.isConnected) return;
         const p = pos(e);
         if (this.box) { this.box.x1 = p.x; this.box.y1 = p.y; }
+        { const w0 = this.toWorld(p.x, p.y); let hv = null, bd = 6; const inside = p.x >= 0 && p.y >= 0 && p.x <= this.canvas.getBoundingClientRect().width && p.y <= this.canvas.getBoundingClientRect().height;
+          if (inside) for (const u of this.units) { if (u.cls === 'gen' || u.dead || u.fled || !this.alive(u)) continue; const g = this.pointGap(u, w0); if (g < bd) { bd = g; hv = u; } }
+          this.hoverUnit = hv; }
         if (this.rdrag) {
           const w = this.toWorld(p.x, p.y);
           if (Math.hypot(p.x - this.rdrag.sx, p.y - this.rdrag.sy) > 18) this.lineDrag = { p0: this.rdrag.p0, p1: w };
@@ -3673,9 +4095,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (e.target && /input|textarea/i.test(e.target.tagName)) return;
         const k = e.key.toLowerCase();
         this.keys[k] = true;
-        if (k === ' ') { this.togglePause(); e.preventDefault(); }
-        else if (k === '1') this.setForm('line'); else if (k === '2') this.setForm('column');
-        else if (k === '3') this.setForm('square'); else if (k === '4') this.setForm('skirmish');
+        const dg = /^Digit([1-9])$/.exec(e.code || '');
+        if (/^f[1-4]$/.test(k)) { this.setForm(['line', 'column', 'square', 'skirmish'][+k[1] - 1]); e.preventDefault(); }
+        else if (dg && e.shiftKey && +dg[1] <= 4) this.setForm(['line', 'column', 'square', 'skirmish'][+dg[1] - 1]);
+        else if (dg && (e.ctrlKey || e.metaKey)) { this.saveGroup(+dg[1]); e.preventDefault(); }
+        else if (dg) this.recallGroup(+dg[1]);
+        else if (k === ' ') { this.togglePause(); e.preventDefault(); }
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -3761,6 +4186,19 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     halt() { this.selectedUnits().forEach((u) => { u.order = null; u.target = null; }); }
     rally() { if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
+    saveGroup(n) {
+      const us = this.selectedUnits().filter((u) => this.alive(u)); if (!us.length) return;
+      for (const u of this.units) if (u.grp === n) u.grp = 0;
+      this.groups[n] = us; us.forEach((u) => { u.grp = n; });
+      this.msg(`Group ${n} saved (${us.length} unit${us.length > 1 ? 's' : ''})`);
+    }
+    recallGroup(n) {
+      const g = (this.groups[n] || []).filter((u) => this.alive(u) && !u.fled); if (!g.length) return;
+      const now = performance.now(), dbl = this._lastGrp === n && now - this._lastGrpT < 400;
+      this._lastGrp = n; this._lastGrpT = now;
+      this.sel.clear(); g.forEach((u) => this.sel.add(u)); this.updateInfo();
+      if (dbl) this.focusSelection();
+    }
     togglePause() {
       if (this.over) return;
       this.paused = !this.paused;
@@ -3857,6 +4295,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       x.fillStyle = this.terrain.base; x.fillRect(0, 0, m.width, m.height);
       x.fillStyle = 'rgba(30,70,30,0.6)'; for (const f of this.terrain.forests) { x.beginPath(); x.ellipse(f.x * k, f.y * k, f.rx * k, f.ry * k, 0, 0, TAU); x.fill(); }
       x.fillStyle = 'rgba(230,220,160,0.6)'; for (const h of this.terrain.hills) { x.beginPath(); x.arc(h.x * k, h.y * k, h.r * k, 0, TAU); x.fill(); }
+      for (const o of this.objs || []) { x.strokeStyle = o.owner === 0 ? '#6af' : o.owner === 1 ? '#f66' : '#ddd'; x.lineWidth = 1.2; x.beginPath(); x.arc(o.x * k, o.y * k, Math.max(3, o.r * k), 0, TAU); x.stroke(); }
       const fog = this.spec.weather === 'fog' && !this.over && !this.replay;
       const mine = fog ? this.units.filter((u) => u.side === 0 && this.alive(u)) : null;
       for (const u of this.units) {
@@ -3880,6 +4319,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         r.querySelector('#b-f' + s).style.width = clamp((tot / init) * 100, 0, 100) + '%';
         r.querySelector('#b-m' + s).textContent = `${Math.round(tot)} / ${init}`;
       }
+      const pz = r.querySelector('#b-paused'); if (pz) pz.hidden = !(this.paused && this.t > 0 && !this.over && !this.replay);
+      const ob = r.querySelector('#b-obj');
+      if (ob && this.objs && this.objs.length) {
+        const h = this.objs.map((o) => `<span class="ob ob${o.owner}" title="${o.name}">\u25A0</span>`).join('') + ` VP ${this.vp[0]}\u2013${this.vp[1]}`
+          + (this.holdT[0] > 0 ? ` \u00B7 <b class="good">hold ${Math.max(0, Math.ceil(75 - this.holdT[0]))}s</b>` : this.holdT[1] > 0 ? ` \u00B7 <b class="bad">enemy hold ${Math.max(0, Math.ceil(75 - this.holdT[1]))}s</b>` : '');
+        if (ob.dataset.h !== h) { ob.innerHTML = h; ob.dataset.h = h; }
+      }
       const zl = r.querySelector('#b-zoom'); if (zl) zl.textContent = Math.round(this.cam.z * 100) + '%';
       const t = Math.floor(this.t);
       r.querySelector('#b-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
@@ -3901,7 +4347,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const gl2 = this.genDead[1] ? '<span class="good">The enemy general was killed.</span>' : '';
       const sd = this.spec.sides;
       b.innerHTML = `<h2 class="${win ? 'good' : 'bad'}">${win ? 'Victory!' : 'Defeat'}</h2>
-        <p>Battle of ${this.spec.provName} \u00B7 ${m}:${String(sc).padStart(2, '0')} \u00B7 Your losses <b>${Math.round(cas[0])}</b> \u00B7 Enemy losses <b>${Math.round(cas[1])}</b><br>${gl}${gl2}</p>
+        <p>Battle of ${this.spec.provName} \u00B7 ${m}:${String(sc).padStart(2, '0')} \u00B7 Your losses <b>${Math.round(cas[0])}</b> \u00B7 Enemy losses <b>${Math.round(cas[1])}</b><br>Objectives (victory points): <b>${this.vp[0]}</b> \u2013 <b>${this.vp[1]}</b>${this.endReason ? ' \u00B7 ' + this.endReason : ''}<br>${gl}${gl2}</p>
         <div class="rep-cols"><div><h4 style="color:${NAP.FACTIONS[sd[0].faction].color}">${NAP.FACTIONS[sd[0].faction].name}</h4>${tbl(0)}</div><div><h4>${NAP.FACTIONS[sd[1].faction].name}</h4>${tbl(1)}</div></div>
         <p style="margin-top:12px"><button id="b-replay">&#9654; Watch replay</button> <button id="b-cont" class="primary">Continue</button></p>`;
       b.querySelector('#b-cont').addEventListener('click', () => this.close());
@@ -4023,7 +4469,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
-    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use keys 1-4 to change formation (1 Line, 2 Column, 3 Square, 4 Skirmish). Press <b>Space</b> when ready.' },
+    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Press <b>Space</b> when ready.' },
     { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 95 px) and fire. Artillery fires on its own up to 330 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
     { id: 'range', when: (B) => B.t >= 25 && B.enemies(0).some((u) => B.friends(0).some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 160)), text: '<b>Firefights.</b> Units in <b>line</b> shoot best, <b>columns</b> move fast but shoot poorly. Shots from the <b>flank or rear</b> hurt far more and shake morale, so try to turn the enemy line.' },
     { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>3</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },
@@ -4153,6 +4599,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const s = S(), p = s.player, fs = s.factions[p];
     const inc = C.factionIncome(p), up = C.factionUpkeep(p), net = inc - up;
     const provs = C.provincesOf(p).length, total = NAP.world.provs.length;
+    const att = C.attention(p);
     const at = C.warsOf(p).filter((x) => x !== 'minor' || true).map((x) => F(x).adj);
     $('#topbar').innerHTML = `
       <span class="flag" style="background:${F(p).color}"></span><span class="fname">${esc(F(p).name)}</span>
@@ -4162,25 +4609,69 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
-      <button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
+      <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
     $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
-    $('#endturn').onclick = endTurn;
+    $('#endturn').onclick = () => endTurn();
+    $('#advance').onclick = advance;
+    $('#b-att').onclick = showAttention;
   }
 
-  async function endTurn() {
+  async function showAttention() {
+    const list = C.attention(S().player);
+    const html = `<h2>Needs attention</h2><div class="body">${list.length ? list.map((x, i) => `<div class="attrow sev${x.sev}"><span>${esc(x.text)}</span><button data-r="${i}">Go</button></div>`).join('') : '<p class="muted">Nothing urgent. All armies have orders and no province is in trouble.</p>'}</div><div class="foot"><button data-r="x">Close</button></div>`;
+    const r = await modal(html);
+    if (r === null || r === 'x' || list[+r] === undefined) return;
+    focusAttention(list[+r]);
+  }
+  function focusAttention(x) {
+    const p = NAP.world.byId[x.prov]; if (!p) return;
+    ui.cam.x = p.cx; ui.cam.y = p.cy; ui.cam.z = Math.max(ui.cam.z, 1.2); clampCam();
+    ui.sel = { prov: x.prov, army: x.army || null };
+    ui.pulseProv = x.prov; setTimeout(() => { if (ui.pulseProv === x.prov) { ui.pulseProv = null; dirty = true; } }, 2500);
+    refresh();
+  }
+  async function endTurn(skipWarn) {
     const s = S();
     if (s.busy || s.winner) return;
-    // warn about idle armies? keep simple
+    if (!skipWarn && !ui.noIdleWarn && !(ui.tut && ui.tut.on)) {
+      const idle = C.attention(s.player).filter((x) => x.kind === 'idle' || x.kind === 'supply');
+      if (idle.length) {
+        const r = await modal(`<h2>Armies awaiting orders</h2><div class="body">${idle.slice(0, 6).map((x, i) => `<div class="attrow"><span>${esc(x.text)}</span><button data-r="g${i}">Go</button></div>`).join('')}<label class="muted" style="display:block;margin-top:10px"><input type="checkbox" id="idlewarn"> Don't warn me again</label></div><div class="foot"><button data-r="no">Review</button><button class="primary" data-r="yes">End turn anyway</button></div>`);
+        const chk = $('#idlewarn'); if (chk && chk.checked) ui.noIdleWarn = true;
+        if (r && r[0] === 'g') { focusAttention(idle[+r.slice(1)]); return; }
+        if (r !== 'yes') return;
+      }
+    }
+    await turnCore();
+    if (!s.winner) await showSummary();
+    if (s.winner) await showEnd(s.winner);
+    refresh();
+  }
+  async function turnCore() {
+    const s = S();
     $('#endturn').disabled = true; $('#endturn').textContent = 'Processing…';
     ui.sel.army = ui.sel.army && s.armies.find((a) => a.id === ui.sel.army) ? ui.sel.army : null;
     if (NAP.audio) NAP.audio.sfx('roll');
     try { await C.endTurn(); } catch (e) { console.error(e); toast('Error: ' + e.message); s.busy = false; }
     try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ }
     refresh();
+  }
+  // end turns until something needs the player
+  async function advance() {
+    const s = S();
+    if (s.busy || s.winner) return;
+    for (let i = 0; i < 6; i++) {
+      await turnCore();
+      if (s.winner) break;
+      const sm = s.summary || { entries: [], gained: [], lost: [] };
+      const key = sm.gained.length || sm.lost.length || sm.entries.some((e) => /battle|captur|besiege|revolt|storm|war on|peace|alliance/i.test(e.text) && !(e.kind || '').endsWith('-minor'));
+      const urgent = C.attention(s.player).filter((x) => x.sev >= 2);
+      if (key || urgent.length) { if (urgent.length) focusAttention(urgent[0]); break; }
+    }
     if (!s.winner) await showSummary();
     if (s.winner) await showEnd(s.winner);
     refresh();
@@ -4217,8 +4708,14 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
   // ------------------------------------------------------------------ side panel
   function provTip(p) {
-    const ps = S().provinces[p.id];
-    return `${esc(p.name)} — ${esc(F(ps.owner).adj)}`;
+    const s = S(), ps = s.provinces[p.id], d = NAP.world.byId[p.id];
+    let h = `<b>${p.capital ? '\u2605 ' : ''}${esc(p.name)}</b> \u2014 ${esc(F(ps.owner).adj)}<br><span class="ttk">${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[p.terrain]}${p.port ? ' \u00B7 Port' : ''} \u00B7 Income ${fmt(C.provIncome(ps))} \u00B7 Manpower ${C.def(p.id).manpower}</span>`;
+    if ((ps.unrest || 0) > 5) h += `<br><span class="${ps.unrest >= 60 ? 'bad' : 'warn'}">Unrest ${Math.round(ps.unrest)}%</span>`;
+    const bl = ['market', 'barracks', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
+    if (bl.length) h += `<br><span class="ttk">${bl.join(', ')}</span>`;
+    const ar = s.armies.filter((a) => a.prov === p.id); if (ar.length) h += '<br>' + ar.map((a) => `${esc(F(a.owner).adj)} army (${a.units.length} regts)`).join('<br>');
+    if (ps.siege) h += `<br><span class="bad">Besieged by ${esc(F(ps.siege.by).adj)}</span>`;
+    return h;
   }
   const dots = (v, max) => '\u25CF'.repeat(Math.max(0, Math.min(max, v))) + '\u25CB'.repeat(max - Math.max(0, Math.min(max, v)));
   function unitTip(t, ps, err, cost) {
@@ -4313,7 +4810,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   function armyPanel(a) {
     const s = S(), mine = a.owner === s.player, g = a.general ? s.generals[a.general] : null;
     let html = `<div class="sec"><h4>${esc(F(a.owner).adj)} army · ${a.units.length}/${C.stackLimit} regiments</h4>`;
-    if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span></div>`;
+    if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
     const dpt = C.supplyDepth(a);
@@ -4327,6 +4824,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (mine) {
       const sErr = C.assaultCheck(a);
       html += `<div class="row"><label><input type="checkbox" data-act="forced" ${a.forced ? 'checked' : ''}> Forced march <span class="muted">(2 provinces/turn, −3% men, +fatigue)</span></label></div>`;
+      html += `<div class="row"><label data-tip="Living off the land: fewer losses from supply shortage, but the province is stripped and angered (unrest +8, income cut next month)."><input type="checkbox" data-act="forage" ${a.forage ? 'checked' : ''}> Forage <span class="muted">(fewer losses, ruins the province)</span></label></div>`;
+      html += `<div class="row"><select id="staffpick" data-tip="Staff officers cost gold once and a little upkeep each turn."><option value="">${a.staff ? 'Staff: ' + esc(NAP.STAFF[a.staff].name) + ' (change)' : 'Hire staff officer\u2026'}</option>${Object.keys(NAP.STAFF).filter((k) => k !== a.staff).map((k) => `<option value="${k}">${esc(NAP.STAFF[k].name)} \u2014 ${NAP.STAFF[k].cost}g: ${esc(NAP.STAFF[k].desc)}</option>`).join('')}${a.staff ? '<option value="none">Dismiss staff officer</option>' : ''}</select></div>`;
       if (!sErr) html += `<div class="row"><button data-act="storm" class="danger" title="Garrison about ${C.garrisonStrength(a.prov)} men">Storm the walls</button></div>`;
       html += `<div class="row"><button data-act="split">Split selected</button><button data-act="merge">Merge here</button><button data-act="stop">Halt</button><button data-act="disband" class="danger">Disband</button></div>`;
       const pool = C.availableGenerals(s.player);
@@ -4341,6 +4840,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     el.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
       const act = b.dataset.act;
       if (act === 'forced') { a.forced = b.checked; return; }
+      if (act === 'forage') { a.forage = b.checked; return; }
       if (act === 'split') { const idx = checked(); if (!idx.length || idx.length >= a.units.length) return toast('Select some (not all) regiments'); const na = C.splitArmy(a, idx); if (na) ui.sel.army = na.id; }
       else if (act === 'merge') { const others = S().armies.filter((x) => x !== a && x.prov === a.prov && x.owner === a.owner); let n = 0; others.forEach((o) => { if (C.mergeArmies(a, o)) n++; }); toast(n ? `Merged ${n} army` : 'Nothing to merge (stack limit?)'); }
       else if (act === 'stop') a.path = [];
@@ -4350,6 +4850,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       else if (act === 'relieve') { const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
       refresh();
     }));
+    const sp = $('#staffpick');
+    if (sp) sp.onchange = () => { if (!sp.value) return; const e = C.setStaff(a, sp.value === 'none' ? null : sp.value); if (e) toast(e); refresh(); };
     const gp = $('#genpick');
     if (gp) gp.onchange = () => { if (gp.value) { C.assignGeneral(a, +gp.value); refresh(); } };
   }
@@ -4363,7 +4865,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
-      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, keys 1-4 for Line/Column/Square/Skirmish, C to charge, H to halt, R to rally with your general, Space to pause. Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
+      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, F1-F4 for Line/Column/Square/Skirmish, Ctrl+1-9 to save a control group (press the digit to recall it, twice to centre), C to charge, H to halt, R to rally with your general, Space to pause (you can still give orders while paused). Hold the flagged objectives for victory points: hold them all for 75 seconds or lead by 25 VP at the time limit to win. Hover or select a regiment to see its flank arcs (green front, yellow flanks, red rear). Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
   }
   function relBar(v) {
@@ -4380,7 +4882,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const war = C.atWar(me, f), al = C.allied(me, f), rel = C.rel(me, f);
         const ws = war ? C.warScore(me, f) : 0;
         const status = war ? `<span class="tag war">WAR</span> <small class="${ws >= 0 ? 'good' : 'bad'}" title="War score">${ws >= 0 ? '+' : ''}${Math.round(ws)}</small>` : al ? '<span class="tag ally">ALLY</span>' : '<span class="tag peace">PEACE</span>';
-        const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`;
+        const tr = (k, lbl, tip) => (C.hasTreaty(k, me, f) ? `<button data-d="un-${k}:${f}" class="on" data-tip="${tip} Click to cancel.">${lbl} \u2714</button>` : `<button data-d="${k}:${f}" data-tip="${tip}">${lbl}</button>`);
+        const treat = f !== 'minor' && !war ? tr('trade', 'Trade', '<b>Trade agreement</b><br>Both sides earn extra gold each turn. Needs fair relations.') + tr('access', 'Access', '<b>Military access</b><br>Lets armies cross each other\'s land without war (and keeps supply lines open).') + (al ? tr('marriage', 'Marriage', '<b>Royal marriage</b><br>Binds an alliance: harder to break, and the partner is far more likely to join your wars. Needs relations +30.') : '') : '';
+        const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : (al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`) + treat;
         return `<tr><td>${flag(f)}${esc(F(f).name)}</td><td>${status}</td><td>${relBar(rel)}</td><td>${C.provincesOf(f).length}</td><td class="btns">${btns}</td></tr>`;
       }).join('');
       m.innerHTML = `<div class="dlg"><h2>Diplomacy</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Status</th><th>Opinion</th><th>Prov</th><th>Actions</th></tr>${rows}</table><p class="muted" id="dipmsg" style="min-height:20px">${esc(msg || '')}</p></div><div class="foot"><button id="dipclose">Close</button></div></div>`;
@@ -4388,11 +4892,23 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       $('#dipclose').onclick = close;
       m.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => {
         const [act, f] = b.dataset.d.split(':');
-        if (act === 'war') { C.declareWar(me, f); refresh(); main(`You declare war on ${F(f).name}.`); }
+        if (act === 'war') warGoal(f);
+        else if (act === 'trade' || act === 'access' || act === 'marriage') { const [ok, why] = C.proposeTreaty(act, me, f); refresh(); main(why); }
+        else if (act.startsWith('un-')) { C.cancelTreaty(act.slice(3), me, f); refresh(); main('Treaty cancelled.'); }
         else if (act === 'peace') terms(f);
         else if (act === 'ally') { const [ok, why] = C.acceptsAlliance(f, me); if (ok) C.makeAlliance(me, f); refresh(); main(why); }
         else if (act === 'break') { C.breakAlliance(me, f); refresh(); main('Alliance broken.'); }
       }));
+    };
+    const warGoal = (f) => {
+      const cand = C.provincesOf(f).filter((p) => p.adj.some((i) => s.provinces[NAP.world.provs[i].id].owner === me) || p.port).map((p) => ({ p, v: C.provValue ? C.provValue(p.id) : p.income })).sort((x, y) => y.v - x.v).slice(0, 6);
+      m.innerHTML = `<div class="dlg"><h2>War against ${esc(F(f).name)}</h2><div class="body"><p>Choose your <b>war goal</b>. Demanding it at the peace table counts in your favour; other demands look illegitimate and are harder to win.</p>
+        ${cand.map((c, i) => `<label class="termopt"><input type="radio" name="goal" value="province:${c.p.id}" ${i === 0 ? 'checked' : ''}>Take ${esc(c.p.name)}</label>`).join('')}
+        <label class="termopt"><input type="radio" name="goal" value="gold" ${cand.length ? '' : 'checked'}>Win an indemnity (gold)</label>
+        <label class="termopt"><input type="radio" name="goal" value="none">No fixed goal</label></div>
+        <div class="foot"><button id="wback">Back</button><button class="danger" id="wgo">Declare war</button></div></div>`;
+      $('#wback').onclick = () => main('');
+      $('#wgo').onclick = () => { const v = m.querySelector('input[name=goal]:checked').value; const goal = v === 'gold' ? { by: me, type: 'gold' } : v === 'none' ? { by: me, type: 'none' } : { by: me, type: 'province', id: v.split(':')[1] }; C.declareWar(me, f, undefined, goal); refresh(); main(`You declare war on ${F(f).name}.`); };
     };
     const terms = (f) => {
       const opts = C.peaceOptions(me, f), ws = C.warScore(me, f);
@@ -4467,6 +4983,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   };
   C.hooks.offer = async (m) => {
     const f = F(m.from);
+    if (m.type === 'trade-offer') return (await modal(`<h2>Trade proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes a trade agreement: both nations will earn more gold each month.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Sign agreement</button></div>`, 'event')) === 'yes';
     const html = m.type === 'peace-offer'
       ? `<h2>Peace proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) offers peace${m.demand ? ` on condition that you pay <b>${m.demand} gold</b>` : ''}. Captured provinces will remain with their current owners.</p></div><div class="foot"><button data-r="no">Refuse</button><button class="primary" data-r="yes">Accept peace</button></div>`
       : `<h2>Alliance proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes an alliance against our common enemies.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Accept alliance</button></div>`;
@@ -4676,6 +5193,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     opts.selArmy = ui.sel.army; opts.pulse = ui.pulseProv || null;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
     opts.seaFrom = a && a.owner === s.player && NAP.world.byId[a.prov].port ? a.prov : null;
+    opts.supplyPaths = C.armiesOf(s.player).filter((x) => x === a || (x.supply || 0) >= 2).map((x) => C.supplyPath(x)).filter((q) => q.length > 1);
     opts.pathProvs = a ? [a.prov, ...(a.path.length ? a.path : ui.preview || [])] : null;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);

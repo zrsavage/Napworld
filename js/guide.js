@@ -53,7 +53,7 @@
 
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
-    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use keys 1-4 to change formation (1 Line, 2 Column, 3 Square, 4 Skirmish). Press <b>Space</b> when ready.' },
+    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Press <b>Space</b> when ready.' },
     { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 95 px) and fire. Artillery fires on its own up to 330 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
     { id: 'range', when: (B) => B.t >= 25 && B.enemies(0).some((u) => B.friends(0).some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 160)), text: '<b>Firefights.</b> Units in <b>line</b> shoot best, <b>columns</b> move fast but shoot poorly. Shots from the <b>flank or rear</b> hurt far more and shake morale, so try to turn the enemy line.' },
     { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>3</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },

@@ -192,3 +192,10 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 #b-obj .ob-1 { color: #ddd; } #b-obj .ob0 { color: #6af; } #b-obj .ob1 { color: #f66; }
 #b-obj .ob-1 { color: #ddd; }
 .good { color: #6d6; } .bad { color: #e66; }
+
+/* campaign: attention panel, buttons */
+#b-att.attn { border-color: #e8b04a; color: #ffd98a; }
+.attrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid #ffffff14; font-size: 13px; }
+.attrow.sev3 span { color: #ff9a8a; } .attrow.sev2 span { color: #ffd98a; }
+#tip { white-space: normal; max-width: 260px; line-height: 1.35; }
+button.on { border-color: #6c6; }
