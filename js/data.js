@@ -292,6 +292,30 @@
     bavaria:  { tier:'Expert', rank:12, war:false, why:'Tiny and sandwiched between Austria and France.', tips:['Stay close to your French ally.'] }
   };
 
+
+  // ---- General traits and staff officers ----
+  NAP.TRAITS = {
+    aggressive:  { name: 'Aggressive',   desc: '+6% firepower and melee for his army.' },
+    defender:    { name: 'Steadfast',    desc: 'His troops take 6% fewer casualties.' },
+    cavalry:     { name: 'Cavalryman',   desc: 'Cavalry charges hit 15% harder.' },
+    artillery:   { name: 'Gunner',       desc: 'Artillery fire is 12% deadlier.' },
+    inspiring:   { name: 'Inspiring',    desc: '+5 morale for the army; rallies broken troops faster.' },
+    logistician: { name: 'Logistician',  desc: 'Army suffers 30% less attrition and tires less on the march.' }
+  };
+  NAP.STAFF = {
+    quartermaster: { name: 'Quartermaster General', cost: 150, upkeep: 3, desc: 'Attrition -25%, and the army recovers from fatigue faster.' },
+    gunner:        { name: 'Chief of Artillery',    cost: 150, upkeep: 3, desc: 'Artillery fire +10% and sieges progress faster.' },
+    horse:         { name: 'Cavalry Marshal',       cost: 150, upkeep: 3, desc: 'Cavalry charges +10% harder.' },
+    engineer:      { name: 'Chief Engineer',        cost: 150, upkeep: 3, desc: 'Sieges progress faster; assaults on forts are easier.' }
+  };
+  NAP.COLONEL_NAMES = {
+    france: ['Gerard', 'Lasalle', 'Pajol', 'Excelmans', 'Rapp', 'Duhesme', 'Friant', 'Gudin'], britain: ['Craufurd', 'Colborne', 'Barnard', 'Pakenham', 'Vandeleur', 'Maitland'],
+    austria: ['Mohr', 'Vincent', 'Nostitz', 'Liechtenstein', 'Frimont', 'Zach'], prussia: ['Zieten', 'Steinmetz', 'Roder', 'Thielmann', 'Pirch', 'Borstell'],
+    russia: ['Kutaisov', 'Neverovsky', 'Paskevich', 'Uvarov', 'Vorontsov', 'Dibich'], ottoman: ['Mehmed Pasha', 'Osman Bey', 'Salih Pasha', 'Yusuf Bey'],
+    spain: ['Alava', 'Mina', 'Zayas', 'Girón', 'Whittingham'], portugal: ['Pamplona', 'Lecor', 'Stubbs'], sweden: ['Sandels', 'Platen', 'Vegesack'], denmark: ['Ewald', 'Waldeck', 'Hegermann'],
+    naples: ['Carrascosa', 'Filangieri', 'Colletta'], bavaria: ['Raglovich', 'Preysing', 'Zoller'], minor: ['Captain Local']
+  };
+
   // ---- Generals ----
   // [name, faction, atk, def, lead, from-year, trait]
   NAP.GENERALS = [

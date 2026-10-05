@@ -61,7 +61,8 @@
     }
     for (const g of NAP.GENERALS) {
       const id = S.nextGen++;
-      S.generals[id] = { id, name: g[0], owner: g[1], atk: g[2], def: g[3], lead: g[4], from: g[5], trait: g[6], xp: 0, lvl: 1, alive: true, assigned: null, arrived: g[5] <= 1805 };
+      S.generals[id] = { id, name: g[0], owner: g[1], atk: g[2], def: g[3], lead: g[4], from: g[5], trait: g[6], xp: 0, lvl: 1, alive: true, assigned: null, arrived: g[5] <= 1805, loyalty: 72 + Math.floor(rnd() * 22), idle: 0 };
+      S.generals[id].traits = deriveTraits(S.generals[id]);
       if (g[5] <= 1805) S.pool[g[1]].push(id);
     }
     for (const f in NAP.START_ARMIES) {
@@ -107,10 +108,22 @@
     S.armies.push(a);
     return a;
   };
+  function deriveTraits(g) {
+    const t = new Set(), txt = (g.trait || '').toLowerCase();
+    if (/cavalry|dash|hussar|cossack/.test(txt)) t.add('cavalry');
+    if (/artillery|gunner|engineer/.test(txt)) t.add('artillery');
+    if (/bravest|fearless|forward|lion|impetuous|rash|aggress|fierce|energetic|zealot|spoiled|sharp|hardy|guerrilla/.test(txt) || g.atk >= 6) t.add('aggressive');
+    if (/cautious|methodical|careful|steady|defender|rock|steadfast|loyal|hesitant|aged|old guard|solid|statesman/.test(txt) || g.def >= 6) t.add('defender');
+    if (/staff|reformer|organiser|diplomat|governor|logist|reform/.test(txt)) t.add('logistician');
+    if (g.lead >= 6 || /master|marshal|iron duke|fox|inspir/.test(txt)) t.add('inspiring');
+    if (!t.size) t.add(g.lead >= 4 ? 'inspiring' : g.def >= g.atk ? 'defender' : 'aggressive');
+    return [...t].slice(0, 2);
+  }
+  C.hasTrait = (g, t) => !!g && (g.traits || []).includes(t);
   C.assignGeneral = function (army, gid) {
     if (army.general) { const old = S.generals[army.general]; if (old) old.assigned = null; if (old && old.alive) S.pool[old.owner].push(old.id); }
     const g = S.generals[gid];
-    army.general = gid; g.assigned = army.id;
+    army.general = gid; g.assigned = army.id; g.idle = 0; if (!g.wasCommander) { g.loyalty = Math.min(100, (g.loyalty || 70) + 5); g.wasCommander = true; }
     const pl = S.pool[g.owner]; const i = pl.indexOf(gid); if (i >= 0) pl.splice(i, 1);
   };
 
@@ -154,6 +167,7 @@
     const d = C.def(ps.id);
     let v = d.income * INCOME_K * (1 + 0.5 * ps.market);
     if (ps.siege) v *= 0.1;
+    if (ps.foraged) v *= 0.3;
     v *= { tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1;
     const u = ps.unrest || 0;
     v *= u >= 60 ? 0.5 : u >= 30 ? 0.8 : 1;
@@ -163,12 +177,20 @@
     let v = 0;
     for (const p of C.provincesOf(f)) v += C.provIncome(S.provinces[p.id]);
     v += (COLONIAL[f] || 0) * INCOME_K * (S.factions[f].alive ? 1 : 0);
+    for (const o of C.treatyPartners('trade', f)) if (S.factions[o].alive && !atWar(f, o)) v += Math.min(45, C.provincesOf(o).reduce((q, p) => q + C.provIncome(S.provinces[p.id]), 0) * 0.07);
     const n = C.provincesOf(f).length;
     v *= 1 - clamp((n - 22) * 0.015, 0, 0.45); // overextension
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
     return Math.round(v * S.factions[f].incomeMult * (dm || 1));
   };
-  C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0), 0);
+  C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0);
+  C.setStaff = function (army, id) {
+    if (!id) { army.staff = null; return null; }
+    const st = NAP.STAFF[id], fs = S.factions[army.owner];
+    if (army.staff === id) return null;
+    if (fs.gold < st.cost) return 'Not enough gold';
+    fs.gold -= st.cost; army.staff = id; return null;
+  };
   C.manpowerGain = function (f) {
     let v = 0;
     for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
@@ -179,7 +201,7 @@
   // -------------------------------------------------------------------- movement graph
   function canEnter(f, pid) {
     const o = S.provinces[pid].owner;
-    return o === f || allied(f, o) || atWar(f, o);
+    return o === f || allied(f, o) || atWar(f, o) || C.hasTreaty('access', f, o);
   }
   C.canEnter = canEnter;
   const isSea = (a, b) => W().byId[a].sea.includes(W().byId[b].idx);
@@ -301,27 +323,67 @@
   C.availableGenerals = (f) => S.pool[f].map((id) => S.generals[id]).filter((g) => g.alive);
 
   // -------------------------------------------------------------------- diplomacy
+  // ---- treaties: trade deals, military access, dynastic marriages ----
+  C.hasTreaty = (kind, a, b) => !!(S.treaties && S.treaties[kind] && S.treaties[kind][pkey(a, b)]);
+  C.treatyPartners = (kind, f) => (S.treaties && S.treaties[kind] ? Object.keys(S.treaties[kind]).filter((k) => k.split('|').includes(f)).map((k) => k.split('|').find((x) => x !== f)) : []);
+  function setTreaty(kind, a, b, on) {
+    S.treaties = S.treaties || { trade: {}, access: {}, marriage: {} };
+    S.treaties[kind] = S.treaties[kind] || {};
+    if (on) S.treaties[kind][pkey(a, b)] = true; else delete S.treaties[kind][pkey(a, b)];
+  }
+  C.treatyCheck = function (kind, ai, other) {
+    if (ai === 'minor' || other === 'minor') return [false, 'They have no interest.'];
+    if (atWar(ai, other)) return [false, 'You are at war.'];
+    if (C.hasTreaty(kind, ai, other)) return [false, 'Already in force.'];
+    const r = C.rel(ai, other);
+    if (kind === 'trade') return r >= -10 ? [true, 'A trade agreement is signed.'] : [false, 'They do not trust you enough to trade.'];
+    if (kind === 'access') return (allied(ai, other) || r >= 15) ? [true, 'Your armies may now cross their land.'] : [false, 'They will not let your soldiers cross their land.'];
+    if (kind === 'marriage') return r >= 30 && !wars(ai).includes(other) ? [true, 'The royal houses are united by marriage.'] : [false, 'Relations are not warm enough for a royal marriage (need +30).'];
+    return [false, 'Unknown treaty.'];
+  };
+  C.makeTreaty = function (kind, a, b) {
+    setTreaty(kind, a, b, true);
+    addRel(a, b, kind === 'marriage' ? 25 : kind === 'trade' ? 6 : 3);
+    const nm = { trade: 'a trade agreement', access: 'a military access treaty', marriage: 'a dynastic marriage' }[kind];
+    plog(`${F(a).name} and ${F(b).name} conclude ${nm}.`, 'alliance', [a, b]);
+    if (a !== S.player && b !== S.player) C.log(`${F(a).name} and ${F(b).name} conclude ${nm}.`, 'alliance-minor');
+  };
+  C.cancelTreaty = function (kind, a, b) { setTreaty(kind, a, b, false); addRel(a, b, kind === 'marriage' ? -30 : -8); };
+  C.proposeTreaty = function (kind, from, to) { const [ok, msg] = C.treatyCheck(kind, to, from); if (ok) C.makeTreaty(kind, from, to); return [ok, msg]; };
+
   function joinWars(a, b, depth) {
-    // allies of the defender may join; allies of the aggressor may join
+    // allies of the defender may join; allies of the aggressor may join (royal marriages always answer the call)
     for (const x of alliesOf(b)) if (x !== a && x !== S.player && !atWar(x, a) && !allied(x, a) && S.factions[x].alive) {
-      if (rnd() < 0.7) { declareWar(x, a, depth + 1, `honours the alliance with ${F(b).name}`); }
+      if (rnd() < (C.hasTreaty('marriage', x, b) ? 1 : 0.7)) { declareWar(x, a, depth + 1, `honours the alliance with ${F(b).name}`); }
     }
     for (const x of alliesOf(a)) if (x !== b && x !== S.player && !atWar(x, b) && !allied(x, b) && S.factions[x].alive && x !== 'minor') {
-      if (rnd() < 0.5 * (0.5 + F(x).aggr)) declareWar(x, b, depth + 1, `stands with ${F(a).name}`);
+      if (rnd() < (C.hasTreaty('marriage', x, a) ? 1 : 0.5 * (0.5 + F(x).aggr))) declareWar(x, b, depth + 1, `stands with ${F(a).name}`);
     }
   }
-  function declareWar(a, b, depth, why) {
+  // Pick the most valuable enemy province bordering our land as an AI war goal
+  function autoGoal(a, b) {
+    let best = null, bv = -1;
+    for (const p of C.provincesOf(b)) {
+      if (!p.adj.some((i) => S.provinces[W().provs[i].id].owner === a) && !(p.port && p.sea.length)) continue;
+      const v = provValue(p.id) - (p.adj.some((i) => S.provinces[W().provs[i].id].owner === a) ? 0 : 20);
+      if (v > bv) { bv = v; best = p.id; }
+    }
+    return best ? { by: a, type: 'province', id: best } : { by: a, type: 'gold' };
+  }
+  function declareWar(a, b, depth, why, goal) {
     if (atWar(a, b) || a === b || !S.factions[a].alive || !S.factions[b].alive) return false;
     if (allied(a, b)) delete S.allies[pkey(a, b)];
-    S.wars[pkey(a, b)] = { since: S.turn, exh: 0, s: {} };
+    for (const k of ['trade', 'access', 'marriage']) if (C.hasTreaty(k, a, b)) setTreaty(k, a, b, false);
+    S.wars[pkey(a, b)] = { since: S.turn, exh: 0, s: {}, goal: goal || (a === S.player && !S.autoplay ? { by: a, type: 'none' } : autoGoal(a, b)) };
     addRel(a, b, -40);
-    plog(`${F(a).name} declares war on ${F(b).name}${why ? ' (' + why + ')' : ''}!`, 'war', [a, b]);
+    const g = S.wars[pkey(a, b)].goal;
+    const gtxt = g && g.type === 'province' ? ` (war goal: ${C.def(g.id).name})` : g && g.type === 'gold' ? ' (war goal: indemnity)' : '';
+    plog(`${F(a).name} declares war on ${F(b).name}${why ? ' (' + why + ')' : ''}!${gtxt}`, 'war', [a, b]);
     if (a !== S.player && b !== S.player) C.log(`${F(a).name} declares war on ${F(b).name}.`, 'war-minor');
     if (!depth || depth < 2) joinWars(a, b, depth || 0);
-    // clear armies of former allies from foreign soil: they simply become hostile
     return true;
   }
-  C.declareWar = (a, b, why) => declareWar(a, b, 0, why);
+  C.declareWar = (a, b, why, goal) => declareWar(a, b, 0, why, goal);
   function makePeace(a, b) {
     if (!atWar(a, b)) return;
     delete S.wars[pkey(a, b)];
@@ -339,7 +401,10 @@
     if (a !== S.player && b !== S.player) C.log(`${F(a).name} and ${F(b).name} become allies.`, 'alliance-minor');
   }
   C.makeAlliance = makeAlliance;
-  C.breakAlliance = function (a, b) { delete S.allies[pkey(a, b)]; addRel(a, b, -25); plog(`${F(a).name} breaks its alliance with ${F(b).name}.`, 'diplomacy', [a, b]); };
+  C.breakAlliance = function (a, b) {
+    if (C.hasTreaty('marriage', a, b)) return false; // a royal marriage binds the alliance
+    delete S.allies[pkey(a, b)]; addRel(a, b, -25); plog(`${F(a).name} breaks its alliance with ${F(b).name}.`, 'diplomacy', [a, b]); return true;
+  };
   // After peace, armies standing in provinces they can no longer occupy are pushed back
   function expelFromTerritory() {
     // armies standing where they are no longer welcome are pushed back to friendly soil
@@ -397,13 +462,15 @@
   const provValue = (pid) => { const d = C.def(pid); return 12 + d.income * 1.5 + (d.capital ? 25 : 0) + S.provinces[pid].fort * 4; };
   // Options for the player ('from') when negotiating with 'to'
   C.peaceOptions = function (from, to) {
+    const w0 = S.wars[pkey(from, to)], goal = w0 && w0.goal && w0.goal.by === from ? w0.goal : null;
     const opts = [{ id: 'status', label: 'White peace (status quo)' }];
     const gTo = Math.max(0, Math.floor(S.factions[to].gold)), gFrom = Math.max(0, Math.floor(S.factions[from].gold));
-    if (gTo >= 100) opts.push({ id: 'gold', label: `Demand ${Math.min(300, gTo)} gold`, gold: Math.min(300, gTo) });
+    if (gTo >= 100) opts.push({ id: 'gold', label: `Demand ${Math.min(300, gTo)} gold${goal && goal.type === 'gold' ? '  \u2605 your war goal' : ''}`, gold: Math.min(300, gTo), goal: !!(goal && goal.type === 'gold') });
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
       if (ps.owner !== to) continue;
-      if (S.armies.some((a) => a.prov === p.id && a.owner === from) || (ps.siege && ps.siege.by === from)) opts.push({ id: 'province:' + p.id, label: `Demand ${p.name} (occupied)` });
+      const isGoal = !!(goal && goal.type === 'province' && goal.id === p.id);
+      if (S.armies.some((a) => a.prov === p.id && a.owner === from) || (ps.siege && ps.siege.by === from) || (isGoal && C.warScore(from, to) >= 30)) opts.push({ id: 'province:' + p.id, label: `Demand ${p.name}${isGoal ? '  \u2605 your war goal' : ' (occupied)'}`, goal: isGoal });
     }
     if (gFrom >= 100) opts.push({ id: 'tribute', label: `Pay ${Math.min(250, gFrom)} gold tribute`, gold: Math.min(250, gFrom) });
     for (const p of W().provs) {
@@ -432,9 +499,11 @@
     if (from === S.player) score += S.difficulty === 'easy' ? 10 : S.difficulty === 'hard' ? -8 : 0;
     const [kind, arg] = termId.split(':');
     let apply = () => {};
+    const wg = w.goal && w.goal.by === from ? w.goal : null;
     const optList = C.peaceOptions(from, to);
     const opt = optList.find((o) => o.id === termId);
     if (!opt) return [false, 'That term is no longer available.'];
+    if (opt.goal) score += 12; else if (kind === 'province' && wg && wg.type === 'province') score -= 8; // demands outside your war goal look illegitimate
     if (kind === 'gold') { score -= opt.gold / 25; apply = () => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }; }
     else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
     else if (kind === 'tribute') { score += opt.gold / 20; apply = () => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }; }
@@ -486,7 +555,7 @@
   C.assault = function (army) {
     const err = C.assaultCheck(army); if (err) return { ok: false, text: err };
     const ps = S.provinces[army.prov], d = C.def(army.prov);
-    const garrison = (500 + 450 * ps.fort) * (1 + 0.25 * ps.fort) * (TERRAIN_DEF[d.terrain] || 1);
+    const garrison = (500 + 450 * ps.fort) * (1 + 0.25 * ps.fort) * (TERRAIN_DEF[d.terrain] || 1) * (army.staff === 'engineer' ? 0.8 : 1);
     const arty = army.units.filter((u) => u.type === 'art').length;
     const att = C.armyPower(army) * (1 + Math.min(0.6, arty * 0.12)) * (1 - (army.fatigue || 0) / 250) * F(army.owner).morale;
     const r = (att / garrison) * (0.85 + rnd() * 0.3);
@@ -528,11 +597,21 @@
       a.units = a.units.filter((u) => u.men >= Math.max(15, u.max * 0.08));
     }
   }
+  function spawnColonel(f) {
+    const names = (NAP.COLONEL_NAMES[f] || ['Colonel Local']).filter((n) => !Object.values(S.generals).some((g) => g.name === n));
+    if (!names.length) return;
+    const id = S.nextGen++, nm = names[Math.floor(rnd() * names.length)];
+    const g = { id, name: nm, owner: f, atk: 2 + Math.floor(rnd() * 2), def: 2 + Math.floor(rnd() * 2), lead: 2 + Math.floor(rnd() * 2), from: S.year, trait: 'Rising colonel', xp: 0, lvl: 1, alive: true, assigned: null, arrived: true, loyalty: 82, idle: 0 };
+    g.traits = deriveTraits(g); S.generals[id] = g; S.pool[f].push(id);
+    plog(`Colonel ${nm} distinguishes himself and is promoted to general.`, 'good', [f]);
+  }
   function award(armies, victory) {
+    if (victory && armies.length && rnd() < 0.14) spawnColonel(armies[0].owner);
     for (const a of armies) {
       if (victory) for (const u of a.units) u.xp = (u.xp || 0) + 1;
       if (!a.general) continue;
       const g = S.generals[a.general];
+      g.loyalty = Math.max(0, Math.min(100, (g.loyalty || 70) + (victory ? 4 : -6)));
       g.xp += victory ? 30 : 10;
       const need = [0, 40, 100, 200, 350, 550, 800][g.lvl] || 9999;
       if (g.xp >= need && g.lvl < 7) {
@@ -653,7 +732,8 @@
     const g = genBonus(armies);
     return {
       faction: armies[0].owner, armies, units,
-      general: g ? { id: g.id, name: g.name, atk: g.atk, def: g.def, lead: g.lead, trait: g.trait } : null
+      general: g ? { id: g.id, name: g.name, atk: g.atk, def: g.def, lead: g.lead, trait: g.trait, traits: g.traits || [] } : null,
+      staff: [...new Set(armies.map((a) => a.staff).filter(Boolean))]
     };
   }
 
@@ -696,7 +776,7 @@
       if (!atWar(f, ps.owner)) continue;
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -752,6 +832,44 @@
     return 4;
   }
   C.supplyDepth = supplyDepth;
+  // route (province ids) from the army back to the nearest friendly province; [] when at home
+  C.supplyPath = function (a) {
+    const home = (id) => { const o = S.provinces[id].owner; return o === a.owner || allied(a.owner, o); };
+    if (home(a.prov)) return [];
+    const prev = { [a.prov]: null }; let q = [a.prov];
+    for (let d = 0; d < 6 && q.length; d++) {
+      const nq = [];
+      for (const cur of q) for (const i of W().byId[cur].adj) {
+        const id = W().provs[i].id; if (id in prev) continue; prev[id] = cur;
+        if (home(id)) { const path = [id]; let c = cur; while (c) { path.unshift(c); c = prev[c]; } return path.reverse().reverse(); }
+        nq.push(id);
+      }
+      q = nq;
+    }
+    return [];
+  };
+  // things the player should look at before ending the turn
+  C.attention = function (f) {
+    const out = [], fs = S.factions[f], warNow = wars(f).length > 0;
+    for (const a of C.armiesOf(f)) {
+      const ps = S.provinces[a.prov], nm = C.def(a.prov).name, home = ps.owner === f || allied(f, ps.owner), besieging = ps.siege && ps.siege.by === f;
+      if (!a.path.length && !besieging && !home) out.push({ kind: 'idle', sev: 2, army: a.id, prov: a.prov, text: `${a.units.length}-regiment army idle in ${nm}` });
+      else if (!a.path.length && home && warNow && a.units.length >= 8) out.push({ kind: 'idle-home', sev: 1, army: a.id, prov: a.prov, text: `Large army (${a.units.length} regts) waiting in ${nm}` });
+      if ((a.supply || 0) >= 2) out.push({ kind: 'supply', sev: 2, army: a.id, prov: a.prov, text: `Army in ${nm} is short of supply` });
+      if (!a.general && a.units.length >= 5 && C.availableGenerals(f).length) out.push({ kind: 'general', sev: 1, army: a.id, prov: a.prov, text: `Army in ${nm} has no general (one is available)` });
+    }
+    for (const p of C.provincesOf(f)) {
+      const ps = S.provinces[p.id];
+      if (ps.siege) out.push({ kind: 'siege', sev: 3, prov: p.id, text: `${p.name} is under siege` });
+      if ((ps.unrest || 0) >= 60) out.push({ kind: 'unrest', sev: 3, prov: p.id, text: `Unrest in ${p.name} is ${Math.round(ps.unrest)}%` });
+    }
+    if (fs.gold > 1000) out.push({ kind: 'gold', sev: 1, prov: fs.cap, text: `${Math.round(fs.gold).toLocaleString('en-US')} gold unspent` });
+    if (warNow && fs.gold > 500 && fs.manpower > 1000) {
+      const empty = C.provincesOf(f).filter((p) => !S.provinces[p.id].queue.length && !S.provinces[p.id].siege).length;
+      if (empty >= 3) out.push({ kind: 'queue', sev: 1, prov: fs.cap, text: `At war with ${Math.round(fs.gold)} gold in the treasury, but ${empty} provinces are recruiting nothing` });
+    }
+    return out.sort((x, y) => y.sev - x.sev);
+  };
   function attrition() {
     const month = S.month;
     for (const a of S.armies.slice()) {
@@ -759,11 +877,16 @@
       let loss = 0;
       const home = ps.owner === a.owner || allied(a.owner, ps.owner);
       const depth = supplyDepth(a); a.supply = depth;
+      const gen = a.general ? S.generals[a.general] : null, winter = month === 12 || month <= 2;
+      let mult = (C.hasTrait(gen, 'logistician') ? 0.7 : 1) * (a.staff === 'quartermaster' ? 0.75 : 1);
       if (!home) loss += 0.012 * (1 + a.units.length / 12) * (depth <= 1 ? 1.5 : depth === 2 ? 2.2 : 3.2);
+      if (!home && winter) loss += 0.02 + (d.terrain === 'm' ? 0.02 : 0);
       if (!home && d.terrain === 'm') loss += 0.01;
       if ((month === 12 || month <= 2) && d.owner === 'russia' && a.owner !== 'russia' && !allied(a.owner, 'russia')) loss += 0.10;
+      if (!home && a.forage) { mult *= 0.4; ps.foraged = true; ps.unrest = Math.min(100, (ps.unrest || 0) + 8); } // living off the land: fewer losses, a ruined province
+      loss *= mult;
       // marching fatigue
-      if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25);
+      if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7) * (C.hasTrait(gen, 'logistician') ? 0.7 : 1)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25 - (a.staff === 'quartermaster' ? 10 : 0));
       a.moved = false; a.forcedMarch = false;
       if (loss > 0) {
         applyCasualties([a], loss);
@@ -791,6 +914,27 @@
     }
   }
 
+  const rating = (g) => g.atk + g.def + g.lead;
+  function retireGeneral(g) {
+    const a = S.armies.find((x) => x.general === g.id); if (a) a.general = null;
+    const i = S.pool[g.owner].indexOf(g.id); if (i >= 0) S.pool[g.owner].splice(i, 1);
+    g.alive = false; g.retired = true; g.assigned = null;
+    plog(`${g.name} resigns his commission in disgust.`, 'bad', [g.owner]);
+  }
+  function generalsPhase() {
+    for (const g of Object.values(S.generals)) {
+      if (!g.alive || !g.arrived || !S.factions[g.owner] || !S.factions[g.owner].alive) continue;
+      if (g.assigned) { g.idle = 0; g.loyalty = Math.min(100, (g.loyalty || 70) + 0.35); }
+      else {
+        g.idle = (g.idle || 0) + 1;
+        if (g.idle > 8) g.loyalty = (g.loyalty || 70) - 1.2;
+        if (C.armiesOf(g.owner).some((a) => a.general && S.generals[a.general] && rating(g) > rating(S.generals[a.general]) + 2)) g.loyalty -= 0.6; // resents a lesser rival
+      }
+      if (g.loyalty < 38 && !g.warned && g.owner === S.player) { g.warned = true; plog(`${g.name} grumbles about being passed over. Give him a command soon.`, 'bad', [g.owner]); }
+      if (g.loyalty <= 15) retireGeneral(g);
+    }
+  }
+
   function economyPhase() {
     unrestPhase();
     S.report = {};
@@ -812,6 +956,7 @@
       S.report[id] = { income: inc, upkeep: up };
     }
     subsidies();
+    for (const ps of Object.values(S.provinces)) ps.foraged = false;
     // build queues
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
@@ -939,6 +1084,15 @@
         }
       }
     }
+    // treaties: trade deals and royal marriages
+    if (rnd() < 0.025) {
+      const others = Object.keys(S.factions).filter((x) => x !== f && x !== 'minor' && S.factions[x].alive && !atWar(f, x) && C.rel(f, x) > 10 && !C.hasTreaty('trade', f, x));
+      if (others.length) {
+        const x = others[Math.floor(rnd() * others.length)];
+        if (x === S.player) { if (!S.msgs.some((m) => m.type === 'trade-offer' && m.from === f)) S.msgs.push({ type: 'trade-offer', from: f }); } else C.makeTreaty('trade', f, x);
+      }
+    }
+    if (rnd() < 0.008) for (const x of alliesOf(f)) if (x !== S.player && x !== 'minor' && C.rel(f, x) >= 40 && !C.hasTreaty('marriage', f, x)) { C.makeTreaty('marriage', f, x); break; }
     // declare war
     if (S.turn < 4) return;
     const engaged = wars(f).filter((x) => x !== 'minor').length;
@@ -997,7 +1151,7 @@
     const mainPower = list.length ? C.armyPower(list[0]) : 0;
     list.forEach((a, idx) => {
       if (!S.armies.includes(a)) return;
-      a.path = [];
+      a.path = []; a.forage = (a.supply || 0) >= 2;
       const ps = S.provinces[a.prov];
       const myPow = C.armyPower(a);
       // keep besieging
@@ -1334,6 +1488,7 @@
     }
     // minor faction sieges (they never move) - none
     attrition();
+    generalsPhase();
     for (const a of S.armies.slice()) if (!a.units.length) removeArmy(a);
     economyPhase();
     arrivals();
@@ -1350,6 +1505,9 @@
       if (m.type === 'peace-offer' && atWar(m.from, S.player)) {
         const ok = await H().offer(m);
         if (ok) { if (m.demand) { S.factions[S.player].gold -= m.demand; S.factions[m.from].gold += m.demand; } makePeace(m.from, S.player); }
+      } else if (m.type === 'trade-offer' && !C.hasTreaty('trade', m.from, S.player) && !atWar(m.from, S.player)) {
+        const ok = await H().offer(m);
+        if (ok) C.makeTreaty('trade', m.from, S.player);
       } else if (m.type === 'alliance-offer' && !allied(m.from, S.player)) {
         const ok = await H().offer(m);
         if (ok) makeAlliance(m.from, S.player);

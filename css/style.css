@@ -183,3 +183,12 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .card { position: relative; }
 .card .ribbon { position: absolute; top: -9px; right: 10px; background: linear-gradient(#e0bd63, #b8913c); color: #231a05; font-size: 11px; font-weight: 800; letter-spacing: .6px; padding: 2px 9px; border-radius: 3px; text-transform: uppercase; }
 .card .why { font-size: 12px; color: #d4cdb6; }
+
+/* battle: pause banner, objectives HUD */
+.b-paused { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(20,24,34,0.85); border: 1px solid #7cf; color: #cfe6ff; padding: 5px 16px; border-radius: 4px; font-size: 13px; letter-spacing: .08em; pointer-events: none; z-index: 4; }
+.b-paused[hidden] { display: none; }
+#b-obj { font-size: 12px; opacity: .95; }
+#b-obj .ob { margin: 0 2px; font-size: 13px; }
+#b-obj .ob-1 { color: #ddd; } #b-obj .ob0 { color: #6af; } #b-obj .ob1 { color: #f66; }
+#b-obj .ob-1 { color: #ddd; }
+.good { color: #6d6; } .bad { color: #e66; }

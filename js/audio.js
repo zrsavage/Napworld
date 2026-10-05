@@ -34,13 +34,13 @@
     const c = A.ctx, s = c.createBufferSource(); s.buffer = A.noise; s.playbackRate.value = 0.6 + Math.random() * 0.8;
     const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq;
     const g = c.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f); f.connect(g); g.connect(bus || A.sfxBus); s.start(t, Math.random() * 0.5, dur + 0.05);
+    s.connect(f); f.connect(g); g.connect(bus || A.cur || A.sfxBus); s.start(t, Math.random() * 0.5, dur + 0.05);
   }
   function tone(t, freq, dur, type, gain, bus, slideTo) {
     const c = A.ctx, o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(bus || A.sfxBus); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(bus || A.cur || A.sfxBus); o.start(t); o.stop(t + dur + 0.05);
   }
   const SFX = {
     click: (t) => tone(t, 880, 0.05, 'triangle', 0.08),
@@ -53,12 +53,23 @@
     roll: (t) => { for (let i = 0; i < 6; i++) { noiseBurst(t + i * 0.05, 0.07, 1800, 'bandpass', 0.18); } tone(t, 110, 0.3, 'sine', 0.35, null, 60); },
     fanfare: (t) => { [392, 494, 587, 784].forEach((f, i) => tone(t + i * 0.16, f, i === 3 ? 0.9 : 0.22, 'sawtooth', 0.1)); },
     defeat: (t) => { [330, 311, 262, 196].forEach((f, i) => tone(t + i * 0.28, f, 0.5, 'triangle', 0.12)); },
+    bugle: (t) => { tone(t, 466, 0.16, 'sawtooth', 0.12); tone(t + 0.19, 622, 0.16, 'sawtooth', 0.12); tone(t + 0.38, 784, 0.55, 'sawtooth', 0.14); },
+    hooves: (t) => { for (let i = 0; i < 6; i++) { noiseBurst(t + i * 0.065, 0.05, 420, 'lowpass', 0.2); tone(t + i * 0.065, 75, 0.06, 'sine', 0.2); } },
     bell: (t) => { tone(t, 660, 1.2, 'sine', 0.1); tone(t, 1320, 0.8, 'sine', 0.04); }
   };
-  A.sfx = function (name, gap) {
+  // opts: { pan: -1..1, vol: 0..1 } for positional sound
+  A.sfx = function (name, gap, opts) {
     if (!A.ctx || A.muted) return;
     if (gap && !ok('s:' + name, gap)) return;
-    try { SFX[name](A.ctx.currentTime + 0.001); } catch (e) {}
+    let node = null;
+    if (opts && (opts.pan || opts.vol !== undefined)) {
+      const g = A.ctx.createGain(); g.gain.value = opts.vol === undefined ? 1 : opts.vol;
+      if (A.ctx.createStereoPanner) { const p = A.ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, opts.pan || 0)); g.connect(p); p.connect(A.sfxBus); } else g.connect(A.sfxBus);
+      node = g;
+    }
+    A.cur = node;
+    try { SFX[name](A.ctx.currentTime + 0.001); } catch (e) { /* ignore */ }
+    A.cur = null;
   };
 
   // ---- generative music: drone + marching drum, two moods
