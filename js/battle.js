@@ -917,7 +917,7 @@
         ctx.strokeStyle = 'rgba(120,170,255,0.7)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(zr, 0); ctx.lineTo(zr, FH); ctx.stroke();
         ctx.strokeStyle = 'rgba(255,130,130,0.5)'; ctx.beginPath(); ctx.moveTo(this.zoneL, 0); ctx.lineTo(this.zoneL, FH); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(200,220,255,0.85)'; ctx.font = 'bold 18px Georgia'; ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(200,220,255,0.85)'; ctx.font = 'bold 18px "IM Fell English", Georgia, serif'; ctx.textAlign = 'center';
         ctx.fillText('YOUR DEPLOYMENT ZONE', zr / 2, 36);
         ctx.fillStyle = 'rgba(255,200,200,0.7)'; ctx.fillText('ENEMY ZONE', (this.zoneL + FW) / 2, 36);
       }
@@ -928,7 +928,7 @@
       this.drawOverlays(ctx);
       // terrain captions: constant on-screen size, drawn under the units
       { const sk0 = this.fit * this.cam.z, fs = clamp(12 * devicePixelRatio / sk0, 5, 26);
-        if (sk0 > 0.3) { ctx.font = `italic 600 ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        if (sk0 > 0.3) { ctx.font = `italic 600 ${fs}px "IM Fell English", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
           for (const c of this.terrain.caps) { ctx.fillStyle = c.c; ctx.strokeText(c.t, c.x, c.y); ctx.fillText(c.t, c.x, c.y); } } }
       // units (routing first so living units draw on top)
       const sorted = this.units.filter((u) => !u.fled && (u.cls === 'gen' ? !u.dead : !u.dead)).sort((a, b) => (a.state === 'routing' ? 0 : 1) - (b.state === 'routing' ? 0 : 1));
@@ -994,7 +994,7 @@
         ctx.strokeStyle = '#2a2018'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(o.x, o.y + 6); ctx.lineTo(o.x, o.y - 22); ctx.stroke();
         ctx.fillStyle = `rgb(${col})`; const wv = Math.sin(this.t * 3 + o.x) * 2;
         ctx.beginPath(); ctx.moveTo(o.x, o.y - 22); ctx.lineTo(o.x + 16, o.y - 18 + wv); ctx.lineTo(o.x, o.y - 12); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 0.8; ctx.stroke();
-        ctx.font = `bold ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
+        ctx.font = `bold ${fs}px "IM Fell English", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.fillStyle = '#fff';
         ctx.strokeText(o.name, o.x, o.y + o.r + fs); ctx.fillText(o.name, o.x, o.y + o.r + fs);
         ctx.restore();
       }

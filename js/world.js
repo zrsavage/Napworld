@@ -10,12 +10,35 @@
   }
   NAP.hexToRgb = hexToRgb;
 
+  // Coast detail: projected points get seeded midpoint displacement (natural wobble) then Chaikin smoothing
+  const coastCache = new WeakMap();
+  function coastPts(flat) {
+    let r = coastCache.get(flat); if (r) return r;
+    let pts = []; for (let i = 0; i < flat.length; i += 2) pts.push(NAP.proj(flat[i], flat[i + 1]));
+    let seed = 1234567 + flat.length * 31; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+    for (let pass = 0; pass < 2; pass++) {
+      const out = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+        out.push(a);
+        if (len > 5) { const k = rnd() * 0.3 * len * (pass ? 0.6 : 1); out.push([(a[0] + b[0]) / 2 - dy / len * k, (a[1] + b[1]) / 2 + dx / len * k]); }
+      }
+      pts = out;
+    }
+    for (let pass = 0; pass < 2; pass++) { // Chaikin corner cutting
+      const out = [];
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      pts = out;
+    }
+    coastCache.set(flat, pts); return pts;
+  }
   function polyPath(ctx, flat, scale) {
     ctx.beginPath();
-    for (let i = 0; i < flat.length; i += 2) {
-      const [x, y] = NAP.proj(flat[i], flat[i + 1]);
-      if (i === 0) ctx.moveTo(x * scale, y * scale); else ctx.lineTo(x * scale, y * scale);
-    }
+    const pts = coastPts(flat);
+    for (let i = 0; i < pts.length; i++) { if (i === 0) ctx.moveTo(pts[i][0] * scale, pts[i][1] * scale); else ctx.lineTo(pts[i][0] * scale, pts[i][1] * scale); }
     ctx.closePath();
   }
 
@@ -273,6 +296,10 @@
     // ocean texture
     ctx.fillStyle = ocean(ctx);
     ctx.fillRect(-200, -200, W + 400, H + 400);
+    // pale shallows hugging the coast, like an engraved chart
+    ctx.save(); ctx.lineJoin = 'round';
+    for (const [lw, al] of [[11, 0.10], [7, 0.12], [3.5, 0.16]]) { ctx.strokeStyle = `rgba(235,246,250,${al})`; ctx.lineWidth = lw; for (const n in NAP.LAND) { polyPath(ctx, NAP.LAND[n], 1); ctx.stroke(); } }
+    ctx.restore();
     // coast shadow
     ctx.save();
     ctx.shadowColor = 'rgba(30,60,80,0.55)'; ctx.shadowBlur = 10 * cam.z; ctx.fillStyle = '#d9cfb0';
@@ -282,8 +309,8 @@
     ctx.save();
     ctx.beginPath();
     for (const n in NAP.LAND) {
-      const f = NAP.LAND[n];
-      for (let i = 0; i < f.length; i += 2) { const [x, y] = NAP.proj(f[i], f[i + 1]); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+      const pts = coastPts(NAP.LAND[n]);
+      for (let i = 0; i < pts.length; i++) { if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]); else ctx.lineTo(pts[i][0], pts[i][1]); }
       ctx.closePath();
     }
     ctx.clip();
@@ -297,7 +324,7 @@
       if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, gw * cs, gh * cs); } }
     ctx.restore();
     // coast line
-    ctx.strokeStyle = 'rgba(40,35,25,0.8)'; ctx.lineWidth = 1.2; ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(40,35,25,0.9)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
     for (const n in NAP.LAND) { polyPath(ctx, NAP.LAND[n], 1); ctx.stroke(); }
     // rivers
     ctx.strokeStyle = 'rgba(80,130,170,0.85)'; ctx.lineWidth = 1.3;
@@ -328,7 +355,7 @@
       ctx.fill(); ctx.stroke();
     }
     // sea labels
-    ctx.font = 'italic 12px Georgia, serif'; ctx.fillStyle = 'rgba(30,60,90,0.55)'; ctx.textAlign = 'center';
+    ctx.font = 'italic 12px "IM Fell English", Georgia, serif'; ctx.fillStyle = 'rgba(30,60,90,0.55)'; ctx.textAlign = 'center';
     for (const [t, lo, la] of NAP.SEA_LABELS) { const [x, y] = NAP.proj(lo, la); ctx.save(); ctx.translate(x, y); if ('letterSpacing' in ctx) ctx.letterSpacing = '3px'; ctx.fillText(t, 0, 0); ctx.restore(); }
     // sea links from the selected army's port
     if (opts.seaFrom) {
@@ -343,7 +370,7 @@
       for (const p of w.provs) {
         const fs = Math.max(7, Math.min(13, 4 + Math.sqrt(p.area) / 5));
         if (fs * cam.z < 7.5) continue;
-        ctx.font = `${fs}px Georgia, serif`;
+        ctx.font = `${fs}px "IM Fell English", Georgia, serif`;
         ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(240,232,205,0.8)';
         ctx.strokeText(p.name, p.cx, p.cy - 10);
         ctx.fillStyle = '#2a2118'; ctx.fillText(p.name, p.cx, p.cy - 10);

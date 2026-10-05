@@ -15,6 +15,7 @@
   });
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
+  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
 
   // ------------------------------------------------------------------ utilities
   function modal(html, cls) {

@@ -20,14 +20,14 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 
 /* ---------- start screen ---------- */
 #start { position: absolute; inset: 0; overflow: auto; padding: 28px 24px 60px; background: radial-gradient(ellipse at top, #263044 0%, #14181f 70%); }
-#start h1 { margin: 0; font: 700 44px Georgia, serif; letter-spacing: 6px; color: var(--gold2); text-align: center; text-shadow: 0 2px 12px #000; }
+#start h1 { margin: 0; font: 700 44px 'Cinzel', 'IM Fell English', Georgia, serif; letter-spacing: 6px; color: var(--gold2); text-align: center; text-shadow: 0 2px 12px #000; }
 #start .sub { text-align: center; color: var(--muted); margin: 6px 0 22px; font-style: italic; }
 #start .opts { display: flex; gap: 14px; justify-content: center; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; max-width: 1200px; margin: 0 auto; }
 .card { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: transform .1s; }
 .card:hover { transform: translateY(-2px); border-color: var(--gold); border-left-color: var(--c); }
 .card.sel { outline: 2px solid var(--gold); background: var(--panel2); }
-.card h3 { margin: 0 0 2px; font: 700 17px Georgia, serif; }
+.card h3 { margin: 0 0 2px; font: 700 17px 'IM Fell English', Georgia, serif; }
 .card .leader { color: var(--gold); font-size: 12px; }
 .card p { margin: 6px 0; color: #c9c3b0; font-size: 12.5px; }
 .card .stats { display: flex; gap: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
@@ -38,11 +38,11 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 #game { position: absolute; inset: 0; display: flex; flex-direction: column; }
 #topbar { display: flex; align-items: center; gap: 14px; padding: 6px 12px; background: linear-gradient(#242c3a, #181d27); border-bottom: 2px solid var(--gold); flex-wrap: wrap; z-index: 5; }
 #topbar .flag { width: 22px; height: 22px; border-radius: 4px; border: 2px solid #000; }
-#topbar .fname { font: 700 16px Georgia, serif; color: var(--gold2); }
+#topbar .fname { font: 700 16px 'IM Fell English', Georgia, serif; color: var(--gold2); }
 #topbar .stat { padding: 2px 10px; background: rgba(0,0,0,.28); border-radius: 4px; white-space: nowrap; }
 #topbar .stat small { color: var(--muted); }
 #topbar .spacer { flex: 1; }
-#topbar .date { font: 700 15px Georgia, serif; }
+#topbar .date { font: 700 15px 'IM Fell English', Georgia, serif; }
 #endturn { padding: 8px 20px; font-size: 15px; }
 #mapwrap { position: relative; flex: 1; min-height: 0; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
@@ -52,7 +52,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 
 #side { position: absolute; top: 8px; right: 8px; bottom: 8px; width: 330px; max-width: 46vw; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
 #side .ph { padding: 10px 12px; border-bottom: 3px solid var(--c, var(--gold)); background: linear-gradient(var(--panel2), var(--panel)); }
-#side .ph h2 { margin: 0; font: 700 19px Georgia, serif; }
+#side .ph h2 { margin: 0; font: 700 19px 'IM Fell English', Georgia, serif; }
 #side .ph .own { font-size: 12px; color: var(--muted); }
 #side .sec { padding: 8px 12px; border-bottom: 1px solid var(--line); }
 #side .sec h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
@@ -85,7 +85,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 /* ---------- modals ---------- */
 #modal { position: absolute; inset: 0; background: rgba(5,8,12,.62); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
 .dlg { background: var(--panel); border: 2px solid var(--gold); border-radius: 10px; max-width: 760px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 12px 50px #000; }
-.dlg h2 { margin: 0; padding: 12px 16px; font: 700 22px Georgia, serif; color: var(--gold2); background: linear-gradient(var(--panel2), var(--panel)); border-bottom: 1px solid var(--line); }
+.dlg h2 { margin: 0; padding: 12px 16px; font: 700 22px 'IM Fell English', Georgia, serif; color: var(--gold2); background: linear-gradient(var(--panel2), var(--panel)); border-bottom: 1px solid var(--line); }
 .dlg .body { padding: 14px 16px; }
 .dlg .foot { padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .dlg.event { border-color: #f1d487; background: linear-gradient(#2a2418, #1b1710); }
@@ -116,7 +116,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 #b-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
 .b-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(10,12,16,.88); border: 2px solid var(--gold); border-radius: 10px; padding: 18px 30px; text-align: center; max-width: 520px; }
 .b-banner.hide { display: none; }
-.b-banner h2 { margin: 0 0 8px; font: 700 28px Georgia, serif; }
+.b-banner h2 { margin: 0 0 8px; font: 700 28px 'IM Fell English', Georgia, serif; }
 .b-feed { position: absolute; left: 10px; top: 10px; font-size: 12px; text-shadow: 0 1px 3px #000; pointer-events: none; max-width: 340px; }
 .b-feed div { background: rgba(0,0,0,.55); padding: 2px 8px; margin-bottom: 2px; border-radius: 3px; }
 .b-help { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
@@ -155,7 +155,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .tut-hl { outline: 2px solid #ffd54a !important; box-shadow: 0 0 12px #ffd54a; animation: tutpulse 1.2s infinite; }
 @keyframes tutpulse { 50% { box-shadow: 0 0 22px #ffe58a; } }
 #coach { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(560px, 92vw); background: linear-gradient(#2a2418, #1b1710); border: 2px solid #f1d487; border-radius: 10px; padding: 12px 16px 10px; z-index: 12; box-shadow: 0 10px 40px #000c; }
-#coach h3 { margin: 0 0 4px; font: 700 17px Georgia, serif; color: var(--gold2); }
+#coach h3 { margin: 0 0 4px; font: 700 17px 'IM Fell English', Georgia, serif; color: var(--gold2); }
 #coach .ct { font-size: 13.5px; line-height: 1.5; }
 #coach .cf { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 #coach .dots { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; } #coach .dots i { width: 8px; height: 8px; border-radius: 50%; background: #ffffff25; } #coach .dots i.on { background: var(--gold); } #coach .dots i.done { background: #8a7a3c; }
