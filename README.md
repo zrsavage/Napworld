@@ -53,12 +53,20 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **National pluses and minuses:** every nation has two strengths and two weaknesses (e.g. Russia: vast manpower and hardy in the cold, but serf conscripts with weak morale and poor tax collection; Britain: disciplined volleys and rich trade, but a small, costly army). They are shown on the nation cards and defined in `NAP.PERKS` in `js/data.js`.
 - **Saves** are versioned and older saves are migrated; saves from a newer game version are refused politely.
 
+**v6: navy and Franconia**
+- **PC only:** the game targets desktop browsers with mouse and keyboard. Touch and mobile layouts are not supported and the pinch-zoom code has been removed.
+- **Bavaria** gains a fourth province, **Franconia**, with its own garrison.
+- **Fleets and basic naval warfare:** Ships of the Line and Frigates are built at a **Shipyard** (ports only). Five sea zones (Atlantic & North Sea, Western Mediterranean, Eastern Mediterranean, Black Sea, Baltic) connect through shared ports. Select a fleet and choose a destination, or right-click a sea ring or friendly port.
+  - Hostile fleets in the same zone fight an automatic battle (docked fleets get a defender bonus plus fort level); beaten fleets shelter in a friendly port or are scattered.
+  - A fleet alone at sea **blockades** enemy ports in that zone: income halved, no shipbuilding. Armies cannot sail across a zone held by an enemy fleet unless they have a fleet of their own there.
+  - Ships cost upkeep. Britain gets +25% fleet strength; most nations start with a small fleet. The AI builds fleets in proportion to its income and fights, blockades or stays in port.
+
 **Tactical battles** (real-time, rectangles on a field)
 - Regiments as blocks with **formations** (line, column, square, skirmish), facing, **flanking / rear** bonuses,
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
-- **Battle minimap** (bottom right; click/drag to move the view) and two-finger pinch zoom on touch screens.
+- **Battle minimap** (bottom right; click/drag to move the view).
 - **Visible fire:** tracer dashes and muzzle flashes for muskets, round shot with trails and dirt bursts for guns. Regiments locked in melee pulse with a white halo and go solid white when they break. Villages are drawn as proper villages (cottages, church, fields, road) and terrain is captioned.
 - **Battle speed** starts at ½x with ¼x slow-motion and 1x/2x/4x.
 - **Zoomable battlefield (0.4x–8x):** smooth wheel zoom toward the cursor, PageUp/PageDown, Fit (Home), Focus selection (F), middle-drag or arrow-key panning. Zoomed in, every regiment is drawn soldier by soldier; as men fall the block shrinks, its ranks thin out and fray, standards are lost and morale makes the line shuffle and scatter.

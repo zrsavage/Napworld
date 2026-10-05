@@ -165,6 +165,7 @@
     // Bavaria & Rhine allies
     ['bavaria','Bavaria',11.5,48.4,'bavaria','h',6,4,'CF'], ['wurttemberg','Wurttemberg & Baden',9.0,48.7,'bavaria','h',5,3,''],
     ['saxony','Saxony',13.3,51.0,'bavaria','p',5,3,'F'],
+    ['franconia','Franconia',10.2,49.9,'bavaria','h',5,3,'F'],
     // Austria
     ['vienna','Vienna',16.4,48.2,'austria','p',10,6,'CFF'], ['bohemia','Bohemia',14.5,49.9,'austria','h',7,4,'F'],
     ['moravia','Moravia',17.0,49.3,'austria','p',4,3,'F'], ['tyrol','Tyrol',11.4,47.0,'austria','m',3,3,'F'],
@@ -196,11 +197,11 @@
 
   // Sea zones: ports in a zone can sail to each other when within `range` map pixels.
   NAP.SEA_ZONES = [
-    { range: 470, ports: ['london','southwest','ireland','scotland','normandy','brittany','belgium','holland','hanover','jutland','norway_s','guyenne','galicia','porto','lisbon','andalusia','morocco','gothenburg'] },
-    { range: 340, ports: ['catalonia','valencia','andalusia','morocco','algiers','tunis','provence','languedoc','corsica','sardinia','tuscany','naples','sicily','calabria','tripoli'] },
-    { range: 380, ports: ['sicily','calabria','apulia','venetia','carniola','dalmatia','albania','macedonia','greece','morea','anatolia_w','syria','egypt','tripoli','constantinople'] },
-    { range: 330, ports: ['constantinople','kherson','crimea','caucasus'] },
-    { range: 360, ports: ['copenhagen','stockholm','gothenburg','pomerania','eastprussia','livonia','estonia','petersburg','finland','jutland'] }
+    { name: 'Atlantic & North Sea', c: [-7, 49.5], range: 470, ports: ['london','southwest','ireland','scotland','normandy','brittany','belgium','holland','hanover','jutland','norway_s','guyenne','galicia','porto','lisbon','andalusia','morocco','gothenburg'] },
+    { name: 'Western Mediterranean', c: [5, 39.3], range: 340, ports: ['catalonia','valencia','andalusia','morocco','algiers','tunis','provence','languedoc','corsica','sardinia','tuscany','naples','sicily','calabria','tripoli'] },
+    { name: 'Eastern Mediterranean', c: [20, 36], range: 380, ports: ['sicily','calabria','apulia','venetia','carniola','dalmatia','albania','macedonia','greece','morea','anatolia_w','syria','egypt','tripoli','constantinople'] },
+    { name: 'Black Sea', c: [34, 43], range: 330, ports: ['constantinople','kherson','crimea','caucasus'] },
+    { name: 'Baltic Sea', c: [19.5, 57.5], range: 360, ports: ['copenhagen','stockholm','gothenburg','pomerania','eastprussia','livonia','estonia','petersburg','finland','jutland'] }
   ];
 
   // ---- Factions ----
@@ -276,7 +277,28 @@
     stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
     arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },
     academy:  { name:'Military Academy',cost:360, time:4, max:1, req:'barracks', desc:'Unlocks Guard Infantry here. New regiments raised here start as veterans (+morale, +firepower).' },
+    shipyard: { name:'Shipyard',        cost:300, time:4, max:1, port:true, desc:'Ports only. Lets you build Ships of the Line and Frigates here.' },
     fort:     { name:'Fortifications',  cost:320, time:4, max:3, desc:'+1 fort level: longer sieges and a stronger garrison.' }
+  };
+  // ---- navy: ships are built in port shipyards and sail between five sea zones
+  NAP.SHIPS = {
+    sol:     { name:'Ship of the Line', short:'Line ship', cost:240, upkeep:5, time:3, men:500, power:4,
+               desc:'The heavy battle fleet: 74 guns of broadside firepower. Wins fleet battles and blockades enemy coasts.' },
+    frigate: { name:'Frigate',          short:'Frigate',   cost:100, upkeep:2, time:2, men:220, power:1.4,
+               desc:'Fast and cheap. Weak in a fleet battle but still blockades ports and screens your transports.' }
+  };
+  // fleets at the start: [port, 'type:count ...']
+  NAP.START_FLEETS = {
+    britain: [['london','sol:6 frigate:3'], ['southwest','sol:4 frigate:2']],
+    france:  [['brittany','sol:5 frigate:2'], ['provence','sol:3 frigate:1']],
+    spain:   [['andalusia','sol:4 frigate:1']],
+    denmark: [['copenhagen','sol:4 frigate:2']],
+    russia:  [['petersburg','sol:3 frigate:2'], ['kherson','sol:2']],
+    ottoman: [['constantinople','sol:4 frigate:3']],
+    sweden:  [['stockholm','sol:3 frigate:1']],
+    portugal:[['lisbon','sol:2']],
+    naples:  [['naples','frigate:2']],
+    austria: [['venetia','frigate:2']]
   };
   // Beginner guidance shown on the start screen
 
@@ -285,7 +307,7 @@
   NAP.PERKS = {
     france:   { plus: [{ t: 'Conscription: +15% manpower', fx: { manpower: 1.15 } }, { t: 'Elan: +5% morale', fx: { morale: 1.05 } }],
                 minus: [{ t: 'Endless wars: +12% upkeep', fx: { upkeep: 1.12 } }, { t: 'Armies live off the land: +20% attrition', fx: { attrition: 1.2 } }] },
-    britain:  { plus: [{ t: 'Disciplined volleys: +12% firepower', fx: { fire: 1.12 } }, { t: 'Royal Navy trade: +12% income', fx: { income: 1.12 } }],
+    britain:  { plus: [{ t: 'Disciplined volleys: +12% firepower', fx: { fire: 1.12 } }, { t: 'Royal Navy: +12% income, +25% fleet strength', fx: { income: 1.12, navy: 1.25 } }],
                 minus: [{ t: 'Small volunteer army: -30% manpower', fx: { manpower: 0.7 } }, { t: 'Recruits are costly: +15% recruit cost', fx: { cost: 1.15 } }] },
     austria:  { plus: [{ t: 'Fine artillery arm: +12% gun fire', fx: { art: 1.12 } }, { t: 'Deep veteran cadre: +4% morale', fx: { morale: 1.04 } }],
                 minus: [{ t: 'Multi-ethnic empire: +20% unrest', fx: { unrest: 1.2 } }, { t: 'Rigid command: -6% firepower', fx: { fire: 0.94 } }] },
@@ -327,7 +349,7 @@
     denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
     naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
     portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
-    bavaria:  { tier:'Expert', rank:12, war:false, why:'Tiny and sandwiched between Austria and France.', tips:['Stay close to your French ally.'] }
+    bavaria:  { tier:'Expert', rank:12, war:false, why:'Small and sandwiched between Austria and France, but with four provinces (Bavaria, Wurttemberg, Saxony and Franconia) to build on.', tips:['Stay close to your French ally.'] }
   };
 
 
@@ -466,7 +488,7 @@
     sweden: [['stockholm','Gustav Adolf','line:4 art:1'], ['finland','Johan Cronstedt','line:4 art:1'], ['gothenburg','', 'line:2']],
     denmark: [['copenhagen','Prince Christian','line:4 art:1'], ['jutland','Hans Bulow','line:3 hussar:1'], ['norway_s','', 'line:2']],
     naples: [['naples','Michele Pignatelli','line:5 hussar:1 art:1'], ['sicily','', 'line:2'], ['calabria','', 'line:2']],
-    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1']],
+    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1'], ['franconia','', 'line:5 light:1 hussar:1 art:2']],
     minor: [['switzerland','','line:2'], ['papal','','line:2'], ['sardinia','','line:1'], ['morocco','','line:2 hussar:1'], ['algiers','','line:2 hussar:1'], ['tunis','','line:1'], ['tripoli','','line:1']]
   };
 })();

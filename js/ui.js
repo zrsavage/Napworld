@@ -114,6 +114,7 @@
       <span class="stat" title="Treasury / net per turn (income ${fmt(inc)} - upkeep ${fmt(up)})">&#128176; <b>${fmt(fs.gold)}</b> <small class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${fmt(net)}</small> <small>(${fmt(inc)} − ${fmt(up)})</small></span>
       <span class="stat" title="Manpower pool / monthly growth">&#128100; <b>${fmt(fs.manpower)}</b> <small>+${fmt(C.manpowerGain(p))}</small></span>
       <span class="stat" title="Provinces held; win at 55%">&#9873; <b>${provs}</b><small>/${total}</small></span>
+      <span class="stat" title="Ships in your navy">&#9875; <b>${C.fleetsOf(p).reduce((a, x) => a + C.shipCount(x), 0)}</b> <small>ships</small></span>
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
@@ -222,6 +223,8 @@
     const bl = ['market', 'barracks', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
     if (bl.length) h += `<br><span class="ttk">${bl.join(', ')}</span>`;
     const ar = s.armies.filter((a) => a.prov === p.id); if (ar.length) h += '<br>' + ar.map((a) => `${esc(F(a.owner).adj)} army (${a.units.length} regts)`).join('<br>');
+    const fh = (s.fleets || []).filter((x) => x.port === p.id); if (fh.length) h += '<br>' + fh.map((x) => `${esc(F(x.owner).adj)} fleet (${C.shipCount(x)} ships)`).join('<br>');
+    if (ps.blockade) h += '<br><span class="bad">Blockaded</span>';
     if (ps.siege) h += `<br><span class="bad">Besieged by ${esc(F(ps.siege.by).adj)}</span>`;
     return h;
   }
@@ -257,12 +260,17 @@
     const el = $('#side'), s = S();
     const army = ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null;
     if (ui.sel.army && !army) ui.sel.army = null;
-    const pid = army ? army.prov : ui.sel.prov;
+    const fleet = selFleet(); if (ui.sel.fleet && !fleet) ui.sel.fleet = null;
+    const pid = army ? army.prov : fleet && fleet.port ? fleet.port : ui.sel.prov;
+    if (!pid && fleet) { el.innerHTML = fleetPanel(fleet); bindFleetPanel(fleet); return; }
     if (!pid) { el.innerHTML = `<div class="sec"><h4>Europe, ${C.dateStr()}</h4><p class="muted">Click a province or an army to see details. Right-click a destination to move the selected army.</p>${standings()}</div>`; return; }
     const p = NAP.world.byId[pid], ps = s.provinces[pid], owner = ps.owner, mine = owner === s.player;
     const armies = s.armies.filter((a) => a.prov === pid);
     let html = `<div class="ph" style="--c:${F(owner).color}"><h2>${p.capital ? '★ ' : ''}${esc(p.name)}</h2><div class="own">${esc(F(owner).name)} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[p.terrain]}${p.port ? ' · Port' : ''}</div></div>`;
     if (army) html += armyPanel(army);
+    const fleetsHere = (s.fleets || []).filter((x) => x.port === pid);
+    if (fleet) html += fleetPanel(fleet);
+    else if (fleetsHere.length) html += `<div class="sec"><h4>Fleets here</h4>${fleetsHere.map((x) => `<div class="armychip" data-fleet="${x.id}"><i style="background:${F(x.owner).color}"></i><span>${esc(F(x.owner).adj)} fleet \u00B7 ${C.shipCount(x)} ships</span></div>`).join('')}</div>`;
     html += `<div class="sec"><h4>Province</h4>
       <div class="kv"><span>Income</span><b>${fmt(C.provIncome(ps))}/turn</b></div>
       <div class="kv"><span>Manpower</span><b>+${fmt(p.manpower * 25 * (1 + 0.5 * ps.barracks))}/turn</b></div>
@@ -270,6 +278,7 @@
       <div class="kv"><span>Buildings</span><b style="text-align:right">${Object.keys(NAP.BUILDINGS).filter((b) => b !== 'fort' && ps[b]).map((b) => NAP.BUILDINGS[b].name).join(', ') || '—'}</b></div>
       <div class="kv"><span>Unrest</span><b class="${(ps.unrest || 0) >= 60 ? 'bad' : (ps.unrest || 0) >= 30 ? 'warn' : ''}">${Math.round(ps.unrest || 0)}%</b></div><div class="bar"><i style="width:${Math.round(ps.unrest || 0)}%"></i></div>
       ${!mine && C.atWar(s.player, owner) ? `<div class="kv"><span>Garrison</span><b>~${fmt(C.garrisonStrength(pid))} men</b></div>` : ''}
+      ${ps.blockade ? `<div class="kv bad"><span>Port blockaded</span><b>income halved</b></div>` : ''}
       ${ps.siege ? `<div class="kv bad"><span>Under siege</span><b>${ps.siege.progress}/${ps.fort + 1}</b></div>` : ''}</div>`;
     if (armies.length) {
       html += `<div class="sec"><h4>Armies here</h4>${armies.map((a) => `<div class="armychip ${army && a.id === army.id ? 'sel' : ''}" data-army="${a.id}"><i style="background:${F(a.owner).color}"></i><span>${esc(F(a.owner).adj)} · ${a.units.length} regts · ${fmt(C.armyMen(a))} men${a.general ? ' · ★ ' + esc(s.generals[a.general].name) : ''}</span></div>`).join('')}</div>`;
@@ -286,18 +295,28 @@
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       html += `</div><div class="sec"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
       for (const b of Object.keys(NAP.BUILDINGS)) {
+        if (NAP.BUILDINGS[b].port && !p.port) continue;
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
         html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
       }
       if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
       html += `</div>`;
+      if (p.port) {
+        html += `<div class="sec"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
+        html += Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' \u00B7 Cost ' + C.shipCost(pid, t) + 'g \u00B7 Upkeep ' + sh.upkeep + '/turn \u00B7 Builds in ' + sh.time + ' turns \u00B7 Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
+        if ((ps.shipQueue || []).length) html += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
+        html += `</div>`;
+      }
     } else if (owner !== 'minor' || true) {
       const war = C.atWar(s.player, owner);
       html += `<div class="sec"><h4>Diplomacy</h4><div class="kv"><span>Relations</span><b>${C.rel(s.player, owner) > 0 ? '+' : ''}${Math.round(C.rel(s.player, owner))}</b></div>
         <div class="row">${war ? '<span class="bad">At war</span>' : C.allied(s.player, owner) ? '<span class="good">Allied</span>' : `<button data-war="${owner}" class="danger">Declare war on ${esc(F(owner).adj)}</button>`}</div></div>`;
     }
     el.innerHTML = html;
-    el.querySelectorAll('[data-army]').forEach((e) => (e.onclick = () => { ui.sel.army = +e.dataset.army; refresh(); }));
+    el.querySelectorAll('[data-army]').forEach((e) => (e.onclick = () => { ui.sel.army = +e.dataset.army; ui.sel.fleet = null; refresh(); }));
+    el.querySelectorAll('[data-fleet]').forEach((e) => (e.onclick = () => { ui.sel.fleet = +e.dataset.fleet; ui.sel.army = null; refresh(); }));
+    el.querySelectorAll('[data-ship]').forEach((b) => (b.onclick = () => { const e = C.buildShip(pid, b.dataset.ship); if (e) toast(e); refresh(); }));
+    if (fleet) bindFleetPanel(fleet);
     el.querySelectorAll('[data-rec]').forEach((b) => (b.onclick = () => { const e = C.recruit(pid, b.dataset.rec); if (e) toast(e); refresh(); }));
     el.querySelectorAll('[data-bld]').forEach((b) => (b.onclick = () => { const e = C.build(pid, b.dataset.bld); if (e) toast(e); refresh(); }));
     el.querySelectorAll('[data-war]').forEach((b) => (b.onclick = async () => {
@@ -315,6 +334,26 @@
     return `<h4 style="margin-top:12px">Great Powers</h4><table class="t"><tr><th>Power</th><th>Prov</th><th>Army</th></tr>${rows.map((r) => `<tr><td>${flag(r.f)}${esc(F(r.f).adj)}</td><td>${r.n}</td><td>${fmt(r.p / 1000)}k</td></tr>`).join('')}</table>`;
   }
 
+  function fleetPanel(fl) {
+    const mine = fl.owner === S().player, n = C.shipCount(fl);
+    let html = `<div class="sec"><h4>${esc(F(fl.owner).adj)} fleet \u00B7 ${n} ship${n > 1 ? 's' : ''}</h4>`;
+    html += `<div class="kv"><span>Location</span><b>${esc(C.fleetLabel(fl))}</b></div><div class="kv"><span>Fleet strength</span><b>${Math.round(C.fleetPower(fl) * 10) / 10}</b></div>`;
+    html += Object.keys(NAP.SHIPS).filter((t) => fl.ships[t]).map((t) => `<div class="kv"><span>${esc(NAP.SHIPS[t].name)}</span><b>${fl.ships[t]}</b></div>`).join('');
+    if (fl.path.length) { const last = fl.path[fl.path.length - 1].split(':'); html += `<div class="kv"><span>Sailing to</span><b>${esc(last[0] === 'z' ? NAP.SEA_ZONES[+last[1]].name : NAP.world.byId[last[1]].name)} (${fl.path.length})</b></div>`; }
+    if (mine) {
+      const dests = C.fleetDestinations(fl);
+      html += `<div class="row"><select id="fleetgo" style="width:100%"><option value="">Sail to\u2026</option>${dests.map((d) => `<option value="${d.node}">${esc(d.label)} \u2014 ${d.turns} turn${d.turns > 1 ? 's' : ''}</option>`).join('')}</select></div>`;
+      html += `<div class="row"><button data-fact="stop">Hold position</button></div>`;
+      html += `<p class="muted" style="font-size:12px;margin:6px 0 0">At sea with no enemy fleet present: you blockade enemy ports in the zone (halving their income) and your armies may sail through it. Fleets in the same zone as an enemy fleet fight automatically. Right-click a ring or port on the map to sail.</p>`;
+    }
+    return html + '</div>';
+  }
+  function bindFleetPanel(fl) {
+    if (!fl || fl.owner !== S().player) return;
+    const g = $('#fleetgo');
+    if (g) g.onchange = () => { if (!g.value) return; if (C.orderFleet(fl, g.value)) toast(`Sailing: ${fl.path.length} turn${fl.path.length > 1 ? 's' : ''}`); else toast('No route there'); refresh(); };
+    const st = $('#side').querySelector('[data-fact=stop]'); if (st) st.onclick = () => { fl.path = []; refresh(); };
+  }
   function armyPanel(a) {
     const s = S(), mine = a.owner === s.player, g = a.general ? s.generals[a.general] : null;
     let html = `<div class="sec"><h4>${esc(F(a.owner).adj)} army · ${a.units.length}/${C.stackLimit} regiments</h4>`;
@@ -375,6 +414,7 @@
       <p><b>Economy:</b> provinces produce gold and manpower. Recruit regiments and build Markets, Barracks and Fortifications from the province panel. Regiments cost gold to raise and upkeep every month &mdash; go bankrupt and they desert. Stacks hold up to 20 regiments; split and merge them in the army panel. Appoint a general to boost an army.</p>
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
+      <p><b>Navy:</b> build a <i>Shipyard</i> in a port, then Ships of the Line and Frigates. Select a fleet (its little ship icon) and pick a destination from the list, or right-click a sea zone ring or a friendly port. There are five seas (Atlantic &amp; North Sea, Western and Eastern Mediterranean, Black Sea, Baltic); neighbouring seas connect through shared ports. Hostile fleets in the same sea fight an automatic battle. A fleet at sea alone <b>blockades</b> enemy ports in that sea (income halved, no shipbuilding) and enemy armies cannot sail through it unless they have a fleet of their own there.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
       <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, F1-F4 for Line/Column/Square/Skirmish, Ctrl+1-9 to save a control group (press the digit to recall it, twice to centre), C to charge, H to halt, R to rally with your general, Space to pause (you can still give orders while paused). Hold the flagged objectives for victory points: hold them all for 75 seconds or lead by 25 VP at the time limit to win. Hover or select a regiment to see its flank arcs (green front, yellow flanks, red rear). Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
@@ -440,10 +480,10 @@
   }
   async function showOverview() {
     const s = S();
-    const rows = Object.keys(s.factions).filter((f) => f !== 'minor').map((f) => ({ f, alive: s.factions[f].alive, n: C.provincesOf(f).length, inc: C.factionIncome(f), arm: C.armiesOf(f).reduce((a, x) => a + x.units.length, 0), pow: C.factionPower(f), gold: s.factions[f].gold, war: C.warsOf(f).map((x) => F(x).adj).join(', ') }))
+    const rows = Object.keys(s.factions).filter((f) => f !== 'minor').map((f) => ({ f, alive: s.factions[f].alive, n: C.provincesOf(f).length, inc: C.factionIncome(f), arm: C.armiesOf(f).reduce((a, x) => a + x.units.length, 0), ships: C.fleetsOf(f).reduce((a, x) => a + C.shipCount(x), 0), pow: C.factionPower(f), gold: s.factions[f].gold, war: C.warsOf(f).map((x) => F(x).adj).join(', ') }))
       .sort((a, b) => b.n - a.n);
-    const html = `<h2>Overview of Europe</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Prov</th><th>Income</th><th>Regts</th><th>Army</th><th>Treasury</th><th>At war with</th></tr>
-      ${rows.map((r) => `<tr style="${r.alive ? '' : 'opacity:.4'}"><td>${flag(r.f)}${esc(F(r.f).name)}${r.f === s.player ? ' <b>(you)</b>' : ''}</td><td>${r.n}</td><td>${fmt(r.inc)}</td><td>${r.arm}</td><td>${fmt(r.pow / 1000)}k</td><td>${fmt(r.gold)}</td><td>${r.alive ? esc(r.war || '—') : 'Eliminated'}</td></tr>`).join('')}</table>
+    const html = `<h2>Overview of Europe</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Prov</th><th>Income</th><th>Regts</th><th>Ships</th><th>Army</th><th>Treasury</th><th>At war with</th></tr>
+      ${rows.map((r) => `<tr style="${r.alive ? '' : 'opacity:.4'}"><td>${flag(r.f)}${esc(F(r.f).name)}${r.f === s.player ? ' <b>(you)</b>' : ''}</td><td>${r.n}</td><td>${fmt(r.inc)}</td><td>${r.arm}</td><td>${r.ships}</td><td>${fmt(r.pow / 1000)}k</td><td>${fmt(r.gold)}</td><td>${r.alive ? esc(r.war || '—') : 'Eliminated'}</td></tr>`).join('')}</table>
       <p class="muted">Victory: hold 55% of all provinces, or eliminate every rival. Survive until the end of 1815 for a score by territory.</p></div><div class="foot"><button data-r="x">Close</button></div>`;
     await modal(html);
   }
@@ -554,14 +594,26 @@
     if (d.moved || d.btn !== 0 || !S()) return;
     const p = evPos(e), w = toWorld(p.x, p.y);
     const m = markerAt(w);
-    if (m) { const a = S().armies.find((x) => x.id === m.id); ui.sel.army = m.id; ui.sel.prov = a.prov; refresh(); return; }
+    if (m && m.kind === 'fleet') { const fl = S().fleets.find((x) => x.id === m.id); ui.sel = { prov: fl.port || null, army: null, fleet: fl.id }; refresh(); return; }
+    if (m) { const a = S().armies.find((x) => x.id === m.id); ui.sel = { prov: a.prov, army: m.id, fleet: null }; refresh(); return; }
     const pr = NAP.world.provAt(w.x, w.y);
-    ui.sel.army = null; ui.sel.prov = pr ? pr.id : null;
+    ui.sel.fleet = null; ui.sel.army = null; ui.sel.prov = pr ? pr.id : null;
     // keep army selected if clicking within its own province? no, deselect
     refresh();
   });
   canvas.addEventListener('mouseup', (e) => {
     if (e.button !== 2 || !S()) return;
+    const fl = selFleet();
+    if (fl && fl.owner === S().player) {
+      const w0 = toWorld(evPos(e).x, evPos(e).y); let target = null;
+      (NAP.SEA_ZONES || []).forEach((z, i) => { const [zx, zy] = NAP.zonePos(i); if (Math.hypot(zx - w0.x, zy - w0.y) < 40) target = 'z:' + i; });
+      const pr0 = target ? null : NAP.world.provAt(w0.x, w0.y);
+      if (pr0 && pr0.port) target = 'p:' + pr0.id;
+      if (!target) { toast('Right-click a sea zone ring or one of your ports'); return; }
+      if (target === (fl.port ? 'p:' + fl.port : 'z:' + fl.zone)) { fl.path = []; refresh(); return; }
+      if (C.orderFleet(fl, target)) toast(`Sailing: ${fl.path.length} turn${fl.path.length > 1 ? 's' : ''}`); else toast('No route there (you can only dock at your own or allied ports)');
+      refresh(); return;
+    }
     const a = selArmy();
     if (!a || a.owner !== S().player) return;
     const w = toWorld(evPos(e).x, evPos(e).y), pr = NAP.world.provAt(w.x, w.y);
@@ -578,21 +630,8 @@
     const after = toWorld(p.x, p.y);
     ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true;
   }, { passive: false });
-  // two-finger pinch zoom and pan (touch / trackpad-free devices)
-  (function () {
-    let t0 = null;
-    const info = (e) => { const a = e.touches[0], b = e.touches[1], r = canvas.getBoundingClientRect(); return { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), x: (a.clientX + b.clientX) / 2 - r.left, y: (a.clientY + b.clientY) / 2 - r.top }; };
-    canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { t0 = info(e); drag = null; e.preventDefault(); } }, { passive: false });
-    canvas.addEventListener('touchmove', (e) => {
-      if (e.touches.length !== 2 || !t0) return; e.preventDefault();
-      const t1 = info(e), before = toWorld(t0.x, t0.y);
-      ui.cam.z = Math.max(0.45, Math.min(4, ui.cam.z * (t1.d / t0.d)));
-      const after = toWorld(t1.x, t1.y);
-      ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true; t0 = t1;
-    }, { passive: false });
-    canvas.addEventListener('touchend', () => { t0 = null; });
-  })();
   function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
+  function selFleet() { const s = S(); return s && ui.sel.fleet ? (s.fleets || []).find((x) => x.id === ui.sel.fleet) : null; }
   function selArmy() { const s = S(); return s && ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null; }
 
   window.addEventListener('keydown', (e) => {
@@ -701,6 +740,7 @@
     const s = S(), a = selArmy();
     const opts = ui.opts;
     opts.selProv = ui.sel.prov; opts.hoverProv = ui.hover;
+    opts.selFleet = selFleet() || null;
     opts.selArmy = ui.sel.army; opts.pulse = ui.pulseProv || null;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
     opts.seaFrom = a && a.owner === s.player && NAP.world.byId[a.prov].port ? a.prov : null;

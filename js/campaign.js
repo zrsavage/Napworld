@@ -39,10 +39,10 @@
     S = {
       version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
-      log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
+      fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
-      S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced' };
+      S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced', shipyard: 0, shipQueue: [], blockade: false };
     }
     for (const p of w.provs) {
       if (!p.capital) continue;
@@ -74,11 +74,16 @@
         }
       }
     }
+    for (const f in NAP.START_FLEETS) for (const [pid, spec] of NAP.START_FLEETS[f]) {
+      if (!W().byId[pid] || !W().byId[pid].port) continue;
+      const ships = {}; spec.split(' ').forEach((t) => { const [k, n] = t.split(':'); ships[k] = +n; });
+      S.provinces[pid].shipyard = 1; C.newFleet(f, pid, ships);
+    }
     for (const [a, b] of NAP.START_WARS) S.wars[pkey(a, b)] = { since: 0, exh: 0, s: {} };
     for (const [a, b] of NAP.START_ALLIES) S.allies[pkey(a, b)] = true;
     for (const [a, b, v] of NAP.START_REL) S.rel[pkey(a, b)] = v;
     for (const k in S.allies) S.rel[k] = Math.max(S.rel[k] || 0, 60);
-    S.truce = { [pkey('austria', 'bavaria')]: 22, [pkey('russia', 'ottoman')]: 6 };
+    S.truce = { [pkey('austria', 'bavaria')]: 40, [pkey('prussia', 'bavaria')]: 24, [pkey('russia', 'ottoman')]: 6 };
     S.factions.france.incomeMult = 1.1; // Napoleon's France at its height (fades in 1812)
     C.log(`Year 1805. ${F(player).leader} leads the ${F(player).name}. Europe is on the brink of a new war.`, 'info');
     NAP.recolor(S);
@@ -126,7 +131,7 @@
     if (!t.size) t.add(g.lead >= 4 ? 'inspiring' : g.def >= g.atk ? 'defender' : 'aggressive');
     return [...t].slice(0, 2);
   }
-  C.VERSION = 5;
+  C.VERSION = 6;
   C.hasTrait = (g, t) => !!g && (g.traits || []).includes(t);
   C.assignGeneral = function (army, gid) {
     if (army.general) { const old = S.generals[army.general]; if (old) old.assigned = null; if (old && old.alive) S.pool[old.owner].push(old.id); }
@@ -175,6 +180,7 @@
     const d = C.def(ps.id);
     let v = d.income * INCOME_K * (1 + 0.5 * ps.market);
     if (ps.siege) v *= 0.1;
+    if (ps.blockade) v *= 0.5;
     if (ps.foraged) v *= 0.3;
     v *= { tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1;
     const u = ps.unrest || 0;
@@ -191,7 +197,7 @@
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
     return Math.round(v * S.factions[f].incomeMult * (dm || 1) * NAP.perk(f, 'income'));
   };
-  C.factionUpkeep = (f) => NAP.perk(f, 'upkeep') * C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0);
+  C.factionUpkeep = (f) => NAP.perk(f, 'upkeep') * (C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0) + C.shipUpkeep(f));
   C.setStaff = function (army, id) {
     if (!id) { army.staff = null; return null; }
     const st = NAP.STAFF[id], fs = S.factions[army.owner];
@@ -314,6 +320,7 @@
   };
   C.buildCheck = function (pid, b) {
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
+    if (bd.port && !W().byId[pid].port) return 'Needs a port';
     if (ps.build) return 'Already constructing';
     if (ps.siege) return 'Province is besieged';
     if (b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1) return 'Already built';
@@ -759,6 +766,7 @@
     a.path.shift();
     a.from = from;
     if (sea && a.units.length > SEA_CAP) { plog(`The ${F(a.owner).adj} army is too large to sail (max ${SEA_CAP} regiments).`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
+    if (sea && C.seaBlocked(a.owner, from, dest)) { plog(`An enemy fleet bars the ${F(a.owner).adj} army from sailing from ${C.def(from).name}.`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
     const enemies = S.armies.filter((x) => x.prov === dest && atWar(x.owner, a.owner));
     if (enemies.length) {
       const prevProv = a.prov;
@@ -802,7 +810,8 @@
 
   function captureProvince(pid, f) {
     const ps = S.provinces[pid], old = ps.owner, d = C.def(pid);
-    ps.owner = f; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
+    ps.owner = f; ps.siege = null; ps.queue = []; ps.shipQueue = []; ps.build = null; ps.policy = 'balanced';
+    if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
     for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy']) if (rnd() < 0.45) ps[b] = 0;
@@ -875,6 +884,7 @@
       if (ps.siege) out.push({ kind: 'siege', sev: 3, prov: p.id, text: `${p.name} is under siege` });
       if ((ps.unrest || 0) >= 60) out.push({ kind: 'unrest', sev: 3, prov: p.id, text: `Unrest in ${p.name} is ${Math.round(ps.unrest)}%` });
     }
+    for (const p of C.provincesOf(f)) if (S.provinces[p.id].blockade) out.push({ kind: 'blockade', sev: 2, prov: p.id, text: `${p.name} is blockaded by an enemy fleet` });
     if (fs.gold > 1000) out.push({ kind: 'gold', sev: 1, prov: fs.cap, text: `${Math.round(fs.gold).toLocaleString('en-US')} gold unspent` });
     if (warNow && fs.gold > 500 && fs.manpower > 1000) {
       const empty = C.provincesOf(f).filter((p) => !S.provinces[p.id].queue.length && !S.provinces[p.id].siege).length;
@@ -963,11 +973,14 @@
           for (let i = a.units.length - 1; i >= 0; i--) if (rnd() < 0.12) { a.units.splice(i, 1); lost++; }
           if (!a.units.length) removeArmy(a);
         }
+        for (const fl of C.fleetsOf(id)) if (rnd() < 0.3) { const t = fl.ships.frigate ? 'frigate' : 'sol'; if (fl.ships[t]) { fl.ships[t]--; lost++; } }
+        dropEmptyFleets();
         if (lost) plog(`${F(id).name} cannot pay its troops! ${lost} regiments desert.`, 'bad', [id]);
       }
       S.report[id] = { income: inc, upkeep: up };
     }
     subsidies();
+    shipQueues();
     for (const ps of Object.values(S.provinces)) ps.foraged = false;
     // build queues
     for (const p of W().provs) {
@@ -1236,6 +1249,7 @@
     if (!S.factions[f].alive || f === 'minor') return;
     aiDiplomacy(f);
     aiRecruit(f);
+    aiNavy(f);
     aiGenerals(f);
     if (f !== S.player || S.autoplay) aiMoves(f);
   };
@@ -1484,6 +1498,221 @@
   }
 
   // Full end-of-turn. Returns {victory?}.
+  // -------------------------------------------------------------------- navy (basic naval warfare)
+  // Fleets sit docked in a friendly port or at sea in one of five sea zones. Fleets that share a zone with an enemy fight an
+  // automatic battle; a fleet at sea with no opposition blockades enemy ports in its zone and shields your troop crossings.
+  const SHIPS = NAP.SHIPS, ZONES = NAP.SEA_ZONES;
+  const portZones = (pid) => { const r = []; if (!W().byId[pid] || !W().byId[pid].port) return r; ZONES.forEach((z, i) => { if (z.ports.includes(pid)) r.push(i); }); return r; };
+  C.portZones = portZones;
+  C.fleetsOf = (f) => (S.fleets || []).filter((x) => x.owner === f);
+  C.shipCount = (fl) => Object.keys(SHIPS).reduce((n, t) => n + (fl.ships[t] || 0), 0);
+  C.fleetPower = (fl) => Object.keys(SHIPS).reduce((n, t) => n + (fl.ships[t] || 0) * SHIPS[t].power, 0) * NAP.perk(fl.owner, 'navy');
+  C.shipUpkeep = (f) => C.fleetsOf(f).reduce((n, fl) => n + Object.keys(SHIPS).reduce((m, t) => m + (fl.ships[t] || 0) * SHIPS[t].upkeep, 0), 0);
+  C.newFleet = function (owner, port, ships) {
+    const fl = { id: S.nextFleet++, owner, port, zone: null, ships: Object.assign({}, ships), path: [] };
+    S.fleets.push(fl); return fl;
+  };
+  const canDock = (f, pid) => { const p = W().byId[pid]; if (!p || !p.port) return false; const o = S.provinces[pid].owner; return o === f || allied(f, o); };
+  const fleetNode = (fl) => (fl.port ? 'p:' + fl.port : 'z:' + fl.zone);
+  function nodeNbrs(owner, node) {
+    const [k, v] = node.split(':'), out = [];
+    if (k === 'p') { for (const z of portZones(v)) out.push('z:' + z); return out; }
+    const zi = +v;
+    for (const pid of ZONES[zi].ports) if (canDock(owner, pid)) out.push('p:' + pid);
+    ZONES.forEach((z, j) => { if (j !== zi && z.ports.some((pp) => ZONES[zi].ports.includes(pp))) out.push('z:' + j); });
+    return out;
+  }
+  // list of destinations a fleet could sail to: [{node, label}]
+  C.fleetDestinations = function (fl) {
+    const res = [], seen = { [fleetNode(fl)]: 0 }; let q = [fleetNode(fl)];
+    for (let d = 1; d <= 4 && q.length; d++) { const nq = []; for (const n of q) for (const m of nodeNbrs(fl.owner, n)) if (!(m in seen)) { seen[m] = d; nq.push(m); } q = nq; }
+    for (const n in seen) if (seen[n] > 0) { const [k, v] = n.split(':'); res.push({ node: n, turns: seen[n], label: k === 'z' ? ZONES[+v].name + ' (at sea)' : 'Dock at ' + W().byId[v].name }); }
+    return res.sort((a, b) => a.turns - b.turns || a.label.localeCompare(b.label));
+  };
+  C.fleetPath = function (fl, target) {
+    const start = fleetNode(fl); if (start === target) return [];
+    const prev = { [start]: null }; let q = [start];
+    while (q.length) {
+      const nq = [];
+      for (const n of q) for (const m of nodeNbrs(fl.owner, n)) {
+        if (m in prev) continue; prev[m] = n;
+        if (m === target) { const path = []; let c = m; while (c !== start) { path.unshift(c); c = prev[c]; } return path; }
+        nq.push(m);
+      }
+      q = nq;
+    }
+    return null;
+  };
+  C.orderFleet = function (fl, target) { const p = C.fleetPath(fl, target); if (!p) return false; fl.path = p; return true; };
+  C.fleetLabel = (fl) => (fl.port ? 'Docked at ' + W().byId[fl.port].name : ZONES[fl.zone].name);
+  // is the sea crossing between two ports shut by an enemy fleet with no friendly escort?
+  C.seaBlocked = function (owner, a, b) {
+    const zb = portZones(b), common = portZones(a).filter((z) => zb.includes(z));
+    if (!common.length) return false;
+    return common.every((z) => S.fleets.some((x) => x.zone === z && atWar(x.owner, owner)) && !S.fleets.some((x) => x.zone === z && (x.owner === owner || allied(x.owner, owner))));
+  };
+  C.shipCost = (pid, t) => Math.round(SHIPS[t].cost * NAP.perk(S.provinces[pid].owner, 'cost'));
+  C.shipCheck = function (pid, t) {
+    const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], p = W().byId[pid];
+    if (!p.port) return 'Not a port';
+    if (!ps.shipyard) return 'Requires a Shipyard';
+    if (ps.siege) return 'Province is besieged';
+    if (ps.blockade) return 'Port is blockaded';
+    if ((ps.shipQueue || []).length >= 3) return 'Shipyard queue is full';
+    if (fs.gold < C.shipCost(pid, t)) return 'Not enough gold';
+    if (fs.manpower < SHIPS[t].men) return 'Not enough manpower for crews';
+    return null;
+  };
+  C.buildShip = function (pid, t) {
+    const err = C.shipCheck(pid, t); if (err) return err;
+    const ps = S.provinces[pid], fs = S.factions[ps.owner];
+    fs.gold -= C.shipCost(pid, t); fs.manpower -= SHIPS[t].men;
+    (ps.shipQueue = ps.shipQueue || []).push({ type: t, left: SHIPS[t].time, owner: ps.owner });
+    return null;
+  };
+  function addShips(owner, port, t, n) {
+    let fl = S.fleets.find((x) => x.owner === owner && x.port === port && !x.path.length);
+    if (!fl) fl = C.newFleet(owner, port, {});
+    fl.ships[t] = (fl.ships[t] || 0) + n;
+  }
+  function shipQueues() {
+    for (const p of W().provs) {
+      const ps = S.provinces[p.id]; if (!ps.shipQueue || !ps.shipQueue.length || ps.siege) continue;
+      ps.shipQueue = ps.shipQueue.filter((q) => q.owner === ps.owner); // captured ports lose the orders
+      for (const q of ps.shipQueue) q.left--;
+      const done = ps.shipQueue.filter((q) => q.left <= 0); ps.shipQueue = ps.shipQueue.filter((q) => q.left > 0);
+      for (const q of done) { addShips(ps.owner, p.id, q.type, 1); plog(`A ${SHIPS[q.type].name} is launched at ${p.name}.`, 'good', [ps.owner]); }
+    }
+  }
+  function loseShips(fl, frac) {
+    for (const t of Object.keys(SHIPS)) { const n = fl.ships[t] || 0, x = n * frac, k = Math.floor(x) + (rnd() < x - Math.floor(x) ? 1 : 0); fl.ships[t] = Math.max(0, n - k); }
+  }
+  function dropEmptyFleets() { S.fleets = S.fleets.filter((x) => C.shipCount(x) > 0); }
+  function resolveNaval(zi, atts, defs) {
+    const fortOf = (fl) => (fl.port ? S.provinces[fl.port].fort : 0);
+    const pw = (fl, def) => C.fleetPower(fl) * (def && fl.port ? 1.15 + 0.08 * fortOf(fl) : 1);
+    const pa = atts.reduce((s, x) => s + pw(x, false), 0), pd = defs.reduce((s, x) => s + pw(x, true), 0);
+    const attWins = pa * (0.85 + rnd() * 0.3) >= pd * (0.85 + rnd() * 0.3);
+    const win = attWins ? atts : defs, lose = attWins ? defs : atts, wp = attWins ? pa : pd, lp = attWins ? pd : pa;
+    const ratio = Math.min(1, lp / Math.max(0.1, wp));
+    const lossL = clamp(0.5 + 0.3 * (1 - ratio), 0.5, 0.85), lossW = clamp(0.04 + 0.4 * ratio * ratio, 0.04, 0.4);
+    const count = (l) => l.reduce((n, x) => n + C.shipCount(x), 0);
+    const w0 = count(win), l0 = count(lose);
+    win.forEach((x) => loseShips(x, lossW)); lose.forEach((x) => loseShips(x, lossL));
+    const w1 = count(win), l1 = count(lose);
+    // beaten fleets at sea limp into a friendly port in the zone, or are scattered
+    let fled = 0, scattered = 0;
+    for (const fl of lose) {
+      if (!C.shipCount(fl) || fl.zone === null) continue;
+      const ports = ZONES[fl.zone].ports.filter((pid) => canDock(fl.owner, pid));
+      if (ports.length) { fl.port = ports[Math.floor(rnd() * ports.length)]; fl.zone = null; fl.path = []; fled += C.shipCount(fl); }
+      else { scattered += C.shipCount(fl); fl.ships = {}; }
+    }
+    dropEmptyFleets();
+    const A = atts[0].owner, D = defs[0].owner, wo = attWins ? A : D, lo = attWins ? D : A;
+    const where = defs.some((x) => x.port) ? 'at ' + W().byId[defs.find((x) => x.port).port].name : 'in the ' + ZONES[zi].name;
+    const txt = `Naval battle ${where}: ${F(wo).adj} fleet defeats ${F(lo).adj} fleet. ${F(wo).adj} lose ${w0 - w1} of ${w0} ships, ${F(lo).adj} lose ${l0 - l1} of ${l0}${fled ? ` (survivors take shelter in port)` : ''}${scattered ? ` (${scattered} ships scattered and lost)` : ''}.`;
+    plog(txt, wo === S.player ? 'good' : lo === S.player ? 'bad' : 'war', [A, D]);
+    if (A !== S.player && D !== S.player) C.log(txt, 'naval-minor');
+    addScore(wo, lo, 4 + (l0 - l1) * 2);
+  }
+  function navalCombat() {
+    const done = new Set(); let guard = 0, fought = true;
+    while (fought && guard++ < 30) {
+      fought = false;
+      for (let zi = 0; zi < ZONES.length && !fought; zi++) {
+        const sea = S.fleets.filter((x) => x.zone === zi), docked = S.fleets.filter((x) => x.port && ZONES[zi].ports.includes(x.port));
+        for (const a of sea) {
+          const foes = sea.filter((b) => atWar(a.owner, b.owner)).concat(docked.filter((b) => atWar(a.owner, b.owner)));
+          if (!foes.length) continue;
+          const bo = foes[0].owner, key = zi + '|' + a.owner + '|' + bo; if (done.has(key)) continue;
+          done.add(key);
+          resolveNaval(zi, sea.filter((x) => x.owner === a.owner), foes.filter((x) => x.owner === bo));
+          fought = true; break;
+        }
+      }
+    }
+  }
+  function navalMoves() {
+    for (const fl of S.fleets) {
+      if (!fl.path.length) continue;
+      const step = fl.path.shift(), [k, v] = step.split(':');
+      if (k === 'z') { fl.port = null; fl.zone = +v; }
+      else if (canDock(fl.owner, v)) { fl.port = v; fl.zone = null; } else fl.path = [];
+    }
+  }
+  function mergeFleets() {
+    for (const fl of S.fleets) {
+      if (!C.shipCount(fl) || fl.path.length) continue;
+      for (const o of S.fleets) {
+        if (o === fl || o.owner !== fl.owner || o.path.length || !C.shipCount(o) || o.port !== fl.port || o.zone !== fl.zone) continue;
+        if (o.id < fl.id) continue; // fold the newer one into the older
+        for (const t of Object.keys(SHIPS)) { fl.ships[t] = (fl.ships[t] || 0) + (o.ships[t] || 0); o.ships[t] = 0; }
+      }
+    }
+    dropEmptyFleets();
+  }
+  function fleetCleanup() {
+    for (const fl of S.fleets) {
+      if (!fl.port) continue;
+      if (!canDock(fl.owner, fl.port)) { plog(`The ${F(fl.owner).adj} fleet in ${W().byId[fl.port].name} is lost with the port.`, 'bad', [fl.owner]); fl.ships = {}; }
+    }
+    dropEmptyFleets();
+    // a fleet whose docking port was captured while it was sailing home keeps sailing; its path is re-checked at each step
+  }
+  function updateBlockades() {
+    for (const p of W().provs) {
+      const ps = S.provinces[p.id], was = !!ps.blockade; ps.blockade = false;
+      if (!p.port || ps.owner === 'minor') continue;
+      const zs = portZones(p.id); if (!zs.length) continue;
+      ps.blockade = zs.every((z) => S.fleets.some((x) => x.zone === z && atWar(x.owner, ps.owner)) && !S.fleets.some((x) => x.zone === z && (x.owner === ps.owner || allied(x.owner, ps.owner))));
+      if (ps.blockade && !was) plog(`${p.name} is blockaded by an enemy fleet! Income halved and no ships can be built.`, 'bad', [ps.owner]);
+    }
+  }
+  function navalPhase() {
+    if (!S.fleets) return;
+    fleetCleanup();
+    navalMoves();
+    navalCombat();
+    mergeFleets();
+    updateBlockades();
+  }
+  // ---- naval AI: build a fleet in proportion to wealth, then fight, blockade or sit in port
+  function aiNavy(f) {
+    const fs = S.factions[f]; if (f === 'minor' || !fs.alive) return;
+    const ports = C.provincesOf(f).filter((p) => p.port);
+    if (!ports.length) return;
+    const en = wars(f);
+    // shipyard
+    if (!ports.some((p) => S.provinces[p.id].shipyard) && fs.gold > 650 && C.factionIncome(f) > 220 && rnd() < 0.08) {
+      const pick = ports.filter((p) => !S.provinces[p.id].build).sort((a, b) => C.def(b.id).income - C.def(a.id).income)[0];
+      if (pick) C.build(pick.id, 'shipyard');
+    }
+    // ships
+    const have = C.fleetsOf(f).reduce((n, x) => n + C.shipCount(x), 0) + ports.reduce((n, p) => n + (S.provinces[p.id].shipQueue || []).length, 0);
+    const target = Math.round(clamp(C.factionIncome(f) / 55, 0, 14) * (f === 'britain' ? 1.4 : 1));
+    if (have < target && fs.gold > 420 && (en.length || rnd() < 0.2)) {
+      const yards = ports.filter((p) => S.provinces[p.id].shipyard && !C.shipCheck(p.id, 'frigate'));
+      if (yards.length) { const y = yards[Math.floor(rnd() * yards.length)]; C.buildShip(y.id, rnd() < 0.75 ? 'sol' : 'frigate'); }
+    }
+    // orders
+    const foeFleets = S.fleets.filter((x) => atWar(f, x.owner));
+    for (const fl of C.fleetsOf(f)) {
+      if (fl.path.length) continue;
+      const my = C.fleetPower(fl);
+      if (!en.length || my < 3) { if (fl.zone !== null) { const home = ZONES[fl.zone].ports.filter((pid) => canDock(f, pid)); if (home.length) C.orderFleet(fl, 'p:' + home[0]); } continue; }
+      let best = null, bs = 0;
+      ZONES.forEach((z, zi) => {
+        const foe = foeFleets.filter((x) => x.zone === zi || (x.port && z.ports.includes(x.port))).reduce((n, x) => n + C.fleetPower(x), 0);
+        if (foe * 1.25 > my) return;
+        const prizes = z.ports.filter((pid) => { const o = S.provinces[pid].owner; return o !== 'minor' && atWar(f, o); }).reduce((n, pid) => n + 2 + C.def(pid).income, 0);
+        const sc = prizes + foe * 3;
+        if (sc > bs) { bs = sc; best = zi; }
+      });
+      if (best !== null && bs > 4 && !(fl.zone === best)) C.orderFleet(fl, 'z:' + best);
+    }
+  }
+
   C.endTurn = async function () {
     if (S.busy || S.winner) return;
     S.busy = true;
@@ -1506,6 +1735,7 @@
       }
       siegePhase(f);
     }
+    navalPhase();
     // minor faction sieges (they never move) - none
     attrition();
     generalsPhase();
@@ -1573,6 +1803,8 @@
       if (f.incomeMult === undefined) f.incomeMult = 1;
     }
     for (const w of Object.values(d.wars || {})) { if (!w.s) w.s = {}; if (w.exh === undefined) w.exh = 0; if (!w.goal) w.goal = { by: null, type: 'none' }; }
+    if (!d.fleets) { d.fleets = []; d.nextFleet = 1; }
+    for (const ps of Object.values(d.provinces)) { if (ps.shipyard === undefined) ps.shipyard = 0; if (!ps.shipQueue) ps.shipQueue = []; ps.blockade = false; }
     if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
     if (!d.truce) d.truce = {};
     if (!d.turnLog) d.turnLog = [];

@@ -433,6 +433,44 @@
         opts.markers.push({ id: a.id, x, y, w: mw, h: mh });
       });
     }
+    // fleets: docked ones sit left of the port, those at sea at the centre of their zone
+    const fl = state.fleets || [], slots = {};
+    NAP.zonePos = (i) => NAP.proj(NAP.SEA_ZONES[i].c[0], NAP.SEA_ZONES[i].c[1]);
+    const fleetPos = (f) => {
+      if (f.port) { const p = w.byId[f.port]; return [p.cx, p.cy]; }
+      const [zx, zy] = NAP.zonePos(f.zone); return [zx, zy];
+    };
+    if (opts.selFleet) {
+      const sf = opts.selFleet; ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      NAP.SEA_ZONES.forEach((z, i) => { const [zx, zy] = NAP.zonePos(i); ctx.beginPath(); ctx.arc(zx, zy, 34, 0, 7); ctx.fill(); ctx.stroke(); });
+      ctx.setLineDash([]);
+      if (sf.path && sf.path.length) {
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.setLineDash([5, 4]); ctx.beginPath();
+        const [sx, sy] = fleetPos(sf); ctx.moveTo(sx, sy);
+        for (const n of sf.path) { const [k, v] = n.split(':'); const q = k === 'z' ? NAP.zonePos(+v) : [w.byId[v].cx, w.byId[v].cy]; ctx.lineTo(q[0], q[1]); }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+    for (const f of fl) {
+      const key = f.port ? 'p' + f.port : 'z' + f.zone, i = slots[key] = (slots[key] || 0) + 1, [bx, by] = fleetPos(f);
+      const x = f.port ? bx - 20 * sc - (i - 1) * 28 * sc : bx + (i - 1) * 30 * sc - 8, y = f.port ? by + 26 * sc : by;
+      const fc = NAP.FACTIONS[f.owner], sel = opts.selFleet && opts.selFleet.id === f.id, mw = 27 * sc, mh = 17 * sc, n = (f.ships.sol || 0) + (f.ships.frigate || 0);
+      ctx.save(); ctx.translate(x, y);
+      // hull
+      ctx.fillStyle = fc.color; ctx.strokeStyle = sel ? '#fff' : '#111'; ctx.lineWidth = sel ? 2.2 : 1.2;
+      ctx.beginPath(); ctx.moveTo(-mw / 2, -mh / 4); ctx.lineTo(mw / 2, -mh / 4); ctx.lineTo(mw / 2 - 4 * sc, mh / 2); ctx.lineTo(-mw / 2 + 4 * sc, mh / 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // mast and sail
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(0, -mh / 4); ctx.lineTo(0, -mh * 0.95); ctx.stroke();
+      ctx.fillStyle = '#f4f0e0'; ctx.beginPath(); ctx.moveTo(0, -mh * 0.9); ctx.lineTo(mw * 0.32, -mh * 0.35); ctx.lineTo(0, -mh * 0.35); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = FLAG_TEXT[f.owner] || '#fff'; ctx.font = `bold ${8 * sc}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n, 0, mh * 0.12);
+      if (f.owner === state.player && f.path && f.path.length) { ctx.fillStyle = '#fff'; ctx.fillText('\u2192', mw / 2 + 4 * sc, 0); }
+      ctx.restore();
+      opts.markers.push({ kind: 'fleet', id: f.id, x, y, w: mw, h: mh * 1.4 });
+    }
+    // blockaded ports
+    for (const p of w.provs) { if (state.provinces[p.id].blockade) { ctx.save(); ctx.strokeStyle = '#e33'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.cx, p.cy, 9, 0, 7); ctx.moveTo(p.cx - 6, p.cy - 6); ctx.lineTo(p.cx + 6, p.cy + 6); ctx.stroke(); ctx.restore(); } }
     ctx.restore();
   };
 })();

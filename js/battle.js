@@ -1342,17 +1342,6 @@
       mini.addEventListener('mousedown', (e) => { this.miniDrag = true; miniMove(e); e.stopPropagation(); e.preventDefault(); });
       window.addEventListener('mousemove', this.mmini = (e) => { if (this.miniDrag) miniMove(e); });
       window.addEventListener('mouseup', this.umini = () => { this.miniDrag = false; });
-      // two-finger pinch zoom + pan
-      let t0 = null;
-      const tinfo = (e) => { const a = e.touches[0], b2 = e.touches[1], bb = this.canvas.getBoundingClientRect(); return { d: Math.hypot(a.clientX - b2.clientX, a.clientY - b2.clientY), x: (a.clientX + b2.clientX) / 2 - bb.left, y: (a.clientY + b2.clientY) / 2 - bb.top }; };
-      this.canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 2) { t0 = tinfo(e); this.box = null; e.preventDefault(); } }, { passive: false });
-      this.canvas.addEventListener('touchmove', (e) => {
-        if (e.touches.length !== 2 || !t0) return; e.preventDefault();
-        const t1 = tinfo(e), before = this.toWorld(t0.x, t0.y);
-        this.zt = this.cam.z = clamp(this.cam.z * (t1.d / t0.d), 0.4, 8); this.zAnchor = null;
-        const after = this.toWorld(t1.x, t1.y); this.cam.x += before.x - after.x; this.cam.y += before.y - after.y; t0 = t1;
-      }, { passive: false });
-      this.canvas.addEventListener('touchend', () => { t0 = null; });
       window.addEventListener('keydown', this.kd = (e) => {
         if (!this.canvas.isConnected) return;
         if (e.target && /input|textarea/i.test(e.target.tagName)) return;
