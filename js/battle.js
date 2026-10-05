@@ -2,6 +2,7 @@
 (function () {
   const NAP = window.NAP;
   const FW = 1600, FH = 900;
+  const FIRE_RATE = 0.6; // overall lethality of shooting: lower = longer, easier-to-read battles
   const TAU = Math.PI * 2;
   const rnd = Math.random;
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
@@ -323,7 +324,7 @@
           const x0 = mx - sa * py, y0 = my + ca * py;
           const x1 = tgt.x + (rnd() - 0.5) * tgt.w * 0.7, y1 = tgt.y + (rnd() - 0.5) * tgt.d * 0.7;
           const dist = Math.hypot(x1 - x0, y1 - y0);
-          const delay = rnd() * 0.45;
+          const delay = rnd() * 0.7;
           this.proj.push({ kind: 'bullet', x0, y0, x1, y1, t: 0, delay, dur: Math.max(0.12, dist / 480) });
           if (i % 3 === 0) this.puffs.push({ x: x0, y: y0, t: -delay, life: 0.14 + delay, r: 4.5, c: 'rgba(255,225,140,', a: 0.9, nd: true });
         }
@@ -582,11 +583,12 @@
                 const vuln = tgt.cls === 'cav' ? 0.95 : tgt.cls === 'art' ? 0.8 : 1;
                 cas = u.men * bt.fire * (FORM_FIRE[u.formation] || 1) * acc * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.fire * (1 - u.fatigue / 300);
               }
+              cas *= FIRE_RATE;
               this.damage(tgt, cas * dt, u, ex > 1 ? 1.35 : 1);
               firing = true;
               u.reload -= dt;
               if (u.reload <= 0) {
-                u.reload = u.cls === 'art' ? 3.0 + rnd() : 2.0 + rnd() * 1.1;
+                u.reload = u.cls === 'art' ? 5.5 + rnd() * 2 : 4.2 + rnd() * 2.2; // slow, readable volleys
                 this.fireVolley(u, tgt);
               }
             }
