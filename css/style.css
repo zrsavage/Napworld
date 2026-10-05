@@ -254,8 +254,13 @@ button.on { border-color: #6c6; }
 @keyframes flagwave { from { transform: skewY(-6deg) scaleX(1); } to { transform: skewY(6deg) scaleX(.9); } }
 @media (prefers-reduced-motion: reduce) { #start .titleart .drift, #start .titleart .flagwave { animation: none; } }
 
-#start .navbar { position: sticky; top: 0; z-index: 5; margin: -28px -24px 14px; padding: 12px 24px; background: linear-gradient(#1b2231, rgba(20,24,31,.96)); border-bottom: 1px solid var(--line); grid-template-columns: 120px 1fr auto; }
+#start .navbar { margin: 0 0 10px; padding: 0; grid-template-columns: 120px 1fr auto; }
 #start .navbar .navright { display: flex; align-items: center; gap: 14px; justify-content: flex-end; min-width: 120px; }
 #start .navbar .navright button { padding: 8px 20px; font-size: 15px; }
 #start .navbar .navright button[hidden] { display: none; }
 .card.sel { outline: 2px solid var(--gold2); box-shadow: 0 0 18px rgba(241,212,135,.35); }
+
+#start .beginrow { text-align: center; margin: 4px 0 16px; min-height: 8px; }
+#start .beginrow button[hidden] { display: none; }
+#start .bigbegin { font: 700 22px 'Cinzel', Georgia, serif; letter-spacing: 1px; padding: 16px 56px; border-radius: 8px; box-shadow: 0 0 0 2px rgba(241,212,135,.5), 0 8px 28px rgba(0,0,0,.55), 0 0 30px rgba(224,189,99,.45); animation: beginglow 1.8s ease-in-out infinite alternate; }
+@keyframes beginglow { from { box-shadow: 0 0 0 2px rgba(241,212,135,.4), 0 8px 28px rgba(0,0,0,.55), 0 0 18px rgba(224,189,99,.3); } to { box-shadow: 0 0 0 3px rgba(241,212,135,.8), 0 8px 28px rgba(0,0,0,.55), 0 0 40px rgba(224,189,99,.65); } }

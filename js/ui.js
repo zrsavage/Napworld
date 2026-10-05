@@ -47,7 +47,8 @@
   function showNations() {
     $('#start').className = '';
     let picked = null;
-    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><button class="primary" id="beginbtn" hidden>Begin the Campaign</button></div></div>
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div></div>
+      <div class="beginrow"><button class="primary bigbegin" id="beginbtn" hidden>Begin the Campaign</button></div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
     for (const id of order) {
@@ -59,21 +60,22 @@
         <p>${esc(f.desc)}</p><ul class="perks">${(NAP.PERKS[id] ? NAP.PERKS[id].plus.map((e) => `<li class="pl">${esc(e.t)}</li>`).concat(NAP.PERKS[id].minus.map((e) => `<li class="mi">${esc(e.t)}</li>`)) : []).join('')}</ul><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
         <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
-    html += `</div>`;
+    html += `</div><div class="beginrow"><button class="primary bigbegin" id="beginbtn2" hidden>Begin the Campaign</button></div>`;
     $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => {
       picked = c.dataset.f; ui.picked = picked;
       $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
-      const bb = $('#beginbtn'); bb.hidden = false; bb.textContent = `Begin as ${F(picked).adj} \u2192`;
+      for (const id of ['#beginbtn', '#beginbtn2']) { const bb = $(id); bb.hidden = false; bb.textContent = `Begin as ${F(picked).adj} \u2192`; }
     }));
     // naval warfare is asked at the moment you begin
-    $('#beginbtn').onclick = async () => {
+    const begin = async () => {
       if (!picked) return;
       const r = await modal(`<h2>Naval warfare?</h2><div class="body"><p><b>Off</b> (standard): the seas are a simple transport network. Armies cross between ports and nothing can stop them.</p><p><b>On</b> (<span class="bad">harder</span>): every nation has a fleet, you build ships at Shipyards, and enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings. You need your own navy to keep the sea lanes open. It is more to manage and a real extra threat, so it is best once you know the basics.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="off" ${ui.naval ? '' : 'class="primary"'}>Naval warfare off</button><button data-r="on" ${ui.naval ? 'class="primary"' : ''}>Naval warfare on (harder)</button></div>`);
       if (r === 'off' || r === 'on') { ui.naval = r === 'on'; beginGame(picked); }
     };
+    $('#beginbtn').onclick = begin; $('#beginbtn2').onclick = begin;
     $('#backbtn').onclick = showStart;
   }
   // painted-in-code backdrop for the title screen: dusk sky, powder smoke, ridgelines of marching infantry, guns and a cavalry officer
