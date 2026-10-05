@@ -268,6 +268,9 @@ button.on { border-color: #6c6; }
 #start .bigbegin { font: 700 22px 'Cinzel', Georgia, serif; letter-spacing: 1px; padding: 16px 56px; border-radius: 8px; box-shadow: 0 0 0 2px rgba(241,212,135,.5), 0 8px 28px rgba(0,0,0,.55), 0 0 30px rgba(224,189,99,.45); animation: beginglow 1.8s ease-in-out infinite alternate; }
 @keyframes beginglow { from { box-shadow: 0 0 0 2px rgba(241,212,135,.4), 0 8px 28px rgba(0,0,0,.55), 0 0 18px rgba(224,189,99,.3); } to { box-shadow: 0 0 0 3px rgba(241,212,135,.8), 0 8px 28px rgba(0,0,0,.55), 0 0 40px rgba(224,189,99,.65); } }
 
+.tier-impossible { background: linear-gradient(#ff5a4a, #b01818); color: #fff; font-size: 17px; letter-spacing: 1.5px; padding: 3px 14px; text-transform: uppercase; text-shadow: 0 1px 3px #000; box-shadow: 0 0 12px rgba(255,70,50,.6); animation: impossible 1.6s ease-in-out infinite alternate; }
+@keyframes impossible { from { box-shadow: 0 0 6px rgba(255,70,50,.4); } to { box-shadow: 0 0 18px rgba(255,70,50,.9); } }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -631,6 +634,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   };
   for (const f in NAP.PERKS) { NAP.FACTIONS[f].morale = +NAP.perk(f, 'morale').toFixed(3); NAP.FACTIONS[f].fire = +NAP.perk(f, 'fire').toFixed(3); }
 
+  // Starting help for the weakest nation: extra gold and manpower, a market and barracks in every province, an academy and a fort in the capital
+  NAP.START_BONUS = { bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
   NAP.NATION_GUIDE = {
     russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
     britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },
@@ -643,7 +648,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
     naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
     portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
-    bavaria:  { tier:'Expert', rank:12, war:false, why:'Small and sandwiched between Austria and France, but with four provinces (Bavaria, Wurttemberg, Saxony and Franconia) to build on.', tips:['Stay close to your French ally.'] }
+    bavaria:  { tier:'Impossible', label:'Impossible!', rank:12, war:false, why:'Small and sandwiched between Austria and France, but you start with a head start: extra gold, manpower and troops, and a market and barracks in every province.', tips:['Stay close to your French ally.'] }
   };
 
 
@@ -782,7 +787,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     sweden: [['stockholm','Gustav Adolf','line:4 art:1'], ['finland','Johan Cronstedt','line:4 art:1'], ['gothenburg','', 'line:2']],
     denmark: [['copenhagen','Prince Christian','line:4 art:1'], ['jutland','Hans Bulow','line:3 hussar:1'], ['norway_s','', 'line:2']],
     naples: [['naples','Michele Pignatelli','line:5 hussar:1 art:1'], ['sicily','', 'line:2'], ['calabria','', 'line:2']],
-    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1'], ['franconia','', 'line:5 light:1 hussar:1 art:2']],
+    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1'], ['franconia','', 'line:5 light:1 hussar:1 art:2'], ['wurttemberg','', 'grenadier:2 light:1 art:1']],
     minor: [['switzerland','','line:2'], ['papal','','line:2'], ['sardinia','','line:1'], ['morocco','','line:2 hussar:1'], ['algiers','','line:2 hussar:1'], ['tunis','','line:1'], ['tripoli','','line:1']]
   };
 })();
@@ -1521,6 +1526,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (!W().byId[pid] || !W().byId[pid].port) continue;
       const ships = {}; spec.split(' ').forEach((t) => { const [k, n] = t.split(':'); ships[k] = +n; });
       S.provinces[pid].shipyard = 1; C.newFleet(f, pid, ships);
+    }
+    for (const f in NAP.START_BONUS) { // head start for the weakest nations
+      const b = NAP.START_BONUS[f], fs = S.factions[f]; if (!fs) continue;
+      fs.gold = Math.round(fs.gold * (b.goldMul || 1)); fs.manpower += b.manpower || 0;
+      for (const p of w.provs.filter((x) => x.owner === f)) { const ps = S.provinces[p.id]; for (const k of b.all || []) ps[k] = 1; if (p.capital) { for (const k of b.capital || []) ps[k] = 1; ps.fort = Math.max(ps.fort, (ps.fort || 0) + (b.capFort || 0)); } }
     }
     for (const [a, b] of NAP.START_WARS) S.wars[pkey(a, b)] = { since: 0, exh: 0, s: {} };
     for (const [a, b] of NAP.START_ALLIES) S.allies[pkey(a, b)] = true;
@@ -5119,8 +5129,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const tips = '<b>' + esc(f.name) + '</b><br>' + g.tips.map((t) => '\u2022 ' + esc(t)).join('<br>');
       html += `<div class="card" data-f="${id}" style="--c:${f.color}" data-tip="${esc(tips)}">${g.ribbon ? `<span class="ribbon">${esc(g.ribbon)}</span>` : ''}
         <h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div>
-        <div><span class="tier tier-${g.tier.toLowerCase()}">${g.tier}</span>${g.war ? '<span class="tag war" style="margin-left:6px">starts at war</span>' : '<span class="tag peace" style="margin-left:6px">starts at peace</span>'}</div>
-        <p>${esc(f.desc)}</p><ul class="perks">${(NAP.PERKS[id] ? NAP.PERKS[id].plus.map((e) => `<li class="pl">${esc(e.t)}</li>`).concat(NAP.PERKS[id].minus.map((e) => `<li class="mi">${esc(e.t)}</li>`)) : []).join('')}</ul><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
+        <div><span class="tier tier-${g.tier.toLowerCase()}">${g.label || g.tier}</span>${g.war ? '<span class="tag war" style="margin-left:6px">starts at war</span>' : '<span class="tag peace" style="margin-left:6px">starts at peace</span>'}</div>
+        <p>${esc(f.desc)}</p><ul class="perks">${(NAP.PERKS[id] ? NAP.PERKS[id].plus.map((e) => `<li class="pl">${esc(e.t)}</li>`).concat(NAP.PERKS[id].minus.map((e) => `<li class="mi">${esc(e.t)}</li>`)) : []).join('')}</ul><p class="why"><b>Why ${(g.label || g.tier).toLowerCase().replace("!", "")}:</b> ${esc(g.why)}</p>
         <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div class="beginrow"><button class="primary bigbegin" id="beginbtn2" hidden>Begin the Campaign</button></div>`;

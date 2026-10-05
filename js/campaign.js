@@ -79,6 +79,11 @@
       const ships = {}; spec.split(' ').forEach((t) => { const [k, n] = t.split(':'); ships[k] = +n; });
       S.provinces[pid].shipyard = 1; C.newFleet(f, pid, ships);
     }
+    for (const f in NAP.START_BONUS) { // head start for the weakest nations
+      const b = NAP.START_BONUS[f], fs = S.factions[f]; if (!fs) continue;
+      fs.gold = Math.round(fs.gold * (b.goldMul || 1)); fs.manpower += b.manpower || 0;
+      for (const p of w.provs.filter((x) => x.owner === f)) { const ps = S.provinces[p.id]; for (const k of b.all || []) ps[k] = 1; if (p.capital) { for (const k of b.capital || []) ps[k] = 1; ps.fort = Math.max(ps.fort, (ps.fort || 0) + (b.capFort || 0)); } }
+    }
     for (const [a, b] of NAP.START_WARS) S.wars[pkey(a, b)] = { since: 0, exh: 0, s: {} };
     for (const [a, b] of NAP.START_ALLIES) S.allies[pkey(a, b)] = true;
     for (const [a, b, v] of NAP.START_REL) S.rel[pkey(a, b)] = v;

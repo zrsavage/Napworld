@@ -337,6 +337,8 @@
   };
   for (const f in NAP.PERKS) { NAP.FACTIONS[f].morale = +NAP.perk(f, 'morale').toFixed(3); NAP.FACTIONS[f].fire = +NAP.perk(f, 'fire').toFixed(3); }
 
+  // Starting help for the weakest nation: extra gold and manpower, a market and barracks in every province, an academy and a fort in the capital
+  NAP.START_BONUS = { bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
   NAP.NATION_GUIDE = {
     russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
     britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },
@@ -349,7 +351,7 @@
     denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
     naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
     portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
-    bavaria:  { tier:'Expert', rank:12, war:false, why:'Small and sandwiched between Austria and France, but with four provinces (Bavaria, Wurttemberg, Saxony and Franconia) to build on.', tips:['Stay close to your French ally.'] }
+    bavaria:  { tier:'Impossible', label:'Impossible!', rank:12, war:false, why:'Small and sandwiched between Austria and France, but you start with a head start: extra gold, manpower and troops, and a market and barracks in every province.', tips:['Stay close to your French ally.'] }
   };
 
 
@@ -488,7 +490,7 @@
     sweden: [['stockholm','Gustav Adolf','line:4 art:1'], ['finland','Johan Cronstedt','line:4 art:1'], ['gothenburg','', 'line:2']],
     denmark: [['copenhagen','Prince Christian','line:4 art:1'], ['jutland','Hans Bulow','line:3 hussar:1'], ['norway_s','', 'line:2']],
     naples: [['naples','Michele Pignatelli','line:5 hussar:1 art:1'], ['sicily','', 'line:2'], ['calabria','', 'line:2']],
-    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1'], ['franconia','', 'line:5 light:1 hussar:1 art:2']],
+    bavaria: [['bavaria','Carl von Wrede','line:7 light:2 hussar:2 art:2'], ['saxony','', 'line:4 hussar:1 art:1'], ['wurttemberg','', 'line:4 art:1'], ['franconia','', 'line:5 light:1 hussar:1 art:2'], ['wurttemberg','', 'grenadier:2 light:1 art:1']],
     minor: [['switzerland','','line:2'], ['papal','','line:2'], ['sardinia','','line:1'], ['morocco','','line:2 hussar:1'], ['algiers','','line:2 hussar:1'], ['tunis','','line:1'], ['tripoli','','line:1']]
   };
 })();
