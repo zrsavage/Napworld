@@ -163,7 +163,7 @@
     C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval });
     enterGame();
     const cap = NAP.world.byId[S().factions[f].cap];
-    ui.cam = { x: cap.cx, y: cap.cy, z: 1.15 };
+    ui.cam = { x: cap.cx, y: cap.cy, z: 1.15 }; ui.zt = null;
     ui.sel = { prov: cap.id, army: null };
     refresh();
   }
@@ -175,7 +175,7 @@
   }
   function saveGame() { try { localStorage.setItem(SAVE_KEY, C.serialize()); toast('Game saved'); } catch (e) { toast('Could not save'); } }
   function loadGame(key) {
-    try { C.deserialize(lsGet(key || SAVE_KEY)); enterGame(); const f = S().player; const cap = NAP.world.byId[S().factions[f].cap]; ui.cam = { x: cap.cx, y: cap.cy, z: 1.1 }; ui.sel = { prov: null, army: null }; refresh(); toast('Game loaded'); }
+    try { C.deserialize(lsGet(key || SAVE_KEY)); enterGame(); const f = S().player; const cap = NAP.world.byId[S().factions[f].cap]; ui.cam = { x: cap.cx, y: cap.cy, z: 1.1 }; ui.zt = null; ui.sel = { prov: null, army: null }; refresh(); toast('Game loaded'); }
     catch (e) { console.error(e); toast('Save is corrupted'); }
   }
 
@@ -216,7 +216,7 @@
   }
   function focusAttention(x) {
     const p = NAP.world.byId[x.prov]; if (!p) return;
-    ui.cam.x = p.cx; ui.cam.y = p.cy; ui.cam.z = Math.max(ui.cam.z, 1.2); clampCam();
+    ui.cam.x = p.cx; ui.cam.y = p.cy; ui.cam.z = Math.max(ui.cam.z, 1.2); ui.zt = null; clampCam();
     ui.sel = { prov: x.prov, army: x.army || null };
     ui.pulseProv = x.prov; setTimeout(() => { if (ui.pulseProv === x.prov) { ui.pulseProv = null; dirty = true; } }, 2500);
     refresh();
@@ -547,11 +547,16 @@
       $('#wback').onclick = () => main('');
       $('#wgo').onclick = () => { const v = m.querySelector('input[name=goal]:checked').value; const goal = v === 'gold' ? { by: me, type: 'gold' } : v === 'none' ? { by: me, type: 'none' } : { by: me, type: 'province', id: v.split(':')[1] }; C.declareWar(me, f, undefined, goal); refresh(); main(`You declare war on ${F(f).name}.`); };
     };
+    const termHelp = (id) => id === 'status' ? 'A "white peace": the war simply ends. Nobody pays anything and no province changes hands; everyone keeps what they hold now, and a 12-month truce follows. The safest deal when you cannot win or cannot afford to keep fighting.'
+      : id === 'gold' ? 'They pay you gold. No land changes hands.'
+      : id === 'tribute' ? 'You pay them gold to end the war. A way of buying peace when you are losing.'
+      : id.startsWith('province:') ? 'They hand over this province. It is much easier to win if it was your war goal.'
+      : id.startsWith('release:') ? 'You give back a province you captured.' : '';
     const terms = (f) => {
       const opts = C.peaceOptions(me, f), ws = C.warScore(me, f);
       m.innerHTML = `<div class="dlg"><h2>Peace with ${esc(F(f).name)}</h2><div class="body">
         <p>War score: <b class="${ws >= 0 ? 'good' : 'bad'}">${ws >= 0 ? '+' : ''}${Math.round(ws)}</b> <span class="muted">(battles won and provinces taken; the higher, the harsher the terms they may accept)</span></p>
-        ${opts.map((o, i) => `<label class="termopt"><input type="radio" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}>${esc(o.label)}</label>`).join('')}
+        ${opts.map((o, i) => `<label class="termopt"><input type="radio" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}><span>${esc(o.label)}<small class="muted" style="display:block">${esc(termHelp(o.id))}</small></span></label>`).join('')}
         <p class="muted" id="dipmsg" style="min-height:20px"></p></div>
         <div class="foot"><button id="tback">Back</button><button class="primary" id="tgo">Propose</button></div></div>`;
       $('#tback').onclick = () => main('');
@@ -657,7 +662,7 @@
   function evPos(e) { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   function markerAt(w) {
     const ms = ui.opts.markers || [];
-    for (let i = ms.length - 1; i >= 0; i--) { const m = ms[i]; if (Math.abs(w.x - m.x) <= m.w / 2 + 2 && Math.abs(w.y - m.y) <= m.h / 2 + 2) return m; }
+    for (let i = ms.length - 1; i >= 0; i--) { const m = ms[i]; if (Math.abs(w.x - m.x) <= m.w / 2 + 6 && Math.abs(w.y - m.y) <= m.h / 2 + 6) return m; }
     return null;
   }
   let drag = null;
@@ -671,7 +676,7 @@
     const p = evPos(e);
     if (drag) {
       const dx = p.x - drag.sx, dy = p.y - drag.sy;
-      if (Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; canvas.classList.add('drag'); }
+      if (drag.moved || Math.abs(dx) + Math.abs(dy) > 9) { drag.moved = true; canvas.classList.add('drag'); }
       if (drag.moved) { ui.cam.x = drag.cx - dx / ui.cam.z; ui.cam.y = drag.cy - dy / ui.cam.z; clampCam(); dirty = true; }
     }
     if (e.target === canvas && !drag) {
@@ -726,10 +731,11 @@
   });
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const p = evPos(e), before = toWorld(p.x, p.y);
-    ui.cam.z = Math.max(0.45, Math.min(4, ui.cam.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
-    const after = toWorld(p.x, p.y);
-    ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true;
+    // normalise wheels (notches, lines, trackpad pixels) and ease toward the target zoom, keeping the point under the cursor fixed
+    const dy = Math.max(-240, Math.min(240, e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1)));
+    const p = evPos(e), w0 = toWorld(p.x, p.y);
+    ui.zt = Math.max(0.45, Math.min(4, (ui.zt || ui.cam.z) * Math.exp(-dy * 0.0011)));
+    ui.zAnchor = { px: p.x, py: p.y, wx: w0.x, wy: w0.y }; dirty = true;
   }, { passive: false });
   function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
   function toggleSide() { const hid = $('#side').classList.toggle('hide'); $('#sidetoggle').innerHTML = hid ? '&#9666; Details' : 'Details &#9656;'; }
@@ -839,6 +845,11 @@
   function frame() {
     requestAnimationFrame(frame);
     if (ui.pulseProv && !$('#game').hidden) dirty = true;
+    if (ui.zt && Math.abs(ui.zt - ui.cam.z) > 0.002) {
+      ui.cam.z += (ui.zt - ui.cam.z) * 0.3;
+      if (ui.zAnchor) { const a = ui.zAnchor, w1 = toWorld(a.px, a.py); ui.cam.x += a.wx - w1.x; ui.cam.y += a.wy - w1.y; clampCam(); }
+      dirty = true;
+    } else if (ui.zt) { ui.zt = ui.cam.z; }
     if (!dirty || $('#game').hidden || !S()) return;
     dirty = false;
     const s = S(), a = selArmy();

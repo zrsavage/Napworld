@@ -302,6 +302,7 @@
 
     // Visible fire: muzzle flashes, tracer dashes, round shot, impacts
     fireVolley(u, tgt) {
+      u.volleyT = this.t;
       const ca = Math.cos(u.facing), sa = Math.sin(u.facing);
       const mx = u.x + ca * (u.d / 2 + 3), my = u.y + sa * (u.d / 2 + 3);
       this.snd(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09, u.x, u.y);
@@ -478,7 +479,7 @@
               moving = true;
               let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220);
               u.charging = false;
-              const chargeNow = (u.cls === 'cav' && u.order.type === 'attack' && d < 260) || (u.order.charge && d < 170);
+              const chargeNow = (u.cls === 'cav' && u.order.type === 'attack' && d < 260 && u.fatigue < 75) || (u.order.charge && d < 170 && (u.cls !== 'cav' || u.fatigue < 75));
               if (u.order.type === 'move' && u.order.run) sp *= 1.35;
               if (chargeNow && u.cls === 'cav') { sp *= 1.45; u.charging = true; u.fatigue = Math.min(100, u.fatigue + 2.4 * dt); }
               else if (chargeNow) { sp *= 1.2; u.charging = true; u.fatigue = Math.min(100, u.fatigue + 2 * dt); }
@@ -501,7 +502,10 @@
         if (u.dustT <= 0) { u.dustT = 0.1; this.puffs.push({ x: u.x - Math.cos(u.facing) * u.d / 2, y: u.y - Math.sin(u.facing) * u.d / 2 + (rnd() - 0.5) * u.w * 0.6, t: 0, life: 0.9, r: 4 + rnd() * 3, c: 'rgba(190,165,120,', a: 0.5 }); }
         if (u.hoofT <= 0) { u.hoofT = 0.55; this.snd('hooves', 0.5, u.x, u.y); }
       }
-      u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
+      u.mv = moving;
+      // cavalry tire fast: galloping and fighting burn stamina, and a spent squadron fights badly
+      if (u.cls === 'cav') u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 3.2 : 0.9) * this.wx.fat : melee ? 2.8 : -0.9) * dt, 0, 100);
+      else u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly separation
       for (const f of this.units) {
         if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
@@ -518,7 +522,8 @@
         // melee: face enemy
         u.facing = turnToward(u.facing, Math.atan2(melee.y - u.y, melee.x - u.x), bt.turn * dt * 1.2);
         const ex = this.exposure(melee, u);
-        let dps = u.men * bt.melee * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300);
+        let dps = u.men * bt.melee * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300) * this.stamina(u);
+        if (u.cls === 'cav' && u.fatigue > 90) u.morale -= 5 * dt; // horses blown: the squadron loses heart
         if (u.cls === 'art') dps *= 0.5;
         // formation matchups for cavalry in melee
         let vuln = 1;
@@ -528,7 +533,8 @@
           u.impacted = true; u.cooldown = 5; this.snd('charge', 1.2, u.x, u.y);
           const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
-          const instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
+          const instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250) * this.stamina(u);
+          if (u.cls === 'cav') u.fatigue = Math.min(100, u.fatigue + 14);
           this.damage(melee, instant, u, melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1));
           if (melee.cls === 'inf' && melee.formation === 'square' && u.cls === 'cav') this.damage(u, melee.men * 0.06, melee, 1.8);
           else if (u.cls === 'cav' && melee.cls !== 'cav' && melee.cls !== 'art') this.damage(u, melee.men * 0.015, melee, 0.8);
@@ -1066,6 +1072,7 @@
       }
     }
 
+    stamina(u) { return u.cls === 'cav' ? clamp(1.25 - u.fatigue / 80, 0.1, 1) : 1; }
     // A line keeps its shape: infantry face the middle of the enemy in reach (not one regiment each) and keep step with idle neighbours.
     lineFacing(u, tgt) {
       let ax = 0, ay = 0, n = 0;
@@ -1165,13 +1172,22 @@
         for (let j = 0; j < nSlots; j++) {
           const k = K[j];
           if (k[0] > keep) continue; // fallen / missing
-          let x, y;
+          let x, y, rk = 0;
           if (ranks) {
-            const rk = Math.floor(j / cols), cl = j % cols;
+            rk = Math.floor(j / cols); const cl = j % cols;
             x = -d / 2 + (rk + 0.5) / ranks * d + (k[1] - 0.5) * frayed * 0.9;
             y = -w / 2 + (cl + 0.5) / cols * w + (k[2] - 0.5) * frayed;
           } else { x = -d / 2 + k[1] * d; y = -w / 2 + k[2] * w; }
           if (wob > 0.05) { x += Math.sin(t * 4 + j * 1.7) * wob * 0.5; y += Math.cos(t * 3.3 + j * 2.1) * wob * 0.5; }
+          // life in the ranks: marching step, firing recoil, melee lunges
+          const age = t - (u.volleyT === undefined ? -9 : u.volleyT);
+          if (u.mv && !routing) { const ph = t * (u.cls === 'cav' ? 11 : 6.5) + j * 1.9; x += Math.sin(ph) * (u.cls === 'cav' ? 0.9 : 0.45); y -= Math.abs(Math.sin(ph)) * (u.cls === 'cav' ? 0.8 : 0.45); }
+          if (u.state === 'fighting') { x += Math.sin(t * 9 + j * 2.3) * 1.2; y += Math.cos(t * 7 + j * 1.1) * 0.6; }
+          else if (age >= 0 && age < 0.45) {
+            x -= (1 - age / 0.45) * 1.3;
+            const fr = ranks ? rk === ranks - 1 : true, fa = age - K[j][2] * 0.4;
+            if (fr && fa >= 0 && fa < 0.12) { ctx.fillStyle = 'rgba(255,232,150,0.95)'; ctx.beginPath(); ctx.arc(x + fs + 1.4, y, 1.6, 0, TAU); ctx.fill(); }
+          }
           ctx.fillStyle = 'rgba(0,0,0,0.55)';
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8 + 0.8, fs + 0.8); else ctx.fillRect(x - fs / 2 - 0.4, y - fs / 2 - 0.4, fs + 0.8, fs + 0.8);
           ctx.fillStyle = tint(k[3] < 0.1 && r < 0.6 ? '#505050' : fc.color, wh); // some men already look worn
@@ -1186,7 +1202,12 @@
       if (r > 0.18 && u.cls !== 'art') {
         const px = d / 2 + 1.5;
         ctx.strokeStyle = '#2a1a0a'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(px - 4, 0); ctx.lineTo(px + 4, 0); ctx.stroke();
-        ctx.fillStyle = fc.color; ctx.fillRect(px + 1, -3.2, 3.4, 3); ctx.strokeStyle = '#000'; ctx.lineWidth = 0.4; ctx.strokeRect(px + 1, -3.2, 3.4, 3);
+        const wv = Math.sin(this.t * 5 + u.id) * 0.9 * (u.mv ? 1.6 : 1);
+        ctx.fillStyle = fc.color; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(px + 1, -3.2); ctx.lineTo(px + 4.6, -3.2 + wv); ctx.lineTo(px + 4.6, -0.2 + wv); ctx.lineTo(px + 1, -0.2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      if (u.state === 'fighting' && detail) { // sparks where steel meets steel
+        const fk = Math.floor(this.t * 14);
+        for (let q = 0; q < 4; q++) { const sy = Math.sin((fk + q * 7) * 12.9898) * (w / 2), sa = (fk * 1.7 + q * 2.1); ctx.strokeStyle = `rgba(255,245,200,${0.55 + 0.4 * Math.sin(fk + q)})`; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(d / 2 + 1, sy); ctx.lineTo(d / 2 + 1 + Math.cos(sa) * 3.2, sy + Math.sin(sa) * 3.2); ctx.stroke(); }
       }
       if (u.type === 'guard') { ctx.strokeStyle = 'rgba(240,192,64,0.8)'; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]); ctx.strokeRect(-d / 2 - 1, -w / 2 - 1, d + 2, w + 2); ctx.setLineDash([]); }
       if (u.formation === 'square') { ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 0.7; ctx.strokeRect(-d / 2, -w / 2, d, w); }
@@ -1230,6 +1251,12 @@
       const wh = u.state === 'routing' ? 1 : u.state === 'fighting' ? 0.12 + 0.5 * (0.5 + 0.5 * Math.sin(this.t * 3.2 + u.id)) : 0;
       ctx.rotate(u.facing);
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
+      // team marker: cyan = yours, red = enemy, whatever the nation's uniform colour
+      if (u.state !== 'routing') {
+        const team = u.side === 0 ? '60,200,255' : '255,80,70';
+        ctx.fillStyle = `rgba(${team},0.15)`; ctx.fillRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
+        ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = Math.max(1.2, 2.2 / Math.max(0.5, sk)); ctx.strokeRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
+      }
       if (Math.max(w, d) * sk < 46) {
         // far zoom: simple block, kept visible
         const boost = Math.min(3, Math.max(1, 7 / (Math.min(w, d) * sk)));
@@ -1240,6 +1267,7 @@
         ctx.strokeStyle = sel ? '#fff' : 'rgba(0,0,0,0.8)'; ctx.lineWidth = (sel ? 2.4 : 1.1) / Math.max(0.5, sk);
         if (sel || r > 0.85) ctx.strokeRect(-d / 2, -w * boost / 2, d, w * boost);
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
+        { const fa = this.t - (u.volleyT === undefined ? -9 : u.volleyT); if (fa >= 0 && fa < 0.3) { ctx.fillStyle = `rgba(255,236,160,${0.9 * (1 - fa / 0.3)})`; ctx.fillRect(d / 2, -w * boost / 2, 3 / Math.max(0.5, sk), w * boost); } }
       } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
       if (hitF > 0) { ctx.fillStyle = `rgba(255,40,40,${0.35 * hitF})`; ctx.fillRect(-d / 2, -w / 2, d, w); }
       ctx.globalAlpha = 1;
@@ -1252,10 +1280,11 @@
       ctx.fillStyle = mp > 0.6 ? '#4c4' : mp > 0.3 ? '#ec3' : '#e44'; ctx.fillRect(-bw / 2, 0, bw * mp, 3.2);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, 3.6, bw, 2.2);
       ctx.fillStyle = '#ddd'; ctx.fillRect(-bw / 2, 3.6, bw * hp, 2.2);
+      if (u.cls === 'cav') { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(-bw / 2, 6.2, bw, 2.2); ctx.fillStyle = u.fatigue > 75 ? '#e55' : u.fatigue > 45 ? '#ec4' : '#4af'; ctx.fillRect(-bw / 2, 6.2, bw * clamp(1 - u.fatigue / 100, 0, 1), 2.2); } // stamina
       ctx.restore();
       if (sk > 0.5) {
         ctx.save(); ctx.translate(0, ext + 3 * us); ctx.scale(us, us);
-        ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = u.side === 0 ? '#a8ecff' : '#ffb4ac'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         const label = (u.grp ? '[' + u.grp + '] ' : '') + String(Math.round(u.men)) + (u.vet ? ' ' + '\u2605'.repeat(u.vet) : '');
         ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
         ctx.restore();
@@ -1336,7 +1365,7 @@
           this.hoverUnit = hv; }
         if (this.rdrag) {
           const w = this.toWorld(p.x, p.y);
-          if (Math.hypot(p.x - this.rdrag.sx, p.y - this.rdrag.sy) > 18) this.lineDrag = { p0: this.rdrag.p0, p1: w };
+          if (Math.hypot(p.x - this.rdrag.sx, p.y - this.rdrag.sy) > 26) this.lineDrag = { p0: this.rdrag.p0, p1: w };
         }
         if (this.pan) { const k = this.fit * this.cam.z / devicePixelRatio; this.cam.x = this.pan.cx - (e.clientX - this.pan.x) / k; this.cam.y = this.pan.cy - (e.clientY - this.pan.y) / k; }
       });
@@ -1345,7 +1374,7 @@
         const p = pos(e);
         if (e.button === 0 && this.box) {
           const b = this.box; this.box = null;
-          if (Math.hypot(b.x1 - b.x0, b.y1 - b.y0) < 5) this.clickSelect(p, b.shift, e.detail >= 2);
+          if (Math.hypot(b.x1 - b.x0, b.y1 - b.y0) < 8) this.clickSelect(p, b.shift, e.detail >= 2);
           else this.boxSelect(b);
         } else if (e.button === 2 && this.rdrag) {
           const rd = this.rdrag; this.rdrag = null;
@@ -1360,8 +1389,8 @@
       });
       this.canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const f = Math.pow(e.ctrlKey ? 1.012 : 1.0018, -e.deltaY * (e.deltaMode === 1 ? 20 : 1));
-        this.zoomBy(f, pos(e).x, pos(e).y);
+        const dy = clamp(e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1), -240, 240);
+        this.zoomBy(Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0011)), pos(e).x, pos(e).y);
       }, { passive: false });
       const mini = r.querySelector('#b-mini');
       const miniMove = (e) => { const b = mini.getBoundingClientRect(); this.camGoal = null; this.cam.x = clamp((e.clientX - b.left) / b.width * FW, 0, FW); this.cam.y = clamp((e.clientY - b.top) / b.height * FH, 0, FH); };
@@ -1425,7 +1454,7 @@
       for (const u of this.units) {
         if (u.side !== 0 || (u.cls !== 'gen' && !this.alive(u)) || u.dead || u.fled) continue;
         const d = u.cls === 'gen' ? Math.hypot(u.x - w.x, u.y - w.y) - 4 : this.pointGap(u, w);
-        if (d < clamp(8 / this.cam.z, 4, 22) && d < bd) { bd = d; hit = u; }
+        if (d < clamp(16 * (window.devicePixelRatio || 1) / (this.fit * this.cam.z), 6, 45) && d < bd) { bd = d; hit = u; }
       }
       if (!add) this.sel.clear();
       if (hit) {
@@ -1522,7 +1551,7 @@
       const dt = Math.min(0.1, (now - this.last) / 1000); this.last = now;
       // smooth zoom toward the target, keeping the point under the cursor fixed
       if (Math.abs(this.zt - this.cam.z) > 0.0005) {
-        this.cam.z += (this.zt - this.cam.z) * (1 - Math.exp(-dt * 14));
+        this.cam.z += (this.zt - this.cam.z) * (1 - Math.exp(-dt * 18));
         if (this.zAnchor) { const a = this.zAnchor, w = this.toWorld(a.px, a.py); this.cam.x += a.wx - w.x; this.cam.y += a.wy - w.y; }
       }
       if (this.camGoal) { const g = this.camGoal, k = 1 - Math.exp(-dt * 10); this.cam.x += (g.x - this.cam.x) * k; this.cam.y += (g.y - this.cam.y) * k; if (Math.hypot(g.x - this.cam.x, g.y - this.cam.y) < 1) this.camGoal = null; }
@@ -1583,6 +1612,7 @@
         x.fillStyle = NAP.FACTIONS[u.faction].color; x.globalAlpha = u.state === 'routing' ? 0.5 : 1;
         const sz = u.cls === 'gen' ? 3.2 : u.cls === 'art' ? 2.2 : 2.8 + 1.6 * clamp(u.men / u.max, 0, 1);
         x.fillRect(u.x * k - sz / 2, u.y * k - sz / 2, sz, sz); x.globalAlpha = 1;
+        x.strokeStyle = u.side === 0 ? '#4cf' : '#f55'; x.lineWidth = 1; x.strokeRect(u.x * k - sz / 2 - 0.5, u.y * k - sz / 2 - 0.5, sz + 1, sz + 1);
         if (this.sel.has(u)) { x.strokeStyle = '#fff'; x.lineWidth = 1; x.strokeRect(u.x * k - sz / 2 - 1, u.y * k - sz / 2 - 1, sz + 2, sz + 2); }
       }
       const c = this.canvas, vw = c.width / (this.fit * this.cam.z), vh = c.height / (this.fit * this.cam.z);

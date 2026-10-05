@@ -267,3 +267,5 @@ button.on { border-color: #6c6; }
 
 .tier-impossible { background: linear-gradient(#ff5a4a, #b01818); color: #fff; font-size: 17px; letter-spacing: 1.5px; padding: 3px 14px; text-transform: uppercase; text-shadow: 0 1px 3px #000; box-shadow: 0 0 12px rgba(255,70,50,.6); animation: impossible 1.6s ease-in-out infinite alternate; }
 @keyframes impossible { from { box-shadow: 0 0 6px rgba(255,70,50,.4); } to { box-shadow: 0 0 18px rgba(255,70,50,.9); } }
+.termopt { display: flex; align-items: flex-start; }
+.termopt small { font-size: 11.5px; line-height: 1.35; margin-top: 2px; }

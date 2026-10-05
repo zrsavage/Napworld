@@ -71,6 +71,10 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **Compact interface:** narrower details panel (collapse it with the Details button or Tab), foldable Recruit / Construction / Navy sections, smaller minimap and dispatch log. The battle minimap only appears when you are zoomed in.
 - **Title screen:** just Continue, New campaign, Load, Tutorial, Practice battle and How to play; nation choice, difficulty and the naval option are on the next screen.
 - **Tidier battles:** the AI line infantry now advance as straight parallel lines and halt by themselves in range (only light infantry and militia go for objectives), lines keep step with their neighbours and face the middle of the enemy, fallen men now lie where the regiment stood, and regiments push apart more firmly.
+- **Cavalry stamina:** galloping and fighting drain cavalry fast; their charge and melee strength scale with remaining stamina, they cannot charge when exhausted, and blown horses lose morale. A blue stamina bar shows under each cavalry regiment.
+- **Clearer sides and livelier battles:** every regiment has a cyan (yours) or red (enemy) outline and tinted count, plus matching minimap outlines. Soldiers now step as they march, recoil and flash when firing, lunge and throw sparks in melee, and the standards wave.
+- **Input:** mouse-wheel zoom is normalised and eased on both maps (about 10% per notch), clicks have more forgiving hit areas and drag thresholds.
+- **Peace terms** now explain themselves (what a white peace is, who pays what).
 - **Slower volleys:** regiments fire about every 4 to 6 seconds (guns every 6 to 8) and shooting is 40% less deadly overall, so battles last roughly a third longer and are easier to follow at 1x.
 - **Battles:** muskets now reach 140 px (line) to 165 px (light), guns 480 px, so lines stand off and trade volleys; a regiment on a move order halts and opens fire when an enemy comes into range ahead of it (Ctrl+right-click moves without stopping).
 
