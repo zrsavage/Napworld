@@ -59,7 +59,7 @@
       html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}" data-tip="${esc(tips)}">${g.ribbon ? `<span class="ribbon">${esc(g.ribbon)}</span>` : ''}
         <h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div>
         <div><span class="tier tier-${g.tier.toLowerCase()}">${g.tier}</span>${g.war ? '<span class="tag war" style="margin-left:6px">starts at war</span>' : '<span class="tag peace" style="margin-left:6px">starts at peace</span>'}</div>
-        <p>${esc(f.desc)}</p><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
+        <p>${esc(f.desc)}</p><ul class="perks">${(NAP.PERKS[id] ? NAP.PERKS[id].plus.map((e) => `<li class="pl">${esc(e.t)}</li>`).concat(NAP.PERKS[id].minus.map((e) => `<li class="mi">${esc(e.t)}</li>`)) : []).join('')}</ul><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
         <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;

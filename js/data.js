@@ -279,6 +279,42 @@
     fort:     { name:'Fortifications',  cost:320, time:4, max:3, desc:'+1 fort level: longer sieges and a stronger garrison.' }
   };
   // Beginner guidance shown on the start screen
+
+  // ---- national strengths and weaknesses (multipliers; >1 is more of the thing). Shown on the nation cards.
+  // keys: morale, fire (battle), cav (charge), art (guns), manpower, cost (recruit cost), upkeep, income, unrest (unrest growth), attrition (army losses from hardship)
+  NAP.PERKS = {
+    france:   { plus: [{ t: 'Conscription: +15% manpower', fx: { manpower: 1.15 } }, { t: 'Elan: +5% morale', fx: { morale: 1.05 } }],
+                minus: [{ t: 'Endless wars: +12% upkeep', fx: { upkeep: 1.12 } }, { t: 'Armies live off the land: +20% attrition', fx: { attrition: 1.2 } }] },
+    britain:  { plus: [{ t: 'Disciplined volleys: +12% firepower', fx: { fire: 1.12 } }, { t: 'Royal Navy trade: +12% income', fx: { income: 1.12 } }],
+                minus: [{ t: 'Small volunteer army: -30% manpower', fx: { manpower: 0.7 } }, { t: 'Recruits are costly: +15% recruit cost', fx: { cost: 1.15 } }] },
+    austria:  { plus: [{ t: 'Fine artillery arm: +12% gun fire', fx: { art: 1.12 } }, { t: 'Deep veteran cadre: +4% morale', fx: { morale: 1.04 } }],
+                minus: [{ t: 'Multi-ethnic empire: +20% unrest', fx: { unrest: 1.2 } }, { t: 'Rigid command: -6% firepower', fx: { fire: 0.94 } }] },
+    prussia:  { plus: [{ t: 'Drill and discipline: +8% firepower', fx: { fire: 1.08 } }, { t: 'Frugal state: -10% upkeep', fx: { upkeep: 0.9 } }],
+                minus: [{ t: 'Small population: -15% manpower', fx: { manpower: 0.85 } }, { t: 'Untested army: -4% morale', fx: { morale: 0.96 } }] },
+    russia:   { plus: [{ t: 'Vast manpower: +20%', fx: { manpower: 1.2 } }, { t: 'Hardy in the cold: -20% attrition', fx: { attrition: 0.8 } }],
+                minus: [{ t: 'Serf conscripts: -10% morale', fx: { morale: 0.9 } }, { t: 'Poor tax collection: -18% income', fx: { income: 0.82 } }] },
+    ottoman:  { plus: [{ t: 'Sipahi horsemen: +15% cavalry charge', fx: { cav: 1.15 } }, { t: 'Huge levies: +20% manpower', fx: { manpower: 1.2 } }],
+                minus: [{ t: 'Ill-disciplined troops: -10% morale', fx: { morale: 0.9 } }, { t: 'Corrupt provinces: +25% unrest, -10% income', fx: { unrest: 1.25, income: 0.9 } }] },
+    spain:    { plus: [{ t: 'Proud levies: +15% manpower', fx: { manpower: 1.15 } }, { t: 'Cheap to raise: -15% recruit cost', fx: { cost: 0.85 } }],
+                minus: [{ t: 'Outdated army: -6% firepower, -6% morale', fx: { fire: 0.94, morale: 0.94 } }, { t: 'Weak treasury: -8% income', fx: { income: 0.92 } }] },
+    portugal: { plus: [{ t: 'British-trained officers: +6% firepower', fx: { fire: 1.06 } }, { t: 'Cheap upkeep: -10%', fx: { upkeep: 0.9 } }],
+                minus: [{ t: 'Tiny population: -20% manpower', fx: { manpower: 0.8 } }, { t: 'Unsteady troops: -4% morale', fx: { morale: 0.96 } }] },
+    sweden:   { plus: [{ t: 'Hardy northerners: -25% attrition', fx: { attrition: 0.75 } }, { t: 'Zealous troops: +5% morale', fx: { morale: 1.05 } }],
+                minus: [{ t: 'Sparse population: -20% manpower', fx: { manpower: 0.8 } }, { t: 'Poor revenue: -10% income', fx: { income: 0.9 } }] },
+    denmark:  { plus: [{ t: 'Baltic trade: +15% income', fx: { income: 1.15 } }, { t: 'Orderly provinces: -20% unrest', fx: { unrest: 0.8 } }],
+                minus: [{ t: 'Small army: -15% manpower', fx: { manpower: 0.85 } }, { t: 'Few guns: -8% gun fire', fx: { art: 0.92 } }] },
+    naples:   { plus: [{ t: 'Cheap levies: -20% recruit cost', fx: { cost: 0.8 } }, { t: 'Warm-weather campaigns: -20% attrition', fx: { attrition: 0.8 } }],
+                minus: [{ t: 'Unreliable troops: -8% morale', fx: { morale: 0.92 } }, { t: 'Restless population: +20% unrest', fx: { unrest: 1.2 } }] },
+    bavaria:  { plus: [{ t: 'Modern French-style drill: +8% firepower, -15% recruit cost', fx: { fire: 1.08, cost: 0.85 } }, { t: 'Rich farmland: +25% income', fx: { income: 1.25 } }],
+                minus: [{ t: 'Small state: -5% manpower', fx: { manpower: 0.95 } }, { t: 'Shaky nerve: -4% morale', fx: { morale: 0.96 } }] }
+  };
+  NAP.perk = function (f, k) {
+    const p = NAP.PERKS[f]; if (!p) return 1; let v = 1;
+    for (const e of p.plus.concat(p.minus)) if (e.fx[k]) v *= e.fx[k];
+    return v;
+  };
+  for (const f in NAP.PERKS) { NAP.FACTIONS[f].morale = +NAP.perk(f, 'morale').toFixed(3); NAP.FACTIONS[f].fire = +NAP.perk(f, 'fire').toFixed(3); }
+
   NAP.NATION_GUIDE = {
     russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
     britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },

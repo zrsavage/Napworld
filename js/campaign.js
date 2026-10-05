@@ -108,7 +108,7 @@
     let c = u.cost;
     if (u.cls === 'art' && ps.arsenal) c *= 0.8;
     if (u.cls === 'cav' && ps.stables) c *= 0.9;
-    return Math.round(c);
+    return Math.round(c * NAP.perk(ps.owner, 'cost'));
   };
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
@@ -189,9 +189,9 @@
     const n = C.provincesOf(f).length;
     v *= 1 - clamp((n - 22) * 0.015, 0, 0.45); // overextension
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
-    return Math.round(v * S.factions[f].incomeMult * (dm || 1));
+    return Math.round(v * S.factions[f].incomeMult * (dm || 1) * NAP.perk(f, 'income'));
   };
-  C.factionUpkeep = (f) => C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0);
+  C.factionUpkeep = (f) => NAP.perk(f, 'upkeep') * C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0);
   C.setStaff = function (army, id) {
     if (!id) { army.staff = null; return null; }
     const st = NAP.STAFF[id], fs = S.factions[army.owner];
@@ -202,7 +202,7 @@
   C.manpowerGain = function (f) {
     let v = 0;
     for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
-    return Math.round(v);
+    return Math.round(v * NAP.perk(f, 'manpower'));
   };
   C.manpowerCap = (f) => 6000 + C.provincesOf(f).length * 500;
 
@@ -533,6 +533,7 @@
       let d = core ? -2 : 2.5;
       if (!core && (p.owner === 'spain' || p.owner === 'portugal' || p.owner === 'russia' || p.terrain === 'm') && !allied(ps.owner, p.owner)) d += 2;
       d += { tax: 2, levy: 1, order: -4 }[ps.policy] || 0;
+      if (d > 0) d *= NAP.perk(ps.owner, 'unrest');
       const gar = S.armies.filter((a) => a.prov === p.id && (a.owner === ps.owner)).reduce((n, a) => n + a.units.length, 0);
       if (gar) d -= gar >= 3 ? 8 : 5;
       const before = ps.unrest || 0;
@@ -889,7 +890,7 @@
       const home = ps.owner === a.owner || allied(a.owner, ps.owner);
       const depth = supplyDepth(a); a.supply = depth;
       const gen = a.general ? S.generals[a.general] : null, winter = month === 12 || month <= 2;
-      let mult = (C.hasTrait(gen, 'logistician') ? 0.7 : 1) * (a.staff === 'quartermaster' ? 0.75 : 1);
+      let mult = (C.hasTrait(gen, 'logistician') ? 0.7 : 1) * (a.staff === 'quartermaster' ? 0.75 : 1) * NAP.perk(a.owner, 'attrition');
       if (!home) loss += 0.012 * (1 + a.units.length / 12) * (depth <= 1 ? 1.5 : depth === 2 ? 2.2 : 3.2);
       if (!home && winter) loss += 0.02 + (d.terrain === 'm' ? 0.02 : 0);
       if (!home && d.terrain === 'm') loss += 0.01;

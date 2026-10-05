@@ -161,7 +161,8 @@
       if (tr.includes('inspiring')) u.baseMorale += 5;
       if (tr.includes('artillery') && base.cls === 'art') u.fireMul *= 1.12;
       if (staff.includes('gunner') && base.cls === 'art') u.fireMul *= 1.10;
-      if (base.cls === 'cav') u.shockMul = (tr.includes('cavalry') ? 1.15 : 1) * (staff.includes('horse') ? 1.10 : 1);
+      if (base.cls === 'cav') u.shockMul = (tr.includes('cavalry') ? 1.15 : 1) * (staff.includes('horse') ? 1.10 : 1) * NAP.perk(src.faction, 'cav');
+      if (base.cls === 'art') u.fireMul *= NAP.perk(src.faction, 'art');
       u.morale = u.baseMorale;
       if (u.type === 'light') u.formation = 'skirmish';
       [u.w, u.d] = dims(u);

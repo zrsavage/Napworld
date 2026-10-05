@@ -50,6 +50,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **Map:** province borders prefer to follow rivers and mountain ridges; hover a province for an info card.
 - **Tooling:** `node tools/balance.js battles|campaign|all` runs repeatable battle matchups and bot-played campaigns (needs Playwright + Chromium).
 - **Range cones** (toggle with V) show every regiment's firing reach: guns cover most of the field, light infantry out-range line, cavalry show charge reach. **AI nations raise militia only to even the odds: while at war, outnumbered by their strongest enemy, with cash in hand, and never more than a third of their army. **Militia** are very cheap (40g; after 3 battles they can be upgraded to Line Infantry for free) but short-ranged, weak in melee and break easily.
+- **National pluses and minuses:** every nation has two strengths and two weaknesses (e.g. Russia: vast manpower and hardy in the cold, but serf conscripts with weak morale and poor tax collection; Britain: disciplined volleys and rich trade, but a small, costly army). They are shown on the nation cards and defined in `NAP.PERKS` in `js/data.js`.
 - **Saves** are versioned and older saves are migrated; saves from a newer game version are refused politely.
 
 **Tactical battles** (real-time, rectangles on a field)

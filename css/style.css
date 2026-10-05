@@ -199,3 +199,9 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .attrow.sev3 span { color: #ff9a8a; } .attrow.sev2 span { color: #ffd98a; }
 #tip { white-space: normal; max-width: 260px; line-height: 1.35; }
 button.on { border-color: #6c6; }
+
+.perks { list-style: none; margin: 6px 0; padding: 0; font-size: 12px; }
+.perks li { padding-left: 16px; position: relative; margin: 2px 0; }
+.perks li::before { position: absolute; left: 2px; font-weight: 700; }
+.perks .pl { color: #8fd68f; } .perks .pl::before { content: "+"; }
+.perks .mi { color: #e89a8a; } .perks .mi::before { content: "\2212"; }
