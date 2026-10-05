@@ -225,3 +225,14 @@ button.on { border-color: #6c6; }
 #phasebanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 6px 18px; background: rgba(15,18,24,.92); border: 2px solid var(--c, var(--gold)); border-radius: 6px; font: 700 16px 'IM Fell English', Georgia, serif; color: #fff; pointer-events: none; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
 #phasebanner[hidden] { display: none; }
 #playsel { font-size: 12px; padding: 3px 4px; }
+
+/* title screen and nation selection */
+#start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
+#start .titlebox { text-align: center; }
+#start.title h1 { font-size: 64px; letter-spacing: 12px; }
+#start.title .sub { font-size: 16px; margin: 10px 0 36px; }
+#start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
+#start .menu button { padding: 11px 16px; font-size: 16px; }
+#start .navbar { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; margin-bottom: 8px; }
+#start .navbar h1 { font-size: 30px; letter-spacing: 3px; }
+#start .navbar button { justify-self: start; }

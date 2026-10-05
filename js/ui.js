@@ -44,15 +44,12 @@
     return { n: ps.length, inc, units };
   }
   const DIFF = { france: 3, britain: 1, austria: 2, prussia: 2, russia: 1, ottoman: 4, spain: 3, portugal: 5, sweden: 4, denmark: 4, naples: 4, bavaria: 4 };
-  function showStart() {
-    if (ui.tut && ui.tut.on) tutEnd();
-    $('#game').hidden = true; $('#battle').hidden = true;
-    const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
-    let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
-      <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
-      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div>
-      <div class="navalopt"><label><input type="checkbox" id="navalchk" ${ui.naval ? 'checked' : ''}> <b>Naval warfare</b> (harder)</label><div class="muted"><b>Off</b> (default): the seas are a simple transport network, as in earlier versions. <b>On</b>: every nation has a fleet, you build ships at Shipyards, enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings, and you need your own navy to keep them open. That is more to manage and a real extra threat, so it is recommended once you know the basics. Not used in the tutorial.</div></div>
-      <div class="guidebox"><b>Which nation should I pick?</b> New to the game? Start with <b>Russia</b>: it is huge, far from the early fighting, and nobody can reach you for months, so you can learn at your own pace. <b>Britain</b> is a relaxed second choice (rich, safe on an island, few battles at first). Each card shows a difficulty rating from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span> and a one-line reason. Hover a card for tips. The tutorial campaign teaches the controls using France, which is a <i>hard</i> nation to win with.</div>
+  function showNations() {
+    $('#start').className = '';
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><span></span></div>
+      <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div>
+      <div class="navalopt"><label><input type="checkbox" id="navalchk" ${ui.naval ? 'checked' : ''}> <b>Naval warfare</b> (harder)</label><div class="muted"><b>Off</b> (default): the seas are a simple transport network. <b>On</b>: every nation has a fleet, you build ships at Shipyards, and enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings. More to manage and a real extra threat, so best once you know the basics.</div></div>
+      <div class="guidebox"><b>Which nation?</b> New to the game? Start with <b>Russia</b> (huge, far from the early fighting) or <b>Britain</b> (rich, safe on an island). Ratings run from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span>. Hover a card for tips.</div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
     for (const id of order) {
@@ -65,12 +62,31 @@
         <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;
-    $('#start').innerHTML = html; $('#start').hidden = false;
+    $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
     $('#navalchk').onchange = (e) => (ui.naval = e.target.checked);
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => { ui.picked = c.dataset.f; $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c)); }));
     $('#beginbtn').onclick = () => beginGame(ui.picked);
+    $('#backbtn').onclick = showStart;
+  }
+  // ---- title screen: just the way in; nations are chosen on the next screen
+  function showStart() {
+    if (ui.tut && ui.tut.on) tutEnd();
+    $('#game').hidden = true; $('#battle').hidden = true;
+    const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
+    $('#start').className = 'title';
+    $('#start').innerHTML = `<div class="titlebox"><h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+      <div class="menu">
+        ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
+        <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
+        ${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}
+        <button id="tutbtn">Tutorial</button>
+        <button id="practbtn">Practice battle</button>
+        <button id="helpbtn">How to play</button>
+      </div></div>`;
+    $('#start').hidden = false;
+    $('#newbtn').onclick = showNations;
     $('#helpbtn').onclick = showHelp;
     $('#tutbtn').onclick = startTutorial;
     $('#practbtn').onclick = startPractice;

@@ -260,7 +260,10 @@
       target.morale -= m;
       if (target.men < 1) { target.men = 0; target.dead = true; }
       // blood stains
-      if (rnd() < cas * 0.35 && this.dead.length < 900) this.dead.push([target.x + (rnd() - 0.5) * target.w, target.y + (rnd() - 0.5) * target.d, target.side]);
+      if (rnd() < cas * 0.35 && this.dead.length < 900) { // fallen men lie where the regiment stood (offsets rotated with its facing)
+        const lx = (rnd() - 0.5) * target.d, ly = (rnd() - 0.5) * target.w, cf = Math.cos(target.facing), sf = Math.sin(target.facing);
+        this.dead.push([target.x + lx * cf - ly * sf, target.y + lx * sf + ly * cf, target.side]);
+      }
     }
 
     record() {
@@ -503,7 +506,7 @@
         if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
         const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
         const gp = this.gap(u, f);
-        if (gp < 0 && d < 70) { const push = Math.min(-gp * 0.3, 14 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
+        if (gp < 0 && d < 130) { const push = Math.min(-gp * 0.5, 22 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
       }
       u.x = clamp(u.x, 5, FW - 5); u.y = clamp(u.y, 5, FH - 5);
 
@@ -561,7 +564,7 @@
           if (tgt && (u.cls !== 'art' || u.calm > 0.8 || !moving)) {
             const d = Math.hypot(tgt.x - u.x, tgt.y - u.y);
             // turn to face target when idle
-            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * 0.6);
+            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, u.cls === 'inf' && u.formation !== 'skirmish' && u.formation !== 'square' ? this.lineFacing(u, tgt) : Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * 0.6);
             const faceOk = Math.abs(angDiff(Math.atan2(tgt.y - u.y, tgt.x - u.x), u.facing)) < 0.9;
             if (faceOk) {
               const tt = this.terrainAt(tgt.x, tgt.y);
@@ -628,7 +631,8 @@
       // objective play: send units to capture, and keep one unit holding each captured point
       const tasked = new Set();
       if (this.objs && this.objs.length) {
-        const cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        let cand = my.filter((u) => (u.type === 'light' || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        if (!cand.length && mode === 'defend') cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square').slice(0, 1);
         const quota = mode === 'defend' ? 2 : 1, used = new Set();
         let n = 0;
         const free = this.objs.filter((o) => o.owner !== s).sort((a, b) => Math.abs(a.x - (s === 0 ? 0 : FW)) - Math.abs(b.x - (s === 0 ? 0 : FW)));
@@ -693,12 +697,11 @@
           if (u.formation !== wantF && !u.wantForm && !u.order?.charge) {
             if (!(wantF === 'column' && u.formation === 'line' && d < 300)) this.setFormation(u, wantF);
           }
-          if (d > bt.range * 0.8 + 6) {
-            if (!u.order || u.order.type !== 'attack' || !this.alive(u.order.target) || this.t % 5 < 0.7) {
-              // prefer enemy directly ahead, spread targets by lane
-              u.order = { type: 'attack', target: e, charge: false };
-            }
-          } else if (u.order) { u.order = null; }
+          if (d > bt.range * 0.95) {
+            // advance as a straight, parallel line: march along the battle axis, drifting toward the enemy's lane; the regiment halts by itself once an enemy is in range
+            const dir = s === 0 ? 1 : -1;
+            if (!u.order || u.order.type !== 'move' || this.t % 6 < 0.7) u.order = { type: 'move', x: clamp(u.x + dir * 140, 20, FW - 20), y: clamp(u.y + clamp(e.y - u.y, -45, 45), 40, FH - 40), fa: s === 0 ? 0 : Math.PI };
+          } else if (u.order && u.order.type === 'move') { u.order = null; }
           // bayonet charge when the enemy is shaken and close
           if (d < 55 && e.morale < 40 && e.state !== 'routing' && !u.charging && u.morale > 55 && (u.type === 'guard' || rnd() < 0.15)) u.order = { type: 'attack', target: e, charge: true };
           if (u.order && u.order.type === 'attack' && !this.alive(u.order.target)) u.order = null;
@@ -932,7 +935,7 @@
         ctx.fillStyle = 'rgba(255,200,200,0.7)'; ctx.fillText('ENEMY ZONE', (this.zoneL + FW) / 2, 36);
       }
       // fallen
-      for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
+      for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.38)' : 'rgba(120,40,40,0.38)'; ctx.fillRect(d[0], d[1], 1.6, 1.6); }
       // objectives, flank arcs and order markers (under the units)
       this.drawObjectives(ctx);
       this.drawOverlays(ctx);
@@ -1061,6 +1064,18 @@
       }
     }
 
+    // A line keeps its shape: infantry face the middle of the enemy in reach (not one regiment each) and keep step with idle neighbours.
+    lineFacing(u, tgt) {
+      let ax = 0, ay = 0, n = 0;
+      for (const e of this.units) if (e.side !== u.side && e.cls !== 'gen' && this.alive(e) && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 300) { ax += e.x; ay += e.y; n++; }
+      const want = n ? Math.atan2(ay / n - u.y, ax / n - u.x) : Math.atan2(tgt.y - u.y, tgt.x - u.x);
+      // keep the chosen target inside the firing arc
+      const toT = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+      let sx = Math.cos(want), sy = Math.sin(want);
+      for (const f of this.units) if (f !== u && f.side === u.side && f.cls === 'inf' && !f.order && f.state !== 'routing' && f.state !== 'fighting' && this.alive(f) && Math.hypot(f.x - u.x, f.y - u.y) < 170) { sx += Math.cos(f.facing) * 0.9; sy += Math.sin(f.facing) * 0.9; }
+      const a = Math.atan2(sy, sx);
+      return Math.abs(angDiff(toT, a)) < 0.7 ? a : toT;
+    }
     // A readable village: dirt road, cottages with pitched tiled roofs, a church, walled gardens and crop fields
     drawVillage(ctx, v) {
       ctx.save(); ctx.translate(v.x, v.y);

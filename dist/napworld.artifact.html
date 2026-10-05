@@ -229,6 +229,17 @@ button.on { border-color: #6c6; }
 #phasebanner[hidden] { display: none; }
 #playsel { font-size: 12px; padding: 3px 4px; }
 
+/* title screen and nation selection */
+#start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
+#start .titlebox { text-align: center; }
+#start.title h1 { font-size: 64px; letter-spacing: 12px; }
+#start.title .sub { font-size: 16px; margin: 10px 0 36px; }
+#start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
+#start .menu button { padding: 11px 16px; font-size: 16px; }
+#start .navbar { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; margin-bottom: 8px; }
+#start .navbar h1 { font-size: 30px; letter-spacing: 3px; }
+#start .navbar button { justify-self: start; }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -3513,7 +3524,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       target.morale -= m;
       if (target.men < 1) { target.men = 0; target.dead = true; }
       // blood stains
-      if (rnd() < cas * 0.35 && this.dead.length < 900) this.dead.push([target.x + (rnd() - 0.5) * target.w, target.y + (rnd() - 0.5) * target.d, target.side]);
+      if (rnd() < cas * 0.35 && this.dead.length < 900) { // fallen men lie where the regiment stood (offsets rotated with its facing)
+        const lx = (rnd() - 0.5) * target.d, ly = (rnd() - 0.5) * target.w, cf = Math.cos(target.facing), sf = Math.sin(target.facing);
+        this.dead.push([target.x + lx * cf - ly * sf, target.y + lx * sf + ly * cf, target.side]);
+      }
     }
 
     record() {
@@ -3756,7 +3770,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
         const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
         const gp = this.gap(u, f);
-        if (gp < 0 && d < 70) { const push = Math.min(-gp * 0.3, 14 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
+        if (gp < 0 && d < 130) { const push = Math.min(-gp * 0.5, 22 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
       }
       u.x = clamp(u.x, 5, FW - 5); u.y = clamp(u.y, 5, FH - 5);
 
@@ -3814,7 +3828,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           if (tgt && (u.cls !== 'art' || u.calm > 0.8 || !moving)) {
             const d = Math.hypot(tgt.x - u.x, tgt.y - u.y);
             // turn to face target when idle
-            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * 0.6);
+            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, u.cls === 'inf' && u.formation !== 'skirmish' && u.formation !== 'square' ? this.lineFacing(u, tgt) : Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * 0.6);
             const faceOk = Math.abs(angDiff(Math.atan2(tgt.y - u.y, tgt.x - u.x), u.facing)) < 0.9;
             if (faceOk) {
               const tt = this.terrainAt(tgt.x, tgt.y);
@@ -3881,7 +3895,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // objective play: send units to capture, and keep one unit holding each captured point
       const tasked = new Set();
       if (this.objs && this.objs.length) {
-        const cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        let cand = my.filter((u) => (u.type === 'light' || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        if (!cand.length && mode === 'defend') cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square').slice(0, 1);
         const quota = mode === 'defend' ? 2 : 1, used = new Set();
         let n = 0;
         const free = this.objs.filter((o) => o.owner !== s).sort((a, b) => Math.abs(a.x - (s === 0 ? 0 : FW)) - Math.abs(b.x - (s === 0 ? 0 : FW)));
@@ -3946,12 +3961,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           if (u.formation !== wantF && !u.wantForm && !u.order?.charge) {
             if (!(wantF === 'column' && u.formation === 'line' && d < 300)) this.setFormation(u, wantF);
           }
-          if (d > bt.range * 0.8 + 6) {
-            if (!u.order || u.order.type !== 'attack' || !this.alive(u.order.target) || this.t % 5 < 0.7) {
-              // prefer enemy directly ahead, spread targets by lane
-              u.order = { type: 'attack', target: e, charge: false };
-            }
-          } else if (u.order) { u.order = null; }
+          if (d > bt.range * 0.95) {
+            // advance as a straight, parallel line: march along the battle axis, drifting toward the enemy's lane; the regiment halts by itself once an enemy is in range
+            const dir = s === 0 ? 1 : -1;
+            if (!u.order || u.order.type !== 'move' || this.t % 6 < 0.7) u.order = { type: 'move', x: clamp(u.x + dir * 140, 20, FW - 20), y: clamp(u.y + clamp(e.y - u.y, -45, 45), 40, FH - 40), fa: s === 0 ? 0 : Math.PI };
+          } else if (u.order && u.order.type === 'move') { u.order = null; }
           // bayonet charge when the enemy is shaken and close
           if (d < 55 && e.morale < 40 && e.state !== 'routing' && !u.charging && u.morale > 55 && (u.type === 'guard' || rnd() < 0.15)) u.order = { type: 'attack', target: e, charge: true };
           if (u.order && u.order.type === 'attack' && !this.alive(u.order.target)) u.order = null;
@@ -4185,7 +4199,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.fillStyle = 'rgba(255,200,200,0.7)'; ctx.fillText('ENEMY ZONE', (this.zoneL + FW) / 2, 36);
       }
       // fallen
-      for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.5)' : 'rgba(120,40,40,0.5)'; ctx.fillRect(d[0], d[1], 2, 2); }
+      for (const d of this.dead) { ctx.fillStyle = d[2] === 0 ? 'rgba(30,50,110,0.38)' : 'rgba(120,40,40,0.38)'; ctx.fillRect(d[0], d[1], 1.6, 1.6); }
       // objectives, flank arcs and order markers (under the units)
       this.drawObjectives(ctx);
       this.drawOverlays(ctx);
@@ -4314,6 +4328,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       }
     }
 
+    // A line keeps its shape: infantry face the middle of the enemy in reach (not one regiment each) and keep step with idle neighbours.
+    lineFacing(u, tgt) {
+      let ax = 0, ay = 0, n = 0;
+      for (const e of this.units) if (e.side !== u.side && e.cls !== 'gen' && this.alive(e) && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 300) { ax += e.x; ay += e.y; n++; }
+      const want = n ? Math.atan2(ay / n - u.y, ax / n - u.x) : Math.atan2(tgt.y - u.y, tgt.x - u.x);
+      // keep the chosen target inside the firing arc
+      const toT = Math.atan2(tgt.y - u.y, tgt.x - u.x);
+      let sx = Math.cos(want), sy = Math.sin(want);
+      for (const f of this.units) if (f !== u && f.side === u.side && f.cls === 'inf' && !f.order && f.state !== 'routing' && f.state !== 'fighting' && this.alive(f) && Math.hypot(f.x - u.x, f.y - u.y) < 170) { sx += Math.cos(f.facing) * 0.9; sy += Math.sin(f.facing) * 0.9; }
+      const a = Math.atan2(sy, sx);
+      return Math.abs(angDiff(toT, a)) < 0.7 ? a : toT;
+    }
     // A readable village: dirt road, cottages with pitched tiled roofs, a church, walled gardens and crop fields
     drawVillage(ctx, v) {
       ctx.save(); ctx.translate(v.x, v.y);
@@ -5053,15 +5079,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     return { n: ps.length, inc, units };
   }
   const DIFF = { france: 3, britain: 1, austria: 2, prussia: 2, russia: 1, ottoman: 4, spain: 3, portugal: 5, sweden: 4, denmark: 4, naples: 4, bavaria: 4 };
-  function showStart() {
-    if (ui.tut && ui.tut.on) tutEnd();
-    $('#game').hidden = true; $('#battle').hidden = true;
-    const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
-    let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
-      <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
-      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div>
-      <div class="navalopt"><label><input type="checkbox" id="navalchk" ${ui.naval ? 'checked' : ''}> <b>Naval warfare</b> (harder)</label><div class="muted"><b>Off</b> (default): the seas are a simple transport network, as in earlier versions. <b>On</b>: every nation has a fleet, you build ships at Shipyards, enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings, and you need your own navy to keep them open. That is more to manage and a real extra threat, so it is recommended once you know the basics. Not used in the tutorial.</div></div>
-      <div class="guidebox"><b>Which nation should I pick?</b> New to the game? Start with <b>Russia</b>: it is huge, far from the early fighting, and nobody can reach you for months, so you can learn at your own pace. <b>Britain</b> is a relaxed second choice (rich, safe on an island, few battles at first). Each card shows a difficulty rating from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span> and a one-line reason. Hover a card for tips. The tutorial campaign teaches the controls using France, which is a <i>hard</i> nation to win with.</div>
+  function showNations() {
+    $('#start').className = '';
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><span></span></div>
+      <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div>
+      <div class="navalopt"><label><input type="checkbox" id="navalchk" ${ui.naval ? 'checked' : ''}> <b>Naval warfare</b> (harder)</label><div class="muted"><b>Off</b> (default): the seas are a simple transport network. <b>On</b>: every nation has a fleet, you build ships at Shipyards, and enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings. More to manage and a real extra threat, so best once you know the basics.</div></div>
+      <div class="guidebox"><b>Which nation?</b> New to the game? Start with <b>Russia</b> (huge, far from the early fighting) or <b>Britain</b> (rich, safe on an island). Ratings run from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span>. Hover a card for tips.</div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
     for (const id of order) {
@@ -5074,12 +5097,31 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;
-    $('#start').innerHTML = html; $('#start').hidden = false;
+    $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
     $('#navalchk').onchange = (e) => (ui.naval = e.target.checked);
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => { ui.picked = c.dataset.f; $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c)); }));
     $('#beginbtn').onclick = () => beginGame(ui.picked);
+    $('#backbtn').onclick = showStart;
+  }
+  // ---- title screen: just the way in; nations are chosen on the next screen
+  function showStart() {
+    if (ui.tut && ui.tut.on) tutEnd();
+    $('#game').hidden = true; $('#battle').hidden = true;
+    const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
+    $('#start').className = 'title';
+    $('#start').innerHTML = `<div class="titlebox"><h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+      <div class="menu">
+        ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
+        <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
+        ${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}
+        <button id="tutbtn">Tutorial</button>
+        <button id="practbtn">Practice battle</button>
+        <button id="helpbtn">How to play</button>
+      </div></div>`;
+    $('#start').hidden = false;
+    $('#newbtn').onclick = showNations;
     $('#helpbtn').onclick = showHelp;
     $('#tutbtn').onclick = startTutorial;
     $('#practbtn').onclick = startPractice;

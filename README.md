@@ -68,6 +68,8 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **Pursuit:** an army that marches into the province an enemy army has just left catches its rearguard (about 6% losses and extra fatigue), so constantly moving armies can be harassed.
 - **Trade agreements** show the gold per month each side gains (about 7% of the partner's provincial income, max 45) in the diplomacy table and the offer dialog.
 - **Compact interface:** narrower details panel (collapse it with the Details button or Tab), foldable Recruit / Construction / Navy sections, smaller minimap and dispatch log. The battle minimap only appears when you are zoomed in.
+- **Title screen:** just Continue, New campaign, Load, Tutorial, Practice battle and How to play; nation choice, difficulty and the naval option are on the next screen.
+- **Tidier battles:** the AI line infantry now advance as straight parallel lines and halt by themselves in range (only light infantry and militia go for objectives), lines keep step with their neighbours and face the middle of the enemy, fallen men now lie where the regiment stood, and regiments push apart more firmly.
 - **Battles:** muskets now reach 140 px (line) to 165 px (light), guns 480 px, so lines stand off and trade volleys; a regiment on a move order halts and opens fire when an enemy comes into range ahead of it (Ctrl+right-click moves without stopping).
 
 **Tactical battles** (real-time, rectangles on a field)
