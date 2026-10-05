@@ -256,6 +256,12 @@ button.on { border-color: #6c6; }
 #start .menu button { background: rgba(30,28,40,.85); border-color: rgba(230,196,111,.35); }
 #start .menu button.primary { background: linear-gradient(#e0bd63, #b8913c); border-color: #f1d487; }
 
+#start .titleart .drift { animation: smokedrift 60s linear infinite alternate; }
+@keyframes smokedrift { from { transform: translateX(-70px); } to { transform: translateX(90px); } }
+#start .titleart .flagwave { transform-box: fill-box; transform-origin: left center; animation: flagwave 2.2s ease-in-out infinite alternate; }
+@keyframes flagwave { from { transform: skewY(-6deg) scaleX(1); } to { transform: skewY(6deg) scaleX(.9); } }
+@media (prefers-reduced-motion: reduce) { #start .titleart .drift, #start .titleart .flagwave { animation: none; } }
+
 </style>
 </head>
 <body>
@@ -5127,7 +5133,7 @@ button.on { border-color: #6c6; }
     let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     const ridge = (x, base, a1, a2, ph) => base + Math.sin(x / a1 + ph) * 22 + Math.sin(x / a2 + ph * 2) * 9;
     const path = (base, a1, a2, ph) => { let d = `M0 900 L0 ${ridge(0, base, a1, a2, ph).toFixed(1)}`; for (let x = 20; x <= 1620; x += 20) d += ` L${x} ${ridge(x, base, a1, a2, ph).toFixed(1)}`; return d + ' L1600 900 Z'; };
-    const men = (base, a1, a2, ph, n, sc, col, y0) => { let o = ''; for (let i = 0; i < n; i++) { const x = 40 + i * (1520 / n) + rnd() * 6, y = ridge(x, base, a1, a2, ph) + (y0 || 0); o += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc})" fill="${col}"><rect x="-2.2" y="-14" width="4.4" height="13"/><rect x="-3" y="-1" width="2.4" height="7"/><rect x="0.6" y="-1" width="2.4" height="7"/><circle cx="0" cy="-17" r="2.8"/><rect x="-2.8" y="-24" width="5.6" height="6"/><rect x="2.5" y="-30" width="1" height="26"/><path d="M3 -30 l0 -6" stroke="${col}" stroke-width="0.8"/></g>`; } return o; };
+    const men = (base, a1, a2, ph, n, sc, col, y0, speed) => { let o = ''; for (let i = 0; i < n; i++) { const x = 40 + i * (1520 / n) + rnd() * 6; o += `<g class="sol" data-b="${base}" data-a1="${a1}" data-a2="${a2}" data-ph="${ph}" data-sc="${sc}" data-y0="${y0 || 0}" data-sp="${speed}" data-x="${x.toFixed(1)}" data-w="${(rnd() * 6.28).toFixed(2)}" fill="${col}"><rect class="lg1" x="-3" y="-1" width="2.4" height="7"/><rect class="lg2" x="0.6" y="-1" width="2.4" height="7"/><rect x="-2.2" y="-14" width="4.4" height="13"/><circle cx="0" cy="-17" r="2.8"/><rect x="-2.8" y="-24" width="5.6" height="6"/><rect x="2.5" y="-30" width="1" height="26"/></g>`; } return o; };
     const smoke = (x, y, r, o) => `<ellipse cx="${x}" cy="${y}" rx="${r * 1.6}" ry="${r * 0.7}" fill="rgba(230,205,170,${o})" filter="url(#bl)"/>`;
     return `<svg class="titleart" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
       <defs>
@@ -5139,17 +5145,37 @@ button.on { border-color: #6c6; }
       <rect width="1600" height="900" fill="url(#sky)"/>
       <circle cx="1130" cy="640" r="320" fill="url(#sun)"/>
       ${Array.from({ length: 70 }, () => `<circle cx="${(rnd() * 1600).toFixed(0)}" cy="${(rnd() * 330).toFixed(0)}" r="${(rnd() * 1.3 + 0.3).toFixed(1)}" fill="#fff" opacity="${(rnd() * 0.6 + 0.2).toFixed(2)}"/>`).join('')}
-      ${smoke(260, 560, 170, 0.5)}${smoke(640, 620, 220, 0.42)}${smoke(1040, 560, 190, 0.38)}${smoke(1400, 600, 210, 0.45)}${smoke(820, 470, 150, 0.2)}
+      <g class="drift">${smoke(260, 560, 170, 0.5)}${smoke(640, 620, 220, 0.42)}${smoke(1040, 560, 190, 0.38)}${smoke(1400, 600, 210, 0.45)}${smoke(820, 470, 150, 0.2)}</g>
       <path d="${path(640, 140, 53, 1)}" fill="#4a3a52"/>
       <path d="${path(700, 120, 41, 2.4)}" fill="#33283f"/>
-      ${men(700, 120, 41, 2.4, 70, 0.42, '#2a2034', 4)}
+      ${men(700, 120, 41, 2.4, 70, 0.42, '#2a2034', 4, 7)}
       <path d="${path(770, 160, 63, 4)}" fill="#241b30"/>
-      ${men(770, 160, 63, 4, 56, 0.66, '#17111f', 4)}
+      ${men(770, 160, 63, 4, 56, 0.66, '#17111f', 4, 11)}
       <path d="${path(840, 190, 47, 0.5)}" fill="#120d19"/>
-      ${men(840, 190, 47, 0.5, 40, 1.0, '#0b0710', 5)}
+      ${men(840, 190, 47, 0.5, 40, 1.0, '#0b0710', 5, 17)}
       <g transform="translate(250 ${(ridge(250, 840, 190, 47, 0.5) - 6).toFixed(0)})" fill="#08050c"><rect x="-40" y="-26" width="86" height="10" rx="4" transform="rotate(-8)"/><circle cx="-6" cy="-10" r="19"/><circle cx="-6" cy="-10" r="5" fill="#241b30"/><rect x="-32" y="-8" width="64" height="5"/><path d="M-60 -2 l30 -8 l0 10 z"/></g>
-      <g transform="translate(1210 ${(ridge(1210, 840, 190, 47, 0.5) - 4).toFixed(0)})" fill="#08050c"><rect x="-4" y="-130" width="3" height="130"/><path d="M-1 -130 q26 -10 50 0 q-10 14 0 28 q-26 -10 -50 0 z" fill="#7a1c24"/><ellipse cx="-72" cy="-52" rx="30" ry="15"/><rect x="-92" y="-38" width="5" height="40"/><rect x="-60" y="-38" width="5" height="40"/><rect x="-100" y="-40" width="52" height="8"/><path d="M-48 -62 q18 -24 34 -4 l-14 14 z"/><circle cx="-60" cy="-86" r="7"/><rect x="-65" y="-80" width="10" height="24" rx="3"/></g>
+      <g transform="translate(1210 ${(ridge(1210, 840, 190, 47, 0.5) - 4).toFixed(0)})" fill="#08050c"><rect x="-4" y="-130" width="3" height="130"/><path class="flagwave" d="M-1 -130 q26 -10 50 0 q-10 14 0 28 q-26 -10 -50 0 z" fill="#7a1c24"/><ellipse cx="-72" cy="-52" rx="30" ry="15"/><rect x="-92" y="-38" width="5" height="40"/><rect x="-60" y="-38" width="5" height="40"/><rect x="-100" y="-40" width="52" height="8"/><path d="M-48 -62 q18 -24 34 -4 l-14 14 z"/><circle cx="-60" cy="-86" r="7"/><rect x="-65" y="-80" width="10" height="24" rx="3"/></g>
       <rect width="1600" height="900" fill="url(#vig)"/></svg>`;
+  }
+  // the columns march across the ridges (left to right, far ranks slower); legs swing and the men bob
+  let marchRaf = 0;
+  function startMarch() {
+    cancelAnimationFrame(marchRaf);
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const els = [...document.querySelectorAll('.titleart .sol')].map((g) => ({ g, b: +g.dataset.b, a1: +g.dataset.a1, a2: +g.dataset.a2, ph: +g.dataset.ph, sc: +g.dataset.sc, y0: +g.dataset.y0, sp: +g.dataset.sp, x0: +g.dataset.x, w: +g.dataset.w, l1: g.querySelector('.lg1'), l2: g.querySelector('.lg2') }));
+    const t0 = performance.now(), SPAN = 1760;
+    const frame = (now) => {
+      if (!document.querySelector('.titleart')) return;
+      const t = reduce ? 0 : (now - t0) / 1000;
+      for (const e of els) {
+        const x = ((e.x0 + e.sp * t + 80) % SPAN) - 80, step = t * e.sp * 0.5 + e.w, sw = Math.sin(step * 0.9);
+        const y = e.b + Math.sin(x / e.a1 + e.ph) * 22 + Math.sin(x / e.a2 + e.ph * 2) * 9 + e.y0 - Math.abs(sw) * 1.1 * e.sc * 2;
+        e.g.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${e.sc})`);
+        e.l1.setAttribute('transform', `translate(0 ${(sw * 1.8).toFixed(2)})`); e.l2.setAttribute('transform', `translate(0 ${(-sw * 1.8).toFixed(2)})`);
+      }
+      marchRaf = requestAnimationFrame(frame);
+    };
+    marchRaf = requestAnimationFrame(frame);
   }
   // ---- title screen: just the way in; nations are chosen on the next screen
   function showStart() {
@@ -5167,6 +5193,7 @@ button.on { border-color: #6c6; }
         <button id="helpbtn">How to play</button>
       </div></div>`;
     $('#start').hidden = false;
+    startMarch();
     $('#newbtn').onclick = showNations;
     $('#helpbtn').onclick = showHelp;
     $('#tutbtn').onclick = startTutorial;

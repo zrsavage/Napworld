@@ -247,3 +247,9 @@ button.on { border-color: #6c6; }
 #start .menu { padding: 16px; background: rgba(12,10,18,.55); border: 1px solid rgba(230,196,111,.45); border-radius: 10px; backdrop-filter: blur(3px); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
 #start .menu button { background: rgba(30,28,40,.85); border-color: rgba(230,196,111,.35); }
 #start .menu button.primary { background: linear-gradient(#e0bd63, #b8913c); border-color: #f1d487; }
+
+#start .titleart .drift { animation: smokedrift 60s linear infinite alternate; }
+@keyframes smokedrift { from { transform: translateX(-70px); } to { transform: translateX(90px); } }
+#start .titleart .flagwave { transform-box: fill-box; transform-origin: left center; animation: flagwave 2.2s ease-in-out infinite alternate; }
+@keyframes flagwave { from { transform: skewY(-6deg) scaleX(1); } to { transform: skewY(6deg) scaleX(.9); } }
+@media (prefers-reduced-motion: reduce) { #start .titleart .drift, #start .titleart .flagwave { animation: none; } }
