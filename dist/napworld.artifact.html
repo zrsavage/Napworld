@@ -477,6 +477,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   NAP.UNITS = {
     line:      { name:'Line Infantry',    short:'Line',     men:800, cost:90,  upkeep:3, time:1, cls:'inf', power:1.0,  morale:70,  speed:22, w:80, d:12,
                  desc:'The backbone of every army. Dependable volley fire and cheap to raise.' },
+    militia:   { name:'Militia',          short:'Militia',  men:800, cost:40,  upkeep:1, time:1, cls:'inf', power:0.55, morale:42,  speed:22, w:80, d:12,
+                 desc:'Hastily armed levies. Very cheap, but poorly drilled: short range, weak melee and quick to break. Good for filling out a line or garrisons.' },
     light:     { name:'Light Infantry',   short:'Light',    men:600, cost:100, upkeep:3, time:1, cls:'inf', power:1.0,  morale:66,  speed:32, w:60, d:10,
                  desc:'Skirmishers who screen the line, harass the enemy and move quickly. Fragile in a straight fight.' },
     grenadier: { name:'Grenadiers',       short:'Grenadier',men:700, cost:150, upkeep:4, time:1, cls:'inf', power:1.35, morale:84,  speed:22, w:64, d:12, needs:'barracks',
@@ -2762,6 +2764,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   // Battle stats per unit class/type
   const BT = {
     line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    militia: { range: 78,  fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
     light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
     grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
     lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
@@ -3755,6 +3758,20 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     // flank arcs for selected / hovered unit; order lines and markers for the selection
     drawOverlays(ctx) {
       const sk = this.fit * this.cam.z, lw = 1.4 * devicePixelRatio / Math.max(0.5, sk);
+      // range cones: how far each regiment can shoot (cavalry: charge reach), drawn faintly for everyone
+      if (this.showRange !== false) {
+        const fog = this.spec.weather === 'fog' && !this.over && !this.replay, mine = fog ? this.units.filter((m) => m.side === 0 && this.alive(m)) : null;
+        for (const u of this.units) {
+          if (u.cls === 'gen' || u.dead || u.fled || u.state === 'routing' || !this.alive(u)) continue;
+          if (fog && u.side === 1 && !mine.some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 400)) continue;
+          const bt = BT[u.type], rng = bt.range || 150, ha = u.cls === 'art' ? 0.5 : u.formation === 'square' ? Math.PI : u.formation === 'skirmish' ? 0.9 : 0.62, r0 = Math.max(u.w, u.d) / 2 - 2;
+          const col = u.side === 0 ? '90,160,255' : '255,100,100', sel = this.sel.has(u) || u === this.hoverUnit;
+          ctx.save(); ctx.translate(u.x, u.y);
+          ctx.fillStyle = `rgba(${col},${sel ? 0.14 : 0.07})`; ctx.strokeStyle = `rgba(${col},${sel ? 0.7 : 0.38})`; ctx.lineWidth = lw; if (!bt.range) ctx.setLineDash([5, 5]);
+          ctx.beginPath(); if (ha >= Math.PI) { ctx.arc(0, 0, rng, 0, TAU); } else { ctx.moveTo(Math.cos(u.facing - ha) * r0, Math.sin(u.facing - ha) * r0); ctx.arc(0, 0, rng, u.facing - ha, u.facing + ha); ctx.lineTo(Math.cos(u.facing + ha) * r0, Math.sin(u.facing + ha) * r0); ctx.closePath(); }
+          ctx.fill(); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        }
+      }
       const arcs = [...this.sel].filter((u) => u.cls !== 'gen' && this.alive(u)).slice(0, 6);
       const hu = this.hoverUnit; if (hu && hu.cls !== 'gen' && this.alive(hu) && !arcs.includes(hu)) arcs.push(hu);
       for (const u of arcs) {
@@ -3991,7 +4008,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -4101,6 +4118,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         else if (dg && (e.ctrlKey || e.metaKey)) { this.saveGroup(+dg[1]); e.preventDefault(); }
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
+        else if (k === 'v') { this.showRange = this.showRange === false; }
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -4469,7 +4487,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
-    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Press <b>Space</b> when ready.' },
+    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Faint cones show each regiment\'s range (press <b>V</b> to hide them). Press <b>Space</b> when ready.' },
     { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 95 px) and fire. Artillery fires on its own up to 330 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
     { id: 'range', when: (B) => B.t >= 25 && B.enemies(0).some((u) => B.friends(0).some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 160)), text: '<b>Firefights.</b> Units in <b>line</b> shoot best, <b>columns</b> move fast but shoot poorly. Shots from the <b>flank or rear</b> hurt far more and shake morale, so try to turn the enemy line.' },
     { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>3</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },

@@ -9,6 +9,7 @@
   // Battle stats per unit class/type
   const BT = {
     line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    militia: { range: 78,  fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
     light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
     grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
     lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
@@ -1002,6 +1003,20 @@
     // flank arcs for selected / hovered unit; order lines and markers for the selection
     drawOverlays(ctx) {
       const sk = this.fit * this.cam.z, lw = 1.4 * devicePixelRatio / Math.max(0.5, sk);
+      // range cones: how far each regiment can shoot (cavalry: charge reach), drawn faintly for everyone
+      if (this.showRange !== false) {
+        const fog = this.spec.weather === 'fog' && !this.over && !this.replay, mine = fog ? this.units.filter((m) => m.side === 0 && this.alive(m)) : null;
+        for (const u of this.units) {
+          if (u.cls === 'gen' || u.dead || u.fled || u.state === 'routing' || !this.alive(u)) continue;
+          if (fog && u.side === 1 && !mine.some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 400)) continue;
+          const bt = BT[u.type], rng = bt.range || 150, ha = u.cls === 'art' ? 0.5 : u.formation === 'square' ? Math.PI : u.formation === 'skirmish' ? 0.9 : 0.62, r0 = Math.max(u.w, u.d) / 2 - 2;
+          const col = u.side === 0 ? '90,160,255' : '255,100,100', sel = this.sel.has(u) || u === this.hoverUnit;
+          ctx.save(); ctx.translate(u.x, u.y);
+          ctx.fillStyle = `rgba(${col},${sel ? 0.14 : 0.07})`; ctx.strokeStyle = `rgba(${col},${sel ? 0.7 : 0.38})`; ctx.lineWidth = lw; if (!bt.range) ctx.setLineDash([5, 5]);
+          ctx.beginPath(); if (ha >= Math.PI) { ctx.arc(0, 0, rng, 0, TAU); } else { ctx.moveTo(Math.cos(u.facing - ha) * r0, Math.sin(u.facing - ha) * r0); ctx.arc(0, 0, rng, u.facing - ha, u.facing + ha); ctx.lineTo(Math.cos(u.facing + ha) * r0, Math.sin(u.facing + ha) * r0); ctx.closePath(); }
+          ctx.fill(); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+        }
+      }
       const arcs = [...this.sel].filter((u) => u.cls !== 'gen' && this.alive(u)).slice(0, 6);
       const hu = this.hoverUnit; if (hu && hu.cls !== 'gen' && this.alive(hu) && !arcs.includes(hu)) arcs.push(hu);
       for (const u of arcs) {
@@ -1238,7 +1253,7 @@
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -1348,6 +1363,7 @@
         else if (dg && (e.ctrlKey || e.metaKey)) { this.saveGroup(+dg[1]); e.preventDefault(); }
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
+        else if (k === 'v') { this.showRange = this.showRange === false; }
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }

@@ -251,6 +251,8 @@
   NAP.UNITS = {
     line:      { name:'Line Infantry',    short:'Line',     men:800, cost:90,  upkeep:3, time:1, cls:'inf', power:1.0,  morale:70,  speed:22, w:80, d:12,
                  desc:'The backbone of every army. Dependable volley fire and cheap to raise.' },
+    militia:   { name:'Militia',          short:'Militia',  men:800, cost:40,  upkeep:1, time:1, cls:'inf', power:0.55, morale:42,  speed:22, w:80, d:12,
+                 desc:'Hastily armed levies. Very cheap, but poorly drilled: short range, weak melee and quick to break. Good for filling out a line or garrisons.' },
     light:     { name:'Light Infantry',   short:'Light',    men:600, cost:100, upkeep:3, time:1, cls:'inf', power:1.0,  morale:66,  speed:32, w:60, d:10,
                  desc:'Skirmishers who screen the line, harass the enemy and move quickly. Fragile in a straight fight.' },
     grenadier: { name:'Grenadiers',       short:'Grenadier',men:700, cost:150, upkeep:4, time:1, cls:'inf', power:1.35, morale:84,  speed:22, w:64, d:12, needs:'barracks',
