@@ -253,3 +253,9 @@ button.on { border-color: #6c6; }
 #start .titleart .flagwave { transform-box: fill-box; transform-origin: left center; animation: flagwave 2.2s ease-in-out infinite alternate; }
 @keyframes flagwave { from { transform: skewY(-6deg) scaleX(1); } to { transform: skewY(6deg) scaleX(.9); } }
 @media (prefers-reduced-motion: reduce) { #start .titleart .drift, #start .titleart .flagwave { animation: none; } }
+
+#start .navbar { position: sticky; top: 0; z-index: 5; margin: -28px -24px 14px; padding: 12px 24px; background: linear-gradient(#1b2231, rgba(20,24,31,.96)); border-bottom: 1px solid var(--line); grid-template-columns: 120px 1fr auto; }
+#start .navbar .navright { display: flex; align-items: center; gap: 14px; justify-content: flex-end; min-width: 120px; }
+#start .navbar .navright button { padding: 8px 20px; font-size: 15px; }
+#start .navbar .navright button[hidden] { display: none; }
+.card.sel { outline: 2px solid var(--gold2); box-shadow: 0 0 18px rgba(241,212,135,.35); }
