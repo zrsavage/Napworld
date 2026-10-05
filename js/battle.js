@@ -10,6 +10,9 @@
   const BT = {
     line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
+    grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
+    lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
+    hart:    { range: 290, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
     guard:   { range: 100, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
@@ -21,6 +24,15 @@
   const FORM_CAV_VULN = { line: 1.0, column: 1.5, square: 0.10, skirmish: 1.8 };
   const FORM_ART_VULN = { line: 1.0, column: 1.6, square: 1.7, skirmish: 0.4 };
   const FORM_NAMES = { line: 'Line', column: 'Column', square: 'Square', skirmish: 'Skirmish' };
+
+  const tintCache = {};
+  // blend a #rrggbb colour toward white by amt (0..1)
+  function tint(hex, amt) {
+    if (amt <= 0.01) return hex;
+    const key = hex + (Math.round(amt * 24)); if (tintCache[key]) return tintCache[key];
+    const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, k = Math.min(1, amt);
+    return (tintCache[key] = `rgb(${Math.round(r + (255 - r) * k)},${Math.round(g + (255 - g) * k)},${Math.round(b + (255 - b) * k)})`);
+  }
 
   function dims(u) {
     const base = NAP.UNITS[u.type];
@@ -41,8 +53,8 @@
   class Battle {
     constructor(spec, root, done) {
       this.spec = spec; this.root = root; this.done = done;
-      this.t = 0; this.deployPhase = true; this.speed = 1; this.paused = true; this.over = false; this.acc = 0;
-      this.units = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
+      this.t = 0; this.deployPhase = true; this.speed = 0.5; this.paused = true; this.over = false; this.acc = 0;
+      this.units = []; this.proj = []; this.sparks = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
@@ -80,7 +92,11 @@
       const nh = { p: 1, h: 3, f: 1, m: 4 }[tr], nf = { p: 2, h: 2, f: 6, m: 1 }[tr], nv = { p: 2, h: 1, f: 1, m: 0 }[tr];
       place(nh, (x, y) => T.hills.push({ x, y, r: 90 + r() * 90 }), 380, 1220);
       place(nf, (x, y) => T.forests.push({ x, y, rx: 60 + r() * 70, ry: 45 + r() * 60, trees: Array.from({ length: 26 }, () => [(r() - 0.5) * 2, (r() - 0.5) * 2, 7 + r() * 6]) }), 330, 1270);
-      place(nv, (x, y) => T.villages.push({ x, y, hs: Array.from({ length: 5 }, () => [(r() - 0.5) * 70, (r() - 0.5) * 50, 14 + r() * 8, 10 + r() * 6]) }), 600, 1000);
+      place(nv, (x, y) => {
+        const hs = [], n = 6 + Math.floor(r() * 3);
+        for (let i = 0; i < n; i++) { const row = i % 2; hs.push([-46 + (i >> 1) * 27 + (r() - 0.5) * 5, row ? 15 + r() * 5 : -19 - r() * 5, 15 + r() * 6, 11 + r() * 4, r() < 0.5 ? 0 : 1]); }
+        T.villages.push({ x, y, hs, church: { x: 50 + r() * 6, y: -2 + r() * 6 }, fields: Array.from({ length: 4 }, (_, i) => [(i % 2 ? 1 : -1) * (70 + r() * 15), -34 + Math.floor(i / 2) * 50, 34 + r() * 14, 22 + r() * 8, Math.floor(r() * 3)]) });
+      }, 600, 1000);
       if (tr === 'm') place(7, (x, y) => T.rocks.push({ x, y, r: 16 + r() * 18, a: r() * 6 }), 380, 1220);
       // drop trees outside their ellipse
       T.forests.forEach((f) => (f.trees = f.trees.filter((t) => t[0] * t[0] + t[1] * t[1] <= 1)));
@@ -93,6 +109,12 @@
         const n = 3 + 2 * T.fort, span = (FH - 180) / n;
         for (let i = 0; i < n; i++) T.works.push({ x: bx, y: 90 + span * (i + 0.5), w: 38, h: span * 0.82 });
       }
+      T.caps = [
+        ...T.hills.map((h) => ({ x: h.x, y: h.y - h.r * 0.5, t: 'HILL', c: 'rgba(95,72,30,0.8)' })),
+        ...T.forests.map((f) => ({ x: f.x, y: f.y - f.ry - 9, t: 'WOODS', c: 'rgba(25,75,32,0.85)' })),
+        ...T.villages.map((v) => ({ x: v.x, y: v.y - 54, t: 'VILLAGE', c: 'rgba(110,45,22,0.9)' })),
+        ...T.rocks.slice(0, 3).map((k) => ({ x: k.x, y: k.y - k.r - 8, t: 'CRAGS', c: 'rgba(70,66,58,0.9)' }))
+      ];
       T.noise = Array.from({ length: 180 }, () => [r() * FW, r() * FH, 20 + r() * 50, r()]);
       this.terrain = T;
     }
@@ -103,7 +125,7 @@
       for (const w of T.works) if (Math.abs(x - w.x) < w.w / 2 && Math.abs(y - w.y) < w.h / 2) { cover *= 0.55; speed *= 0.7; }
       for (const h of T.hills) if ((x - h.x) ** 2 + (y - h.y) ** 2 < h.r * h.r) { hill = true; speed *= 0.85; cover *= 0.88; }
       for (const f of T.forests) if (((x - f.x) / f.rx) ** 2 + ((y - f.y) / f.ry) ** 2 < 1) { forest = true; speed *= 0.6; cover *= 0.72; }
-      for (const v of T.villages) if (Math.abs(x - v.x) < 45 && Math.abs(y - v.y) < 35) { village = true; speed *= 0.7; cover *= 0.7; }
+      for (const v of T.villages) if (Math.abs(x - v.x) < 62 && Math.abs(y - v.y) < 38) { village = true; speed *= 0.7; cover *= 0.7; }
       for (const k of T.rocks) if ((x - k.x) ** 2 + (y - k.y) ** 2 < k.r * k.r) speed *= 0.4;
       if (this.spec.terrain === 'm') speed *= 0.9;
       return { speed, cover, hill, forest, village };
@@ -116,11 +138,11 @@
       const u = {
         id: this.nextId++, side, ref: src.ref, type: src.type, cls: base.cls, faction: src.faction,
         x, y, facing: side === 0 ? 0 : Math.PI, men: src.men, max: src.max,
-        baseMorale: clamp(base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0), 30, 110),
+        baseMorale: clamp((base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0)) * (1 + 0.06 * (src.vet || 0)), 30, 115), vet: src.vet || 0,
         morale: 0, fatigue: src.fatigue || 0, formation: bt.forms[0], wantForm: null, formT: 0,
         state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
         kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
-        fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1),
+        fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1) * (1 + 0.05 * (src.vet || 0)),
         takeMul: g ? 1 - (g.def - 3) * 0.025 : 1
       };
       u.morale = u.baseMorale;
@@ -225,14 +247,49 @@
 
     record() {
       if (!this.recStatic) this.recStatic = this.units.map((u) => ({ id: u.id, side: u.side, type: u.type, cls: u.cls, faction: u.faction, name: u.name, max: u.max, baseMorale: u.baseMorale, w: u.w, d: u.d, gen: u.gen, wantForm: null, formation: u.formation, state: 'idle', men: u.men, morale: u.morale, fatigue: 0, x: u.x, y: u.y, facing: u.facing }));
-      if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
+      if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : u.state === 'fighting' ? 2 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
+    }
+
+    // Visible fire: muzzle flashes, tracer dashes, round shot, impacts
+    fireVolley(u, tgt) {
+      const ca = Math.cos(u.facing), sa = Math.sin(u.facing);
+      const mx = u.x + ca * (u.d / 2 + 3), my = u.y + sa * (u.d / 2 + 3);
+      if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
+      const room = this.proj.length < 650;
+      if (u.cls === 'art') {
+        const guns = clamp(Math.ceil(u.men / 10), 1, 8);
+        for (let g = 0; g < guns && room; g++) {
+          const py = guns === 1 ? 0 : ((g + 0.5) / guns - 0.5) * u.w;
+          const x0 = mx - sa * py, y0 = my + ca * py;
+          const x1 = tgt.x + (rnd() - 0.5) * tgt.w * 0.7, y1 = tgt.y + (rnd() - 0.5) * tgt.d * 0.7;
+          const dist = Math.hypot(x1 - x0, y1 - y0);
+          this.proj.push({ kind: 'ball', x0, y0, x1, y1, t: 0, delay: g * 0.08 + rnd() * 0.12, dur: Math.max(0.25, dist / 300) });
+          this.puffs.push({ x: x0, y: y0, t: 0, life: 0.18, r: 9, c: 'rgba(255,215,120,', a: 0.9, nd: true });
+          this.puffs.push({ x: x0 + ca * 3, y: y0 + sa * 3, t: 0, life: 4.5, r: 12, c: 'rgba(235,235,235,' });
+        }
+      } else {
+        const n = clamp(Math.round(u.men / 55), 3, 14);
+        for (let i = 0; i < n && room; i++) {
+          const py = (rnd() - 0.5) * u.w;
+          const x0 = mx - sa * py, y0 = my + ca * py;
+          const x1 = tgt.x + (rnd() - 0.5) * tgt.w * 0.7, y1 = tgt.y + (rnd() - 0.5) * tgt.d * 0.7;
+          const dist = Math.hypot(x1 - x0, y1 - y0);
+          const delay = rnd() * 0.45;
+          this.proj.push({ kind: 'bullet', x0, y0, x1, y1, t: 0, delay, dur: Math.max(0.12, dist / 480) });
+          if (i % 3 === 0) this.puffs.push({ x: x0, y: y0, t: -delay, life: 0.14 + delay, r: 4.5, c: 'rgba(255,225,140,', a: 0.9, nd: true });
+        }
+        this.puffs.push({ x: mx + ca * 4, y: my + sa * 4, t: 0, life: 2.4, r: 8, c: 'rgba(235,235,235,' });
+      }
+      this.shots.push({ x0: mx, y0: my, x1: tgt.x, y1: tgt.y, t: 0, art: u.cls === 'art' });
     }
 
     step(dt) {
       this.t += dt;
       this.recAcc += dt; if (this.recAcc >= 1) { this.recAcc -= 1; this.record(); }
       for (const g of [0, 1]) this.rallyCd[g] = Math.max(0, this.rallyCd[g] - dt);
-      const us = this.units;
+      // update in random order each tick so neither side gets a first-mover advantage
+      const us = this.units.slice();
+      for (let i = us.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = us[i]; us[i] = us[j]; us[j] = tmp; }
       // AI
       this.aiTimer = (this.aiTimer || 0) - dt;
       if (this.aiTimer <= 0) { this.aiTimer = 0.6; this.aiThink(1); if (this.spec.aiBothSides) this.aiThink(0); }
@@ -246,7 +303,21 @@
       for (const p of this.puffs) p.t += dt;
       this.puffs = this.puffs.filter((p) => p.t < p.life);
       for (const s of this.shots) s.t += dt;
-      this.shots = this.shots.filter((s) => s.t < 0.35);
+      this.shots = this.shots.filter((s) => s.t < 0.7);
+      for (const p of this.proj) {
+        p.t += dt;
+        if (!p.hit && p.t >= p.delay + p.dur) {
+          p.hit = true;
+          if (p.kind === 'ball') {
+            this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 1.3, r: 11, c: 'rgba(140,105,65,', a: 0.7 });
+            this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 2.2, r: 9, c: 'rgba(95,95,95,', a: 0.5 });
+            for (let i = 0; i < 7; i++) { const a = rnd() * TAU, v = 30 + rnd() * 50; this.sparks.push({ x: p.x1, y: p.y1, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.5 + rnd() * 0.3 }); }
+          } else this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 0.45, r: 3.2, c: 'rgba(215,180,120,', a: 0.8, nd: true });
+        }
+      }
+      this.proj = this.proj.filter((p) => p.t < p.delay + p.dur + 0.05);
+      for (const q of this.sparks) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.94; q.vy *= 0.94; }
+      this.sparks = this.sparks.filter((q) => q.t < q.life);
       this.checkEnd();
     }
 
@@ -316,7 +387,7 @@
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
-      if (u.order) {
+      if (u.order && !melee) {
         let tx = null, ty = null, stopDist = 2;
         if (u.order.type === 'move') { tx = u.order.x; ty = u.order.y; }
         else if (u.order.type === 'attack') {
@@ -361,7 +432,7 @@
       u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly separation
       for (const f of this.units) {
-        if (f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
+        if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
         const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
         const gp = this.gap(u, f);
         if (gp < 0 && d < 70) { const push = Math.min(-gp * 0.3, 14 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
@@ -383,7 +454,7 @@
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
           u.impacted = true; u.cooldown = 5; if (NAP.audio) NAP.audio.sfx('charge', 1.2);
-          const shock = u.cls === 'cav' ? 0.8 : 0.22;
+          const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
           const instant = u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
           this.damage(melee, instant, u, melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1));
@@ -444,11 +515,8 @@
               firing = true;
               u.reload -= dt;
               if (u.reload <= 0) {
-                u.reload = u.cls === 'art' ? 2.6 + rnd() : 3.5 + rnd() * 2;
-                const fx = u.x + Math.cos(u.facing) * (u.d / 2 + 4), fy = u.y + Math.sin(u.facing) * (u.d / 2 + 4);
-                if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
-                this.puffs.push({ x: fx, y: fy, t: 0, life: u.cls === 'art' ? 4.5 : 2.6, r: u.cls === 'art' ? 13 : 8, c: 'rgba(235,235,235,' });
-                this.shots.push({ x0: fx, y0: fy, x1: tgt.x + (rnd() - 0.5) * tgt.w * 0.6, y1: tgt.y + (rnd() - 0.5) * tgt.d * 0.6, t: 0, art: u.cls === 'art' });
+                u.reload = u.cls === 'art' ? 3.0 + rnd() : 2.0 + rnd() * 1.1;
+                this.fireVolley(u, tgt);
               }
             }
           }
@@ -734,7 +802,7 @@
         ctx.fillStyle = 'rgba(40,80,40,0.35)'; ctx.beginPath(); ctx.ellipse(f.x, f.y, f.rx, f.ry, 0, 0, TAU); ctx.fill();
         for (const t of f.trees) { ctx.fillStyle = '#2f6a35'; ctx.beginPath(); ctx.arc(f.x + t[0] * f.rx, f.y + t[1] * f.ry, t[2], 0, TAU); ctx.fill(); ctx.fillStyle = '#3d8244'; ctx.beginPath(); ctx.arc(f.x + t[0] * f.rx - 2, f.y + t[1] * f.ry - 2, t[2] * 0.6, 0, TAU); ctx.fill(); }
       }
-      for (const v of T.villages) for (const h of v.hs) { ctx.fillStyle = '#b98f66'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], h[3]); ctx.fillStyle = '#8a4a3a'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], 3); }
+      for (const v of T.villages) this.drawVillage(ctx, v);
       for (const r of T.rocks) { ctx.fillStyle = '#7d786c'; ctx.beginPath(); for (let i = 0; i < 7; i++) { const a = r.a + i * TAU / 7, rr = r.r * (0.75 + 0.25 * ((i * 7) % 3) / 2); ctx.lineTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#4a463d'; ctx.stroke(); }
       for (const w of T.works) {
         ctx.fillStyle = '#8a8478'; ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
@@ -770,6 +838,10 @@
       for (const u of this.sel) if (u.order && u.order.type === 'move') { ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.x, u.order.y); ctx.stroke(); }
         else if (u.order && u.order.type === 'attack' && u.order.target) { ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.target.x, u.order.target.y); ctx.stroke(); }
       ctx.setLineDash([]);
+      // terrain captions: constant on-screen size, drawn under the units
+      { const sk0 = this.fit * this.cam.z, fs = clamp(12 * devicePixelRatio / sk0, 5, 26);
+        if (sk0 > 0.3) { ctx.font = `italic 600 ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          for (const c of this.terrain.caps) { ctx.fillStyle = c.c; ctx.strokeText(c.t, c.x, c.y); ctx.fillText(c.t, c.x, c.y); } } }
       // units (routing first so living units draw on top)
       const sorted = this.units.filter((u) => !u.fled && (u.cls === 'gen' ? !u.dead : !u.dead)).sort((a, b) => (a.state === 'routing' ? 0 : 1) - (b.state === 'routing' ? 0 : 1));
       const fog = (this.spec.weather === 'fog') && !this.replay && !this.over;
@@ -778,14 +850,28 @@
         if (fog && u.side === 1 && !mine.some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 400)) continue;
         this.drawUnit(ctx, u);
       }
-      // shots
-      for (const s of this.shots) {
-        const f = s.t / 0.35;
-        if (s.art) { ctx.strokeStyle = `rgba(30,30,30,${1 - f})`; ctx.lineWidth = 1.5; const px = s.x0 + (s.x1 - s.x0) * Math.min(1, f * 1.6), py = s.y0 + (s.y1 - s.y0) * Math.min(1, f * 1.6); ctx.beginPath(); ctx.moveTo(px - (s.x1 - s.x0) * 0.04, py - (s.y1 - s.y0) * 0.04); ctx.lineTo(px, py); ctx.stroke(); }
-        else { ctx.fillStyle = `rgba(255,240,180,${1 - f})`; for (let i = 0; i < 3; i++) { const q = (f + i * 0.12) % 1; ctx.fillRect(s.x0 + (s.x1 - s.x0) * q * 0.25 + i, s.y0 + (s.y1 - s.y0) * q * 0.25, 1.6, 1.6); } }
+      // aim dashes from the muzzle toward the target
+      ctx.setLineDash([3, 5]); ctx.lineWidth = 0.9;
+      for (const sh of this.shots) { const al = 0.5 * (1 - sh.t / 0.7); ctx.strokeStyle = sh.art ? `rgba(255,200,120,${al})` : `rgba(255,240,170,${al})`; ctx.beginPath(); ctx.moveTo(sh.x0, sh.y0); ctx.lineTo(sh.x1, sh.y1); ctx.stroke(); }
+      ctx.setLineDash([]);
+      // bullets (bright dashes) and round shot (dark ball with trail)
+      for (const p of this.proj) {
+        if (p.t < p.delay) continue;
+        const f = (p.t - p.delay) / p.dur; if (f > 1) continue;
+        const dx = p.x1 - p.x0, dy = p.y1 - p.y0, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+        const x = p.x0 + dx * f, y = p.y0 + dy * f;
+        if (p.kind === 'bullet') {
+          ctx.strokeStyle = 'rgba(255,240,170,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - ux * 26, y - uy * 26); ctx.lineTo(x, y); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,250,215,0.98)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x - ux * 9, y - uy * 9); ctx.lineTo(x, y); ctx.stroke();
+        } else {
+          ctx.strokeStyle = 'rgba(255,210,150,0.28)'; ctx.setLineDash([2, 5]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x0, p.y0); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+          for (let i = 1; i <= 5; i++) { ctx.fillStyle = `rgba(40,40,40,${0.5 - i * 0.08})`; ctx.beginPath(); ctx.arc(x - ux * i * 5, y - uy * i * 5, 2.2 - i * 0.15, 0, TAU); ctx.fill(); }
+          ctx.fillStyle = '#16140f'; ctx.beginPath(); ctx.arc(x, y, 2.8, 0, TAU); ctx.fill(); ctx.strokeStyle = 'rgba(255,230,180,0.8)'; ctx.lineWidth = 0.7; ctx.stroke();
+        }
       }
+      for (const q of this.sparks) { ctx.fillStyle = `rgba(70,50,30,${1 - q.t / q.life})`; ctx.fillRect(q.x - 1, q.y - 1, 2, 2); }
       // smoke
-      for (const p of this.puffs) { const f = p.t / p.life; ctx.fillStyle = p.c + (0.55 * (1 - f)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x + f * 6, p.y - f * 8, p.r * (0.6 + f), 0, TAU); ctx.fill(); }
+      for (const p of this.puffs) { if (p.t < 0) continue; const f = p.t / p.life; ctx.fillStyle = p.c + ((p.a || 0.55) * (1 - f)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x + (p.nd ? 0 : f * 6), p.y - (p.nd ? 0 : f * 8), p.r * (p.nd ? 0.8 + 0.5 * f : 0.6 + f), 0, TAU); ctx.fill(); }
       // selection box
       if (this.box) {
         const a = this.toWorld(this.box.x0, this.box.y0), b = this.toWorld(this.box.x1, this.box.y1);
@@ -799,6 +885,42 @@
       // field border
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, FW, FH);
       this.drawWeather(ctx);
+    }
+
+    // A readable village: dirt road, cottages with pitched tiled roofs, a church, walled gardens and crop fields
+    drawVillage(ctx, v) {
+      ctx.save(); ctx.translate(v.x, v.y);
+      for (const f of v.fields) { // crop strips
+        const [fx, fy, fw, fh, kind] = f; ctx.fillStyle = ['rgba(212,190,98,0.75)', 'rgba(120,160,70,0.7)', 'rgba(170,140,90,0.7)'][kind]; ctx.fillRect(fx - fw / 2, fy - fh / 2, fw, fh);
+        ctx.strokeStyle = 'rgba(70,55,25,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); for (let yy = fy - fh / 2 + 4; yy < fy + fh / 2; yy += 4.5) { ctx.moveTo(fx - fw / 2, yy); ctx.lineTo(fx + fw / 2, yy); } ctx.stroke();
+        ctx.strokeStyle = 'rgba(80,60,30,0.7)'; ctx.strokeRect(fx - fw / 2, fy - fh / 2, fw, fh);
+      }
+      ctx.fillStyle = 'rgba(165,135,90,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 78, 44, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#b79c6a'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-82, 0); ctx.lineTo(82, 0); ctx.stroke();
+      ctx.strokeStyle = '#d6c294'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-82, 0); ctx.lineTo(82, 0); ctx.stroke(); ctx.lineCap = 'butt';
+      for (const h of v.hs) {
+        const [hx, hy, hw, hh, alt] = h;
+        // garden fence
+        ctx.strokeStyle = 'rgba(90,65,35,0.7)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeRect(hx - hw / 2 - 4, hy - hh / 2 - 4, hw + 8, hh + 8); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(hx - hw / 2 + 2.5, hy - hh / 2 + 3.5, hw, hh);       // shadow
+        ctx.fillStyle = '#efe4c8'; ctx.fillRect(hx - hw / 2, hy - hh / 2, hw, hh);                           // walls
+        ctx.strokeStyle = '#6d5a3a'; ctx.lineWidth = 1; ctx.strokeRect(hx - hw / 2, hy - hh / 2, hw, hh);
+        const rc = alt ? ['#b8472e', '#97351f'] : ['#a0663a', '#7e4c28'];
+        ctx.fillStyle = rc[0]; ctx.fillRect(hx - hw / 2 + 1, hy - hh / 2 + 1, hw - 2, hh / 2 - 0.5);       // roof, lit side
+        ctx.fillStyle = rc[1]; ctx.fillRect(hx - hw / 2 + 1, hy, hw - 2, hh / 2 - 1);                         // roof, shaded side
+        ctx.strokeStyle = 'rgba(40,20,10,0.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(hx - hw / 2 + 1, hy); ctx.lineTo(hx + hw / 2 - 1, hy); ctx.stroke(); // ridge
+        ctx.fillStyle = '#5a5a58'; ctx.fillRect(hx + hw / 2 - 5, hy - hh / 2 + 2, 3, 3);                       // chimney
+        ctx.fillStyle = '#3a2a1a'; ctx.fillRect(hx - 1.5, hy + hh / 2 - 1, 3, 2);                             // door
+      }
+      // church
+      const c = v.church;
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(c.x - 12 + 3, c.y - 8 + 3, 26, 17);
+      ctx.fillStyle = '#d8d2c2'; ctx.fillRect(c.x - 13, c.y - 8, 26, 16); ctx.strokeStyle = '#4a4a46'; ctx.lineWidth = 1; ctx.strokeRect(c.x - 13, c.y - 8, 26, 16);
+      ctx.fillStyle = '#5d6670'; ctx.fillRect(c.x - 12, c.y - 7, 24, 14); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(c.x - 12, c.y); ctx.lineTo(c.x + 12, c.y); ctx.stroke();
+      ctx.fillStyle = '#c9c2b0'; ctx.fillRect(c.x - 20, c.y - 5, 9, 10); ctx.strokeRect(c.x - 20, c.y - 5, 9, 10);       // tower
+      ctx.fillStyle = '#3f464e'; ctx.beginPath(); ctx.moveTo(c.x - 20, c.y - 5); ctx.lineTo(c.x - 11, c.y - 5); ctx.lineTo(c.x - 15.5, c.y + 5); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(c.x - 15.5, c.y - 11); ctx.lineTo(c.x - 15.5, c.y - 5); ctx.moveTo(c.x - 18, c.y - 8.5); ctx.lineTo(c.x - 13, c.y - 8.5); ctx.stroke(); // cross
+      ctx.restore();
     }
 
     drawWeather(ctx) {
@@ -827,14 +949,18 @@
     }
 
     // Individual soldiers: the block thins out, shrinks and frays as men fall
-    drawFigures(ctx, u, w, d, fc, sk, r, sel, flash) {
+    drawFigures(ctx, u, w, d, fc, sk, r, sel, wh) {
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
       const wob = (routing ? 1.6 : 0) + (1 - moraleF) * 1.1;          // nervous shuffling
       const frayed = (1 - r) * 3.2 + (1 - moraleF) * 1.4 + (routing ? 2.5 : 0); // looseness of the ranks
       const detail = sk > 2.2;
       // faint hull so the unit still reads as one body (fades as it dies)
-      ctx.fillStyle = flash ? 'rgba(255,255,255,0.4)' : fc.color; ctx.globalAlpha *= 0.16 + 0.14 * r;
+      ctx.fillStyle = tint(fc.color, wh); ctx.globalAlpha *= 0.16 + 0.14 * r + 0.25 * wh;
       ctx.fillRect(-d / 2, -w / 2, d, w); ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
+      if (wh > 0) { // white halo: pulses while locked in melee, solid once broken (readable on pale nations too)
+        ctx.save(); ctx.globalAlpha = Math.min(1, 0.25 + wh * 0.9); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6 + wh * 2.4; ctx.shadowColor = '#fff'; ctx.shadowBlur = 6 + wh * 10;
+        ctx.strokeRect(-d / 2 - 2.5, -w / 2 - 2.5, d + 5, w + 5); ctx.restore();
+      }
       if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail); }
       else {
         const per = u.cls === 'cav' ? 10 : 16, maxF = u.cls === 'cav' ? 26 : 50;
@@ -857,7 +983,7 @@
           if (wob > 0.05) { x += Math.sin(t * 4 + j * 1.7) * wob * 0.5; y += Math.cos(t * 3.3 + j * 2.1) * wob * 0.5; }
           ctx.fillStyle = 'rgba(0,0,0,0.55)';
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8 + 0.8, fs + 0.8); else ctx.fillRect(x - fs / 2 - 0.4, y - fs / 2 - 0.4, fs + 0.8, fs + 0.8);
-          ctx.fillStyle = flash ? '#fff' : (k[3] < 0.1 && r < 0.6 ? 'rgba(80,80,80,0.9)' : fc.color); // some men already look worn
+          ctx.fillStyle = tint(k[3] < 0.1 && r < 0.6 ? '#505050' : fc.color, wh); // some men already look worn
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8, fs); else ctx.fillRect(x - fs / 2, y - fs / 2, fs, fs);
           if (detail) {
             ctx.fillStyle = u.type === 'guard' ? '#f0c040' : '#e8e0d0'; ctx.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
@@ -908,19 +1034,21 @@
       const sk = this.fit * this.cam.z; // device px per world unit
       const r = clamp(u.men / u.max, 0, 1);
       const sel = this.sel.has(u);
-      const flash = u.state === 'routing' && Math.floor(this.t * 4) % 2 === 0;
+      // slow white pulse while locked in melee; solid white once the regiment breaks
+      const wh = u.state === 'routing' ? 1 : u.state === 'fighting' ? 0.12 + 0.5 * (0.5 + 0.5 * Math.sin(this.t * 3.2 + u.id)) : 0;
       ctx.rotate(u.facing);
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
       if (Math.max(w, d) * sk < 46) {
         // far zoom: simple block, kept visible
         const boost = Math.min(3, Math.max(1, 7 / (Math.min(w, d) * sk)));
         const K = this.keys4(u), segs = 9, sw = w * boost / segs, keep = r > 0.85 ? 2 : 0.25 + 0.75 * r;
-        ctx.fillStyle = flash ? '#fff' : fc.color;
+        ctx.fillStyle = tint(fc.color, wh);
         for (let i = 0; i < segs; i++) { if (K[i][0] > keep) continue; ctx.fillRect(-d / 2 + (K[i][1] - 0.5) * (1 - r) * 3, -w * boost / 2 + i * sw, d, sw * 0.92); }
+        if (wh > 0) { ctx.save(); ctx.strokeStyle = '#fff'; ctx.globalAlpha = Math.min(1, 0.3 + wh * 0.9); ctx.lineWidth = (2 + wh * 2) / Math.max(0.5, sk); ctx.strokeRect(-d / 2 - 2, -w * boost / 2 - 2, d + 4, w * boost + 4); ctx.restore(); }
         ctx.strokeStyle = sel ? '#fff' : 'rgba(0,0,0,0.8)'; ctx.lineWidth = (sel ? 2.4 : 1.1) / Math.max(0.5, sk);
         if (sel || r > 0.85) ctx.strokeRect(-d / 2, -w * boost / 2, d, w * boost);
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
-      } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, flash);
+      } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
       // bars and label scale gently with zoom so they stay readable
@@ -935,7 +1063,7 @@
       if (sk > 0.5) {
         ctx.save(); ctx.translate(0, ext + 3 * us); ctx.scale(us, us);
         ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const label = String(Math.round(u.men));
+        const label = String(Math.round(u.men)) + (u.vet ? ' ' + '\u2605'.repeat(u.vet) : '');
         ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
         ctx.restore();
       }
@@ -958,21 +1086,21 @@
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom (0.4x-8x) &middot; Home: fit &middot; F: focus selection &middot; Middle-drag or arrows: pan &middot; Space: pause</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; 1-4: formations &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
           <div class="b-btns">
-            <button data-f="line" title="Line (Q)">Line <kbd>Q</kbd></button>
-            <button data-f="column" title="Column (W)">Column <kbd>W</kbd></button>
-            <button data-f="square" title="Square (E)">Square <kbd>E</kbd></button>
-            <button data-f="skirmish" title="Skirmish (R)">Skirmish <kbd>R</kbd></button>
-            <button data-a="charge" title="Charge (X)">Charge <kbd>X</kbd></button>
-            <button data-a="halt" title="Halt (H)">Halt <kbd>H</kbd></button>
-            <button data-a="rally" id="b-rally" title="Rally (G)">Rally <kbd>G</kbd></button>
+            <button data-f="line" data-tip="<b>Line</b> (key 1)<br>Best firepower. Slow to move. Vulnerable on the flanks and rear.">Line <kbd>1</kbd></button>
+            <button data-f="column" data-tip="<b>Column</b> (key 2)<br>Fast marching, poor firepower. Weak against guns and cavalry. Use it to cross open ground.">Column <kbd>2</kbd></button>
+            <button data-f="square" data-tip="<b>Square</b> (key 3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>3</kbd></button>
+            <button data-f="skirmish" data-tip="<b>Skirmish</b> (key 4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>4</kbd></button>
+            <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
+            <button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
+            <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
-            <button data-sp="1" class="b-sp on">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
+            <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp on" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
             <span class="b-sep"></span><button data-z="out" title="Zoom out (PageDown)">&minus;</button><span id="b-zoom" class="b-zoomlbl">100%</span><button data-z="in" title="Zoom in (PageUp)">+</button><button data-z="fit" title="Fit whole field (Home)">Fit</button><button data-z="focus" title="Focus selection (F)">Focus</button>
             <button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
@@ -989,7 +1117,7 @@
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with Q/W/E/R, then press <b>Space</b> to begin.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with keys 1-4, then press <b>Space</b> to begin.</p>`;
     }
 
     bind() {
@@ -1060,12 +1188,12 @@
         const k = e.key.toLowerCase();
         this.keys[k] = true;
         if (k === ' ') { this.togglePause(); e.preventDefault(); }
-        else if (k === 'q') this.setForm('line'); else if (k === 'w' && !e.ctrlKey) this.setForm('column');
-        else if (k === 'e') this.setForm('square'); else if (k === 'r') this.setForm('skirmish');
-        else if (k === 'x') this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'g') this.rally();
+        else if (k === '1') this.setForm('line'); else if (k === '2') this.setForm('column');
+        else if (k === '3') this.setForm('square'); else if (k === '4') this.setForm('skirmish');
+        else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
-        else if (k === '+' || k === '=') this.setSpeed(Math.min(4, this.speed * 2)); else if (k === '-') this.setSpeed(Math.max(1, this.speed / 2));
+        else if (k === '+' || k === '=') this.stepSpeed(1); else if (k === '-') this.stepSpeed(-1);
         else if (k === 'tab') { e.preventDefault(); }
         else if (k === 'pageup') { this.zoomBy(1.4); e.preventDefault(); } else if (k === 'pagedown') { this.zoomBy(1 / 1.4); e.preventDefault(); }
         else if (k === 'home') { this.zoomFit(); e.preventDefault(); } else if (k === 'f') { this.focusSelection(); }
@@ -1155,6 +1283,7 @@
       this.root.querySelector('#b-banner').classList.toggle('hide', !this.paused ? true : this.t > 0);
       this.root.querySelector('#b-help').classList.add('hide');
     }
+    stepSpeed(d) { const L = [0.25, 0.5, 1, 2, 4]; const i = L.indexOf(this.speed); this.setSpeed(L[Math.max(0, Math.min(L.length - 1, (i < 0 ? 1 : i) + d))]); }
     setSpeed(s) { this.speed = s; this.root.querySelectorAll('.b-sp').forEach((b) => b.classList.toggle('on', +b.dataset.sp === s)); }
     withdraw() {
       if (this.over) return;
@@ -1196,11 +1325,11 @@
       if (this.camGoal) { const g = this.camGoal, k = 1 - Math.exp(-dt * 10); this.cam.x += (g.x - this.cam.x) * k; this.cam.y += (g.y - this.cam.y) * k; if (Math.hypot(g.x - this.cam.x, g.y - this.cam.y) < 1) this.camGoal = null; }
       // camera keys
       const ks = 520 * dt / this.cam.z;
-      if (this.keys.arrowleft || this.keys.arrowright || this.keys.arrowup || this.keys.arrowdown || this.keys.a || this.keys.d || this.keys.s) this.camGoal = null;
+      if (this.keys.arrowleft || this.keys.arrowright || this.keys.arrowup || this.keys.arrowdown || this.keys.a || this.keys.d || this.keys.s || this.keys.w) this.camGoal = null;
       if (this.keys.a && !this.keys.control) this.cam.x -= ks; if (this.keys.d) this.cam.x += ks;
       if (this.keys.arrowleft) this.cam.x -= ks; if (this.keys.arrowright) this.cam.x += ks;
       if (this.keys.arrowup) this.cam.y -= ks; if (this.keys.arrowdown) this.cam.y += ks;
-      if (this.keys.s) this.cam.y += ks; if (this.keys.w && false) this.cam.y -= ks;
+      if (this.keys.s) this.cam.y += ks; if (this.keys.w) this.cam.y -= ks;
       this.cam.x = clamp(this.cam.x, 0, FW); this.cam.y = clamp(this.cam.y, 0, FH);
       if (this.replay) this.stepReplay(dt);
       if (!this.paused && !this.over) {
@@ -1318,7 +1447,7 @@
         u.x = a[0] + (c[0] - a[0]) * k; u.y = a[1] + (c[1] - a[1]) * k;
         let df = c[2] - a[2]; while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
         u.facing = a[2] + df * k;
-        u.men = a[3] + (c[3] - a[3]) * k; u.state = a[4] ? 'routing' : 'idle'; u.dead = !!a[5]; u.fled = !!a[6]; u.formation = a[7]; u.morale = a[8];
+        u.men = a[3] + (c[3] - a[3]) * k; u.state = a[4] === 1 ? 'routing' : a[4] === 2 ? 'fighting' : 'idle'; u.dead = !!a[5]; u.fled = !!a[6]; u.formation = a[7]; u.morale = a[8];
         if (u.cls === 'gen') { u.w = u.d = 14; } else [u.w, u.d] = dims(u);
       });
       this.t = r.f;

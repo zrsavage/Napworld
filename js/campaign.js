@@ -44,6 +44,12 @@
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced' };
     }
+    for (const p of w.provs) {
+      if (!p.capital) continue;
+      const ps = S.provinces[p.id];
+      ps.barracks = 1; ps.stables = 1; ps.arsenal = 1;
+      if (['france', 'britain', 'austria', 'prussia', 'russia'].includes(p.owner)) ps.academy = 1;
+    }
     for (const id in NAP.FACTIONS) {
       const n = w.provs.filter((p) => p.owner === id).length;
       const cap = w.provs.find((p) => p.owner === id && p.capital);
@@ -86,7 +92,16 @@
     });
     return out;
   }
-  C.newUnit = (type) => ({ type, men: U[type].men, max: U[type].men, xp: 0 });
+  C.newUnit = (type, vet) => ({ type, men: U[type].men, max: U[type].men, xp: 0, vet: vet || 0 });
+  // veteran level: from an Academy at recruitment or from battles survived and won
+  C.vetOf = (u) => Math.max(u.vet || 0, (u.xp || 0) >= 6 ? 2 : (u.xp || 0) >= 3 ? 1 : 0);
+  C.unitCost = function (pid, type) {
+    const u = U[type], ps = S.provinces[pid];
+    let c = u.cost;
+    if (u.cls === 'art' && ps.arsenal) c *= 0.8;
+    if (u.cls === 'cav' && ps.stables) c *= 0.9;
+    return Math.round(c);
+  };
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
     S.armies.push(a);
@@ -119,7 +134,7 @@
   C.provincesOf = (f) => W().provs.filter((p) => S.provinces[p.id].owner === f);
   C.armiesOf = (f) => S.armies.filter((a) => a.owner === f);
   C.dateStr = () => `${MONTHS[S.month - 1]} ${S.year}`;
-  C.armyPower = (a) => a.units.reduce((s, u) => s + u.men * U[u.type].power, 0) * generalMul(a);
+  C.armyPower = (a) => a.units.reduce((s, u) => s + u.men * U[u.type].power * (1 + 0.06 * C.vetOf(u)), 0) * generalMul(a);
   function generalMul(a) {
     if (!a.general) return 1;
     const g = S.generals[a.general];
@@ -253,8 +268,8 @@
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
-    if (u.needs === 'barracks' && !ps.barracks) return 'Requires Barracks';
-    if (fs.gold < u.cost) return 'Not enough gold';
+    if (u.needs && !ps[u.needs]) return 'Requires ' + NAP.BUILDINGS[u.needs].name;
+    if (fs.gold < C.unitCost(pid, type)) return 'Not enough gold';
     if (fs.manpower < u.men) return 'Not enough manpower';
     if (S.armies.some((a) => a.prov === pid && atWar(a.owner, f))) return 'Enemy army present';
     return null;
@@ -263,8 +278,8 @@
     const err = C.recruitCheck(pid, type);
     if (err) return err;
     const ps = S.provinces[pid], fs = S.factions[ps.owner], u = U[type];
-    fs.gold -= u.cost; fs.manpower -= u.men;
-    ps.queue.push({ type, left: u.time });
+    fs.gold -= C.unitCost(pid, type); fs.manpower -= u.men;
+    ps.queue.push({ type, left: u.time, vet: ps.academy ? 1 : 0 });
     return null;
   };
   C.buildCheck = function (pid, b) {
@@ -272,6 +287,7 @@
     if (ps.build) return 'Already constructing';
     if (ps.siege) return 'Province is besieged';
     if (b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1) return 'Already built';
+    if (bd.req && !ps[bd.req]) return 'Requires ' + NAP.BUILDINGS[bd.req].name + ' first';
     if (fs.gold < bd.cost) return 'Not enough gold';
     return null;
   };
@@ -499,7 +515,7 @@
   }
   function sidePower(armies, extraMul) {
     let p = 0;
-    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
+    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * (1 + 0.06 * C.vetOf(u)) * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
     const g = genBonus(armies);
     return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (extraMul || 1);
   }
@@ -514,6 +530,7 @@
   }
   function award(armies, victory) {
     for (const a of armies) {
+      if (victory) for (const u of a.units) u.xp = (u.xp || 0) + 1;
       if (!a.general) continue;
       const g = S.generals[a.general];
       g.xp += victory ? 30 : 10;
@@ -632,7 +649,7 @@
   }
   function mkSide(armies) {
     const units = [];
-    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
+    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, vet: C.vetOf(u), fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
     const g = genBonus(armies);
     return {
       faction: armies[0].owner, armies, units,
@@ -697,8 +714,8 @@
     ps.owner = f; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
-    if (rnd() < 0.5) ps.market = 0;
-    if (rnd() < 0.5) ps.barracks = 0;
+    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy']) if (rnd() < 0.45) ps[b] = 0;
+    if (!ps.barracks) ps.academy = 0;
     plog(`${F(f).name} captures ${d.name} from ${F(old).name}!`, f === S.player ? 'good' : 'bad', [f, old]);
     if (f !== S.player && old !== S.player) C.log(`${d.name} falls to ${F(f).adj} forces.`, 'capture-minor');
     if (S.factions[old].cap === pid && old !== 'minor') {
@@ -812,7 +829,7 @@
         const done = ps.queue.filter((q) => q.left <= 0);
         ps.queue = ps.queue.filter((q) => q.left > 0);
         if (done.length) {
-          const units = done.map((q) => C.newUnit(q.type));
+          const units = done.map((q) => C.newUnit(q.type, q.vet));
           let host = S.armies.find((a) => a.prov === p.id && a.owner === ps.owner && !a.path.length && a.units.length + units.length <= MAX_STACK);
           if (host) host.units.push(...units); else C.makeArmy(ps.owner, p.id, units);
           plog(`${units.length} new regiment(s) raised in ${p.name}.`, 'good', [ps.owner]);
@@ -822,7 +839,7 @@
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.45, light: 0.14, guard: 0.04, hussar: 0.12, cuirass: 0.08, art: 0.17 };
+  const WANT = { line: 0.38, light: 0.12, grenadier: 0.07, guard: 0.03, hussar: 0.08, lancer: 0.04, cuirass: 0.07, art: 0.15, hart: 0.03 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -850,13 +867,13 @@
       // pick type with greatest deficit
       let best = null, bd = -9;
       for (const t in WANT) {
-        if (t === 'guard' && !own.some((p) => S.provinces[p.id].barracks)) continue;
+        if (U[t].needs && !own.some((p) => S.provinces[p.id][U[t].needs])) continue;
         const def = WANT[t] - (counts[t] || 0) / Math.max(1, total);
         if (def > bd && fs.gold >= U[t].cost && fs.manpower >= U[t].men) { bd = def; best = t; }
       }
       if (!best) break;
       // choose province: closest to enemy (or capital when peaceful)
-      const cands = own.filter((p) => S.provinces[p.id].queue.length < 3 && (best !== 'guard' || S.provinces[p.id].barracks));
+      const cands = own.filter((p) => S.provinces[p.id].queue.length < 3 && (!U[best].needs || S.provinces[p.id][U[best].needs]));
       if (!cands.length) break;
       let pick;
       if (en.length) {
@@ -876,6 +893,9 @@
         const opts = [];
         if (!ps.market && C.def(pick.id).income >= 4) opts.push('market');
         if (!ps.barracks && C.def(pick.id).manpower >= 3) opts.push('barracks');
+        if (!ps.stables && C.def(pick.id).income >= 3 && fs.gold > 500) opts.push('stables');
+        if (!ps.arsenal && C.def(pick.id).income >= 4 && fs.gold > 550) opts.push('arsenal');
+        if (ps.barracks && !ps.academy && fs.gold > 800) opts.push('academy');
         if (ps.fort < 2 && en.length && threatDist(f, pick.id, en) <= 2) opts.push('fort');
         if (opts.length) C.build(pick.id, opts[Math.floor(rnd() * opts.length)]);
       }

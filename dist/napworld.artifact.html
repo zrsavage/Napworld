@@ -172,6 +172,20 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .b-mini { position: absolute; right: 10px; bottom: 10px; width: 220px; height: 124px; border: 2px solid var(--gold); border-radius: 4px; box-shadow: 0 4px 14px #000a; cursor: pointer; z-index: 3; }
 @media (max-width: 700px) { .b-mini { width: 150px; height: 85px; } }
 
+#tt { position: fixed; z-index: 60; max-width: 340px; background: rgba(14,17,23,.97); border: 1px solid var(--gold); border-radius: 6px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; pointer-events: none; box-shadow: 0 6px 22px #000b; color: var(--ink); }
+#tt .ttk { color: var(--muted); font-size: 11.5px; }
+.qm { display: inline-block; width: 15px; height: 15px; line-height: 15px; text-align: center; border-radius: 50%; background: #ffffff1c; color: var(--gold2); font-size: 11px; font-weight: 700; margin-left: 4px; cursor: help; text-transform: none; letter-spacing: 0; }
+.ubtn.locked { opacity: .55; }
+.ubtn.locked:hover:not(:disabled) { border-color: var(--line); background: var(--panel2); }
+.subh { margin: 8px 0 3px; font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+.gold { color: var(--gold2); }
+.guidebox { max-width: 1000px; margin: 0 auto 16px; background: #1d2431; border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: 6px; padding: 10px 14px; font-size: 13.5px; line-height: 1.55; }
+.tier { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .5px; color: #10140c; }
+.tier-beginner { background: #6fd08a; } .tier-easy { background: #a8dc7a; } .tier-medium { background: #e8cd5a; } .tier-hard { background: #eb9a4a; } .tier-expert { background: #e5655e; color: #1c0a0a; }
+.card { position: relative; }
+.card .ribbon { position: absolute; top: -9px; right: 10px; background: linear-gradient(#e0bd63, #b8913c); color: #231a05; font-size: 11px; font-weight: 800; letter-spacing: .6px; padding: 2px 9px; border-radius: 3px; text-transform: uppercase; }
+.card .why { font-size: 12px; color: #d4cdb6; }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -445,17 +459,47 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   // ---- Unit types ----
   // men: regiment size, cost: gold, mp: manpower (=men), upkeep: gold/turn
   NAP.UNITS = {
-    line:    { name:'Line Infantry',   short:'Line',  men:800, cost:90,  upkeep:3, time:1, cls:'inf',  power:1.0, morale:70, speed:22, w:80, d:12 },
-    light:   { name:'Light Infantry',  short:'Light', men:600, cost:100, upkeep:3, time:1, cls:'inf',  power:1.0, morale:66, speed:32, w:60, d:10 },
-    guard:   { name:'Guard Infantry',  short:'Guard', men:700, cost:210, upkeep:6, time:2, cls:'inf',  power:1.7, morale:100, speed:22, w:62, d:12, needs:'barracks' },
-    hussar:  { name:'Light Cavalry',   short:'Hussar',men:250, cost:105, upkeep:4, time:1, cls:'cav',  power:1.4, morale:66, speed:72, w:50, d:10 },
-    cuirass: { name:'Heavy Cavalry',   short:'Cuirass',men:250,cost:150, upkeep:5, time:2, cls:'cav',  power:1.9, morale:76, speed:58, w:50, d:10 },
-    art:     { name:'Artillery Battery',short:'Guns', men:80,  cost:140, upkeep:4, time:1, cls:'art',  power:5.0, morale:62, speed:12, w:30, d:14 }
+    line:      { name:'Line Infantry',    short:'Line',     men:800, cost:90,  upkeep:3, time:1, cls:'inf', power:1.0,  morale:70,  speed:22, w:80, d:12,
+                 desc:'The backbone of every army. Dependable volley fire and cheap to raise.' },
+    light:     { name:'Light Infantry',   short:'Light',    men:600, cost:100, upkeep:3, time:1, cls:'inf', power:1.0,  morale:66,  speed:32, w:60, d:10,
+                 desc:'Skirmishers who screen the line, harass the enemy and move quickly. Fragile in a straight fight.' },
+    grenadier: { name:'Grenadiers',       short:'Grenadier',men:700, cost:150, upkeep:4, time:1, cls:'inf', power:1.35, morale:84,  speed:22, w:64, d:12, needs:'barracks',
+                 desc:'Picked, taller veterans. Harder hitting and steadier than line infantry.' },
+    guard:     { name:'Guard Infantry',   short:'Guard',    men:700, cost:230, upkeep:6, time:2, cls:'inf', power:1.75, morale:100, speed:22, w:62, d:12, needs:'academy',
+                 desc:'The finest infantry a nation fields. Excellent fire and melee, almost never break.' },
+    hussar:    { name:'Light Cavalry',    short:'Hussar',   men:250, cost:105, upkeep:4, time:1, cls:'cav', power:1.4,  morale:66,  speed:72, w:50, d:10,
+                 desc:'Fast scouts and flankers. Good for chasing routers and hitting artillery.' },
+    lancer:    { name:'Lancers',          short:'Lancer',   men:250, cost:125, upkeep:4, time:1, cls:'cav', power:1.6,  morale:70,  speed:66, w:50, d:10, needs:'stables',
+                 desc:'Shock cavalry whose lances give a devastating first charge, weaker in a long melee.' },
+    cuirass:   { name:'Heavy Cavalry',    short:'Cuirass',  men:250, cost:150, upkeep:5, time:2, cls:'cav', power:1.9,  morale:76,  speed:58, w:50, d:10, needs:'stables',
+                 desc:'Armoured horsemen who break infantry lines and win long melees.' },
+    art:       { name:'Artillery Battery',short:'Guns',     men:80,  cost:140, upkeep:4, time:1, cls:'art', power:5.0,  morale:62,  speed:12, w:30, d:14,
+                 desc:'Long-range cannon: devastating against columns and squares, vulnerable if caught alone.' },
+    hart:      { name:'Horse Artillery',  short:'H. Guns',  men:80,  cost:190, upkeep:5, time:2, cls:'art', power:4.6,  morale:66,  speed:24, w:28, d:14, needs:'arsenal',
+                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' }
   };
   NAP.BUILDINGS = {
-    market:   { name:'Market',       cost:220, time:3, desc:'+50% province income', max:1 },
-    barracks: { name:'Barracks',     cost:260, time:3, desc:'+50% manpower; unlocks Guard', max:1 },
-    fort:     { name:'Fortifications',cost:320,time:4, desc:'+1 fort level (siege resistance)', max:3 }
+    market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
+    barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },
+    stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
+    arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },
+    academy:  { name:'Military Academy',cost:360, time:4, max:1, req:'barracks', desc:'Unlocks Guard Infantry here. New regiments raised here start as veterans (+morale, +firepower).' },
+    fort:     { name:'Fortifications',  cost:320, time:4, max:3, desc:'+1 fort level: longer sieges and a stronger garrison.' }
+  };
+  // Beginner guidance shown on the start screen
+  NAP.NATION_GUIDE = {
+    russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
+    britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },
+    austria:  { tier:'Medium', rank:3, war:false, why:'A big army and rich provinces, but a French-led war reaches you in mid-1805.', tips:['Fortify Tyrol and Bohemia.','Russia is your ally: join forces before fighting Napoleon.'] },
+    prussia:  { tier:'Medium', rank:4, war:false, why:'Safe and neutral at the start, so you can build up first. Your well-drilled army is untested.', tips:['Choose your moment and your side.','Silesia and Saxony are the main prizes.'] },
+    france:   { tier:'Hard', rank:5, war:true, why:'The strongest army and best generals, but you start at war with Britain and Austria and Russia join in 1805.', tips:['Win decisive battles early with Napoleon.','Garrison conquered lands or they revolt.'] },
+    ottoman:  { tier:'Hard', rank:6, war:false, why:'Large and distant, but morale is weak, rebels stir, and Russia and Austria press you.', tips:['Fortified provinces and cavalry are your strengths.'] },
+    spain:    { tier:'Hard', rank:7, war:true, why:'Allied to France against Britain, with a modest army and an uprising looming in 1808.', tips:['Keep your armies near Madrid.'] },
+    sweden:   { tier:'Hard', rank:8, war:false, why:'A fading power with Finland exposed to Russia.', tips:['Hold Finland and Stockholm.'] },
+    denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
+    naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
+    portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
+    bavaria:  { tier:'Expert', rank:12, war:false, why:'Tiny and sandwiched between Austria and France.', tips:['Stay close to your French ally.'] }
   };
 
   // ---- Generals ----
@@ -1112,6 +1156,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced' };
     }
+    for (const p of w.provs) {
+      if (!p.capital) continue;
+      const ps = S.provinces[p.id];
+      ps.barracks = 1; ps.stables = 1; ps.arsenal = 1;
+      if (['france', 'britain', 'austria', 'prussia', 'russia'].includes(p.owner)) ps.academy = 1;
+    }
     for (const id in NAP.FACTIONS) {
       const n = w.provs.filter((p) => p.owner === id).length;
       const cap = w.provs.find((p) => p.owner === id && p.capital);
@@ -1154,7 +1204,16 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     });
     return out;
   }
-  C.newUnit = (type) => ({ type, men: U[type].men, max: U[type].men, xp: 0 });
+  C.newUnit = (type, vet) => ({ type, men: U[type].men, max: U[type].men, xp: 0, vet: vet || 0 });
+  // veteran level: from an Academy at recruitment or from battles survived and won
+  C.vetOf = (u) => Math.max(u.vet || 0, (u.xp || 0) >= 6 ? 2 : (u.xp || 0) >= 3 ? 1 : 0);
+  C.unitCost = function (pid, type) {
+    const u = U[type], ps = S.provinces[pid];
+    let c = u.cost;
+    if (u.cls === 'art' && ps.arsenal) c *= 0.8;
+    if (u.cls === 'cav' && ps.stables) c *= 0.9;
+    return Math.round(c);
+  };
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
     S.armies.push(a);
@@ -1187,7 +1246,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   C.provincesOf = (f) => W().provs.filter((p) => S.provinces[p.id].owner === f);
   C.armiesOf = (f) => S.armies.filter((a) => a.owner === f);
   C.dateStr = () => `${MONTHS[S.month - 1]} ${S.year}`;
-  C.armyPower = (a) => a.units.reduce((s, u) => s + u.men * U[u.type].power, 0) * generalMul(a);
+  C.armyPower = (a) => a.units.reduce((s, u) => s + u.men * U[u.type].power * (1 + 0.06 * C.vetOf(u)), 0) * generalMul(a);
   function generalMul(a) {
     if (!a.general) return 1;
     const g = S.generals[a.general];
@@ -1321,8 +1380,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
-    if (u.needs === 'barracks' && !ps.barracks) return 'Requires Barracks';
-    if (fs.gold < u.cost) return 'Not enough gold';
+    if (u.needs && !ps[u.needs]) return 'Requires ' + NAP.BUILDINGS[u.needs].name;
+    if (fs.gold < C.unitCost(pid, type)) return 'Not enough gold';
     if (fs.manpower < u.men) return 'Not enough manpower';
     if (S.armies.some((a) => a.prov === pid && atWar(a.owner, f))) return 'Enemy army present';
     return null;
@@ -1331,8 +1390,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const err = C.recruitCheck(pid, type);
     if (err) return err;
     const ps = S.provinces[pid], fs = S.factions[ps.owner], u = U[type];
-    fs.gold -= u.cost; fs.manpower -= u.men;
-    ps.queue.push({ type, left: u.time });
+    fs.gold -= C.unitCost(pid, type); fs.manpower -= u.men;
+    ps.queue.push({ type, left: u.time, vet: ps.academy ? 1 : 0 });
     return null;
   };
   C.buildCheck = function (pid, b) {
@@ -1340,6 +1399,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (ps.build) return 'Already constructing';
     if (ps.siege) return 'Province is besieged';
     if (b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1) return 'Already built';
+    if (bd.req && !ps[bd.req]) return 'Requires ' + NAP.BUILDINGS[bd.req].name + ' first';
     if (fs.gold < bd.cost) return 'Not enough gold';
     return null;
   };
@@ -1567,7 +1627,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   function sidePower(armies, extraMul) {
     let p = 0;
-    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
+    for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * (1 + 0.06 * C.vetOf(u)) * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
     const g = genBonus(armies);
     return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (extraMul || 1);
   }
@@ -1582,6 +1642,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   function award(armies, victory) {
     for (const a of armies) {
+      if (victory) for (const u of a.units) u.xp = (u.xp || 0) + 1;
       if (!a.general) continue;
       const g = S.generals[a.general];
       g.xp += victory ? 30 : 10;
@@ -1700,7 +1761,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   function mkSide(armies) {
     const units = [];
-    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
+    armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, vet: C.vetOf(u), fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
     const g = genBonus(armies);
     return {
       faction: armies[0].owner, armies, units,
@@ -1765,8 +1826,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     ps.owner = f; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
-    if (rnd() < 0.5) ps.market = 0;
-    if (rnd() < 0.5) ps.barracks = 0;
+    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy']) if (rnd() < 0.45) ps[b] = 0;
+    if (!ps.barracks) ps.academy = 0;
     plog(`${F(f).name} captures ${d.name} from ${F(old).name}!`, f === S.player ? 'good' : 'bad', [f, old]);
     if (f !== S.player && old !== S.player) C.log(`${d.name} falls to ${F(f).adj} forces.`, 'capture-minor');
     if (S.factions[old].cap === pid && old !== 'minor') {
@@ -1880,7 +1941,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const done = ps.queue.filter((q) => q.left <= 0);
         ps.queue = ps.queue.filter((q) => q.left > 0);
         if (done.length) {
-          const units = done.map((q) => C.newUnit(q.type));
+          const units = done.map((q) => C.newUnit(q.type, q.vet));
           let host = S.armies.find((a) => a.prov === p.id && a.owner === ps.owner && !a.path.length && a.units.length + units.length <= MAX_STACK);
           if (host) host.units.push(...units); else C.makeArmy(ps.owner, p.id, units);
           plog(`${units.length} new regiment(s) raised in ${p.name}.`, 'good', [ps.owner]);
@@ -1890,7 +1951,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.45, light: 0.14, guard: 0.04, hussar: 0.12, cuirass: 0.08, art: 0.17 };
+  const WANT = { line: 0.38, light: 0.12, grenadier: 0.07, guard: 0.03, hussar: 0.08, lancer: 0.04, cuirass: 0.07, art: 0.15, hart: 0.03 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -1918,13 +1979,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // pick type with greatest deficit
       let best = null, bd = -9;
       for (const t in WANT) {
-        if (t === 'guard' && !own.some((p) => S.provinces[p.id].barracks)) continue;
+        if (U[t].needs && !own.some((p) => S.provinces[p.id][U[t].needs])) continue;
         const def = WANT[t] - (counts[t] || 0) / Math.max(1, total);
         if (def > bd && fs.gold >= U[t].cost && fs.manpower >= U[t].men) { bd = def; best = t; }
       }
       if (!best) break;
       // choose province: closest to enemy (or capital when peaceful)
-      const cands = own.filter((p) => S.provinces[p.id].queue.length < 3 && (best !== 'guard' || S.provinces[p.id].barracks));
+      const cands = own.filter((p) => S.provinces[p.id].queue.length < 3 && (!U[best].needs || S.provinces[p.id][U[best].needs]));
       if (!cands.length) break;
       let pick;
       if (en.length) {
@@ -1944,6 +2005,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const opts = [];
         if (!ps.market && C.def(pick.id).income >= 4) opts.push('market');
         if (!ps.barracks && C.def(pick.id).manpower >= 3) opts.push('barracks');
+        if (!ps.stables && C.def(pick.id).income >= 3 && fs.gold > 500) opts.push('stables');
+        if (!ps.arsenal && C.def(pick.id).income >= 4 && fs.gold > 550) opts.push('arsenal');
+        if (ps.barracks && !ps.academy && fs.gold > 800) opts.push('academy');
         if (ps.fort < 2 && en.length && threatDist(f, pick.id, en) <= 2) opts.push('fort');
         if (opts.length) C.build(pick.id, opts[Math.floor(rnd() * opts.length)]);
       }
@@ -2432,6 +2496,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   const BT = {
     line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
+    grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
+    lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
+    hart:    { range: 290, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
     guard:   { range: 100, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
@@ -2443,6 +2510,15 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   const FORM_CAV_VULN = { line: 1.0, column: 1.5, square: 0.10, skirmish: 1.8 };
   const FORM_ART_VULN = { line: 1.0, column: 1.6, square: 1.7, skirmish: 0.4 };
   const FORM_NAMES = { line: 'Line', column: 'Column', square: 'Square', skirmish: 'Skirmish' };
+
+  const tintCache = {};
+  // blend a #rrggbb colour toward white by amt (0..1)
+  function tint(hex, amt) {
+    if (amt <= 0.01) return hex;
+    const key = hex + (Math.round(amt * 24)); if (tintCache[key]) return tintCache[key];
+    const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, k = Math.min(1, amt);
+    return (tintCache[key] = `rgb(${Math.round(r + (255 - r) * k)},${Math.round(g + (255 - g) * k)},${Math.round(b + (255 - b) * k)})`);
+  }
 
   function dims(u) {
     const base = NAP.UNITS[u.type];
@@ -2463,8 +2539,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   class Battle {
     constructor(spec, root, done) {
       this.spec = spec; this.root = root; this.done = done;
-      this.t = 0; this.deployPhase = true; this.speed = 1; this.paused = true; this.over = false; this.acc = 0;
-      this.units = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
+      this.t = 0; this.deployPhase = true; this.speed = 0.5; this.paused = true; this.over = false; this.acc = 0;
+      this.units = []; this.proj = []; this.sparks = []; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
@@ -2502,7 +2578,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const nh = { p: 1, h: 3, f: 1, m: 4 }[tr], nf = { p: 2, h: 2, f: 6, m: 1 }[tr], nv = { p: 2, h: 1, f: 1, m: 0 }[tr];
       place(nh, (x, y) => T.hills.push({ x, y, r: 90 + r() * 90 }), 380, 1220);
       place(nf, (x, y) => T.forests.push({ x, y, rx: 60 + r() * 70, ry: 45 + r() * 60, trees: Array.from({ length: 26 }, () => [(r() - 0.5) * 2, (r() - 0.5) * 2, 7 + r() * 6]) }), 330, 1270);
-      place(nv, (x, y) => T.villages.push({ x, y, hs: Array.from({ length: 5 }, () => [(r() - 0.5) * 70, (r() - 0.5) * 50, 14 + r() * 8, 10 + r() * 6]) }), 600, 1000);
+      place(nv, (x, y) => {
+        const hs = [], n = 6 + Math.floor(r() * 3);
+        for (let i = 0; i < n; i++) { const row = i % 2; hs.push([-46 + (i >> 1) * 27 + (r() - 0.5) * 5, row ? 15 + r() * 5 : -19 - r() * 5, 15 + r() * 6, 11 + r() * 4, r() < 0.5 ? 0 : 1]); }
+        T.villages.push({ x, y, hs, church: { x: 50 + r() * 6, y: -2 + r() * 6 }, fields: Array.from({ length: 4 }, (_, i) => [(i % 2 ? 1 : -1) * (70 + r() * 15), -34 + Math.floor(i / 2) * 50, 34 + r() * 14, 22 + r() * 8, Math.floor(r() * 3)]) });
+      }, 600, 1000);
       if (tr === 'm') place(7, (x, y) => T.rocks.push({ x, y, r: 16 + r() * 18, a: r() * 6 }), 380, 1220);
       // drop trees outside their ellipse
       T.forests.forEach((f) => (f.trees = f.trees.filter((t) => t[0] * t[0] + t[1] * t[1] <= 1)));
@@ -2515,6 +2595,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const n = 3 + 2 * T.fort, span = (FH - 180) / n;
         for (let i = 0; i < n; i++) T.works.push({ x: bx, y: 90 + span * (i + 0.5), w: 38, h: span * 0.82 });
       }
+      T.caps = [
+        ...T.hills.map((h) => ({ x: h.x, y: h.y - h.r * 0.5, t: 'HILL', c: 'rgba(95,72,30,0.8)' })),
+        ...T.forests.map((f) => ({ x: f.x, y: f.y - f.ry - 9, t: 'WOODS', c: 'rgba(25,75,32,0.85)' })),
+        ...T.villages.map((v) => ({ x: v.x, y: v.y - 54, t: 'VILLAGE', c: 'rgba(110,45,22,0.9)' })),
+        ...T.rocks.slice(0, 3).map((k) => ({ x: k.x, y: k.y - k.r - 8, t: 'CRAGS', c: 'rgba(70,66,58,0.9)' }))
+      ];
       T.noise = Array.from({ length: 180 }, () => [r() * FW, r() * FH, 20 + r() * 50, r()]);
       this.terrain = T;
     }
@@ -2525,7 +2611,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       for (const w of T.works) if (Math.abs(x - w.x) < w.w / 2 && Math.abs(y - w.y) < w.h / 2) { cover *= 0.55; speed *= 0.7; }
       for (const h of T.hills) if ((x - h.x) ** 2 + (y - h.y) ** 2 < h.r * h.r) { hill = true; speed *= 0.85; cover *= 0.88; }
       for (const f of T.forests) if (((x - f.x) / f.rx) ** 2 + ((y - f.y) / f.ry) ** 2 < 1) { forest = true; speed *= 0.6; cover *= 0.72; }
-      for (const v of T.villages) if (Math.abs(x - v.x) < 45 && Math.abs(y - v.y) < 35) { village = true; speed *= 0.7; cover *= 0.7; }
+      for (const v of T.villages) if (Math.abs(x - v.x) < 62 && Math.abs(y - v.y) < 38) { village = true; speed *= 0.7; cover *= 0.7; }
       for (const k of T.rocks) if ((x - k.x) ** 2 + (y - k.y) ** 2 < k.r * k.r) speed *= 0.4;
       if (this.spec.terrain === 'm') speed *= 0.9;
       return { speed, cover, hill, forest, village };
@@ -2538,11 +2624,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const u = {
         id: this.nextId++, side, ref: src.ref, type: src.type, cls: base.cls, faction: src.faction,
         x, y, facing: side === 0 ? 0 : Math.PI, men: src.men, max: src.max,
-        baseMorale: clamp(base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0), 30, 110),
+        baseMorale: clamp((base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0)) * (1 + 0.06 * (src.vet || 0)), 30, 115), vet: src.vet || 0,
         morale: 0, fatigue: src.fatigue || 0, formation: bt.forms[0], wantForm: null, formT: 0,
         state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
         kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
-        fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1),
+        fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1) * (1 + 0.05 * (src.vet || 0)),
         takeMul: g ? 1 - (g.def - 3) * 0.025 : 1
       };
       u.morale = u.baseMorale;
@@ -2647,14 +2733,49 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
     record() {
       if (!this.recStatic) this.recStatic = this.units.map((u) => ({ id: u.id, side: u.side, type: u.type, cls: u.cls, faction: u.faction, name: u.name, max: u.max, baseMorale: u.baseMorale, w: u.w, d: u.d, gen: u.gen, wantForm: null, formation: u.formation, state: 'idle', men: u.men, morale: u.morale, fatigue: 0, x: u.x, y: u.y, facing: u.facing }));
-      if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
+      if (this.rec.length < 900) this.rec.push(this.units.map((u) => [u.x, u.y, u.facing, u.men, u.state === 'routing' ? 1 : u.state === 'fighting' ? 2 : 0, u.dead ? 1 : 0, u.fled ? 1 : 0, u.formation, u.morale]));
+    }
+
+    // Visible fire: muzzle flashes, tracer dashes, round shot, impacts
+    fireVolley(u, tgt) {
+      const ca = Math.cos(u.facing), sa = Math.sin(u.facing);
+      const mx = u.x + ca * (u.d / 2 + 3), my = u.y + sa * (u.d / 2 + 3);
+      if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
+      const room = this.proj.length < 650;
+      if (u.cls === 'art') {
+        const guns = clamp(Math.ceil(u.men / 10), 1, 8);
+        for (let g = 0; g < guns && room; g++) {
+          const py = guns === 1 ? 0 : ((g + 0.5) / guns - 0.5) * u.w;
+          const x0 = mx - sa * py, y0 = my + ca * py;
+          const x1 = tgt.x + (rnd() - 0.5) * tgt.w * 0.7, y1 = tgt.y + (rnd() - 0.5) * tgt.d * 0.7;
+          const dist = Math.hypot(x1 - x0, y1 - y0);
+          this.proj.push({ kind: 'ball', x0, y0, x1, y1, t: 0, delay: g * 0.08 + rnd() * 0.12, dur: Math.max(0.25, dist / 300) });
+          this.puffs.push({ x: x0, y: y0, t: 0, life: 0.18, r: 9, c: 'rgba(255,215,120,', a: 0.9, nd: true });
+          this.puffs.push({ x: x0 + ca * 3, y: y0 + sa * 3, t: 0, life: 4.5, r: 12, c: 'rgba(235,235,235,' });
+        }
+      } else {
+        const n = clamp(Math.round(u.men / 55), 3, 14);
+        for (let i = 0; i < n && room; i++) {
+          const py = (rnd() - 0.5) * u.w;
+          const x0 = mx - sa * py, y0 = my + ca * py;
+          const x1 = tgt.x + (rnd() - 0.5) * tgt.w * 0.7, y1 = tgt.y + (rnd() - 0.5) * tgt.d * 0.7;
+          const dist = Math.hypot(x1 - x0, y1 - y0);
+          const delay = rnd() * 0.45;
+          this.proj.push({ kind: 'bullet', x0, y0, x1, y1, t: 0, delay, dur: Math.max(0.12, dist / 480) });
+          if (i % 3 === 0) this.puffs.push({ x: x0, y: y0, t: -delay, life: 0.14 + delay, r: 4.5, c: 'rgba(255,225,140,', a: 0.9, nd: true });
+        }
+        this.puffs.push({ x: mx + ca * 4, y: my + sa * 4, t: 0, life: 2.4, r: 8, c: 'rgba(235,235,235,' });
+      }
+      this.shots.push({ x0: mx, y0: my, x1: tgt.x, y1: tgt.y, t: 0, art: u.cls === 'art' });
     }
 
     step(dt) {
       this.t += dt;
       this.recAcc += dt; if (this.recAcc >= 1) { this.recAcc -= 1; this.record(); }
       for (const g of [0, 1]) this.rallyCd[g] = Math.max(0, this.rallyCd[g] - dt);
-      const us = this.units;
+      // update in random order each tick so neither side gets a first-mover advantage
+      const us = this.units.slice();
+      for (let i = us.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = us[i]; us[i] = us[j]; us[j] = tmp; }
       // AI
       this.aiTimer = (this.aiTimer || 0) - dt;
       if (this.aiTimer <= 0) { this.aiTimer = 0.6; this.aiThink(1); if (this.spec.aiBothSides) this.aiThink(0); }
@@ -2668,7 +2789,21 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       for (const p of this.puffs) p.t += dt;
       this.puffs = this.puffs.filter((p) => p.t < p.life);
       for (const s of this.shots) s.t += dt;
-      this.shots = this.shots.filter((s) => s.t < 0.35);
+      this.shots = this.shots.filter((s) => s.t < 0.7);
+      for (const p of this.proj) {
+        p.t += dt;
+        if (!p.hit && p.t >= p.delay + p.dur) {
+          p.hit = true;
+          if (p.kind === 'ball') {
+            this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 1.3, r: 11, c: 'rgba(140,105,65,', a: 0.7 });
+            this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 2.2, r: 9, c: 'rgba(95,95,95,', a: 0.5 });
+            for (let i = 0; i < 7; i++) { const a = rnd() * TAU, v = 30 + rnd() * 50; this.sparks.push({ x: p.x1, y: p.y1, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: 0.5 + rnd() * 0.3 }); }
+          } else this.puffs.push({ x: p.x1, y: p.y1, t: 0, life: 0.45, r: 3.2, c: 'rgba(215,180,120,', a: 0.8, nd: true });
+        }
+      }
+      this.proj = this.proj.filter((p) => p.t < p.delay + p.dur + 0.05);
+      for (const q of this.sparks) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.94; q.vy *= 0.94; }
+      this.sparks = this.sparks.filter((q) => q.t < q.life);
       this.checkEnd();
     }
 
@@ -2738,7 +2873,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
-      if (u.order) {
+      if (u.order && !melee) {
         let tx = null, ty = null, stopDist = 2;
         if (u.order.type === 'move') { tx = u.order.x; ty = u.order.y; }
         else if (u.order.type === 'attack') {
@@ -2783,7 +2918,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly separation
       for (const f of this.units) {
-        if (f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
+        if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
         const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
         const gp = this.gap(u, f);
         if (gp < 0 && d < 70) { const push = Math.min(-gp * 0.3, 14 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
@@ -2805,7 +2940,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
           u.impacted = true; u.cooldown = 5; if (NAP.audio) NAP.audio.sfx('charge', 1.2);
-          const shock = u.cls === 'cav' ? 0.8 : 0.22;
+          const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
           const instant = u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250);
           this.damage(melee, instant, u, melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1));
@@ -2866,11 +3001,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
               firing = true;
               u.reload -= dt;
               if (u.reload <= 0) {
-                u.reload = u.cls === 'art' ? 2.6 + rnd() : 3.5 + rnd() * 2;
-                const fx = u.x + Math.cos(u.facing) * (u.d / 2 + 4), fy = u.y + Math.sin(u.facing) * (u.d / 2 + 4);
-                if (NAP.audio) NAP.audio.sfx(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09);
-                this.puffs.push({ x: fx, y: fy, t: 0, life: u.cls === 'art' ? 4.5 : 2.6, r: u.cls === 'art' ? 13 : 8, c: 'rgba(235,235,235,' });
-                this.shots.push({ x0: fx, y0: fy, x1: tgt.x + (rnd() - 0.5) * tgt.w * 0.6, y1: tgt.y + (rnd() - 0.5) * tgt.d * 0.6, t: 0, art: u.cls === 'art' });
+                u.reload = u.cls === 'art' ? 3.0 + rnd() : 2.0 + rnd() * 1.1;
+                this.fireVolley(u, tgt);
               }
             }
           }
@@ -3156,7 +3288,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.fillStyle = 'rgba(40,80,40,0.35)'; ctx.beginPath(); ctx.ellipse(f.x, f.y, f.rx, f.ry, 0, 0, TAU); ctx.fill();
         for (const t of f.trees) { ctx.fillStyle = '#2f6a35'; ctx.beginPath(); ctx.arc(f.x + t[0] * f.rx, f.y + t[1] * f.ry, t[2], 0, TAU); ctx.fill(); ctx.fillStyle = '#3d8244'; ctx.beginPath(); ctx.arc(f.x + t[0] * f.rx - 2, f.y + t[1] * f.ry - 2, t[2] * 0.6, 0, TAU); ctx.fill(); }
       }
-      for (const v of T.villages) for (const h of v.hs) { ctx.fillStyle = '#b98f66'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], h[3]); ctx.fillStyle = '#8a4a3a'; ctx.fillRect(v.x + h[0] - h[2] / 2, v.y + h[1] - h[3] / 2, h[2], 3); }
+      for (const v of T.villages) this.drawVillage(ctx, v);
       for (const r of T.rocks) { ctx.fillStyle = '#7d786c'; ctx.beginPath(); for (let i = 0; i < 7; i++) { const a = r.a + i * TAU / 7, rr = r.r * (0.75 + 0.25 * ((i * 7) % 3) / 2); ctx.lineTo(r.x + Math.cos(a) * rr, r.y + Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#4a463d'; ctx.stroke(); }
       for (const w of T.works) {
         ctx.fillStyle = '#8a8478'; ctx.fillRect(w.x - w.w / 2, w.y - w.h / 2, w.w, w.h);
@@ -3192,6 +3324,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       for (const u of this.sel) if (u.order && u.order.type === 'move') { ctx.strokeStyle = 'rgba(255,255,255,0.65)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.x, u.order.y); ctx.stroke(); }
         else if (u.order && u.order.type === 'attack' && u.order.target) { ctx.strokeStyle = 'rgba(255,90,90,0.75)'; ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.order.target.x, u.order.target.y); ctx.stroke(); }
       ctx.setLineDash([]);
+      // terrain captions: constant on-screen size, drawn under the units
+      { const sk0 = this.fit * this.cam.z, fs = clamp(12 * devicePixelRatio / sk0, 5, 26);
+        if (sk0 > 0.3) { ctx.font = `italic 600 ${fs}px Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = fs / 4; ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          for (const c of this.terrain.caps) { ctx.fillStyle = c.c; ctx.strokeText(c.t, c.x, c.y); ctx.fillText(c.t, c.x, c.y); } } }
       // units (routing first so living units draw on top)
       const sorted = this.units.filter((u) => !u.fled && (u.cls === 'gen' ? !u.dead : !u.dead)).sort((a, b) => (a.state === 'routing' ? 0 : 1) - (b.state === 'routing' ? 0 : 1));
       const fog = (this.spec.weather === 'fog') && !this.replay && !this.over;
@@ -3200,14 +3336,28 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (fog && u.side === 1 && !mine.some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 400)) continue;
         this.drawUnit(ctx, u);
       }
-      // shots
-      for (const s of this.shots) {
-        const f = s.t / 0.35;
-        if (s.art) { ctx.strokeStyle = `rgba(30,30,30,${1 - f})`; ctx.lineWidth = 1.5; const px = s.x0 + (s.x1 - s.x0) * Math.min(1, f * 1.6), py = s.y0 + (s.y1 - s.y0) * Math.min(1, f * 1.6); ctx.beginPath(); ctx.moveTo(px - (s.x1 - s.x0) * 0.04, py - (s.y1 - s.y0) * 0.04); ctx.lineTo(px, py); ctx.stroke(); }
-        else { ctx.fillStyle = `rgba(255,240,180,${1 - f})`; for (let i = 0; i < 3; i++) { const q = (f + i * 0.12) % 1; ctx.fillRect(s.x0 + (s.x1 - s.x0) * q * 0.25 + i, s.y0 + (s.y1 - s.y0) * q * 0.25, 1.6, 1.6); } }
+      // aim dashes from the muzzle toward the target
+      ctx.setLineDash([3, 5]); ctx.lineWidth = 0.9;
+      for (const sh of this.shots) { const al = 0.5 * (1 - sh.t / 0.7); ctx.strokeStyle = sh.art ? `rgba(255,200,120,${al})` : `rgba(255,240,170,${al})`; ctx.beginPath(); ctx.moveTo(sh.x0, sh.y0); ctx.lineTo(sh.x1, sh.y1); ctx.stroke(); }
+      ctx.setLineDash([]);
+      // bullets (bright dashes) and round shot (dark ball with trail)
+      for (const p of this.proj) {
+        if (p.t < p.delay) continue;
+        const f = (p.t - p.delay) / p.dur; if (f > 1) continue;
+        const dx = p.x1 - p.x0, dy = p.y1 - p.y0, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+        const x = p.x0 + dx * f, y = p.y0 + dy * f;
+        if (p.kind === 'bullet') {
+          ctx.strokeStyle = 'rgba(255,240,170,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - ux * 26, y - uy * 26); ctx.lineTo(x, y); ctx.stroke();
+          ctx.strokeStyle = 'rgba(255,250,215,0.98)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x - ux * 9, y - uy * 9); ctx.lineTo(x, y); ctx.stroke();
+        } else {
+          ctx.strokeStyle = 'rgba(255,210,150,0.28)'; ctx.setLineDash([2, 5]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(p.x0, p.y0); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);
+          for (let i = 1; i <= 5; i++) { ctx.fillStyle = `rgba(40,40,40,${0.5 - i * 0.08})`; ctx.beginPath(); ctx.arc(x - ux * i * 5, y - uy * i * 5, 2.2 - i * 0.15, 0, TAU); ctx.fill(); }
+          ctx.fillStyle = '#16140f'; ctx.beginPath(); ctx.arc(x, y, 2.8, 0, TAU); ctx.fill(); ctx.strokeStyle = 'rgba(255,230,180,0.8)'; ctx.lineWidth = 0.7; ctx.stroke();
+        }
       }
+      for (const q of this.sparks) { ctx.fillStyle = `rgba(70,50,30,${1 - q.t / q.life})`; ctx.fillRect(q.x - 1, q.y - 1, 2, 2); }
       // smoke
-      for (const p of this.puffs) { const f = p.t / p.life; ctx.fillStyle = p.c + (0.55 * (1 - f)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x + f * 6, p.y - f * 8, p.r * (0.6 + f), 0, TAU); ctx.fill(); }
+      for (const p of this.puffs) { if (p.t < 0) continue; const f = p.t / p.life; ctx.fillStyle = p.c + ((p.a || 0.55) * (1 - f)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(p.x + (p.nd ? 0 : f * 6), p.y - (p.nd ? 0 : f * 8), p.r * (p.nd ? 0.8 + 0.5 * f : 0.6 + f), 0, TAU); ctx.fill(); }
       // selection box
       if (this.box) {
         const a = this.toWorld(this.box.x0, this.box.y0), b = this.toWorld(this.box.x1, this.box.y1);
@@ -3221,6 +3371,42 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // field border
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, FW, FH);
       this.drawWeather(ctx);
+    }
+
+    // A readable village: dirt road, cottages with pitched tiled roofs, a church, walled gardens and crop fields
+    drawVillage(ctx, v) {
+      ctx.save(); ctx.translate(v.x, v.y);
+      for (const f of v.fields) { // crop strips
+        const [fx, fy, fw, fh, kind] = f; ctx.fillStyle = ['rgba(212,190,98,0.75)', 'rgba(120,160,70,0.7)', 'rgba(170,140,90,0.7)'][kind]; ctx.fillRect(fx - fw / 2, fy - fh / 2, fw, fh);
+        ctx.strokeStyle = 'rgba(70,55,25,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); for (let yy = fy - fh / 2 + 4; yy < fy + fh / 2; yy += 4.5) { ctx.moveTo(fx - fw / 2, yy); ctx.lineTo(fx + fw / 2, yy); } ctx.stroke();
+        ctx.strokeStyle = 'rgba(80,60,30,0.7)'; ctx.strokeRect(fx - fw / 2, fy - fh / 2, fw, fh);
+      }
+      ctx.fillStyle = 'rgba(165,135,90,0.4)'; ctx.beginPath(); ctx.ellipse(0, 0, 78, 44, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#b79c6a'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-82, 0); ctx.lineTo(82, 0); ctx.stroke();
+      ctx.strokeStyle = '#d6c294'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-82, 0); ctx.lineTo(82, 0); ctx.stroke(); ctx.lineCap = 'butt';
+      for (const h of v.hs) {
+        const [hx, hy, hw, hh, alt] = h;
+        // garden fence
+        ctx.strokeStyle = 'rgba(90,65,35,0.7)'; ctx.setLineDash([2, 2]); ctx.lineWidth = 1; ctx.strokeRect(hx - hw / 2 - 4, hy - hh / 2 - 4, hw + 8, hh + 8); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(hx - hw / 2 + 2.5, hy - hh / 2 + 3.5, hw, hh);       // shadow
+        ctx.fillStyle = '#efe4c8'; ctx.fillRect(hx - hw / 2, hy - hh / 2, hw, hh);                           // walls
+        ctx.strokeStyle = '#6d5a3a'; ctx.lineWidth = 1; ctx.strokeRect(hx - hw / 2, hy - hh / 2, hw, hh);
+        const rc = alt ? ['#b8472e', '#97351f'] : ['#a0663a', '#7e4c28'];
+        ctx.fillStyle = rc[0]; ctx.fillRect(hx - hw / 2 + 1, hy - hh / 2 + 1, hw - 2, hh / 2 - 0.5);       // roof, lit side
+        ctx.fillStyle = rc[1]; ctx.fillRect(hx - hw / 2 + 1, hy, hw - 2, hh / 2 - 1);                         // roof, shaded side
+        ctx.strokeStyle = 'rgba(40,20,10,0.8)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(hx - hw / 2 + 1, hy); ctx.lineTo(hx + hw / 2 - 1, hy); ctx.stroke(); // ridge
+        ctx.fillStyle = '#5a5a58'; ctx.fillRect(hx + hw / 2 - 5, hy - hh / 2 + 2, 3, 3);                       // chimney
+        ctx.fillStyle = '#3a2a1a'; ctx.fillRect(hx - 1.5, hy + hh / 2 - 1, 3, 2);                             // door
+      }
+      // church
+      const c = v.church;
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(c.x - 12 + 3, c.y - 8 + 3, 26, 17);
+      ctx.fillStyle = '#d8d2c2'; ctx.fillRect(c.x - 13, c.y - 8, 26, 16); ctx.strokeStyle = '#4a4a46'; ctx.lineWidth = 1; ctx.strokeRect(c.x - 13, c.y - 8, 26, 16);
+      ctx.fillStyle = '#5d6670'; ctx.fillRect(c.x - 12, c.y - 7, 24, 14); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(c.x - 12, c.y); ctx.lineTo(c.x + 12, c.y); ctx.stroke();
+      ctx.fillStyle = '#c9c2b0'; ctx.fillRect(c.x - 20, c.y - 5, 9, 10); ctx.strokeRect(c.x - 20, c.y - 5, 9, 10);       // tower
+      ctx.fillStyle = '#3f464e'; ctx.beginPath(); ctx.moveTo(c.x - 20, c.y - 5); ctx.lineTo(c.x - 11, c.y - 5); ctx.lineTo(c.x - 15.5, c.y + 5); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(c.x - 15.5, c.y - 11); ctx.lineTo(c.x - 15.5, c.y - 5); ctx.moveTo(c.x - 18, c.y - 8.5); ctx.lineTo(c.x - 13, c.y - 8.5); ctx.stroke(); // cross
+      ctx.restore();
     }
 
     drawWeather(ctx) {
@@ -3249,14 +3435,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
 
     // Individual soldiers: the block thins out, shrinks and frays as men fall
-    drawFigures(ctx, u, w, d, fc, sk, r, sel, flash) {
+    drawFigures(ctx, u, w, d, fc, sk, r, sel, wh) {
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
       const wob = (routing ? 1.6 : 0) + (1 - moraleF) * 1.1;          // nervous shuffling
       const frayed = (1 - r) * 3.2 + (1 - moraleF) * 1.4 + (routing ? 2.5 : 0); // looseness of the ranks
       const detail = sk > 2.2;
       // faint hull so the unit still reads as one body (fades as it dies)
-      ctx.fillStyle = flash ? 'rgba(255,255,255,0.4)' : fc.color; ctx.globalAlpha *= 0.16 + 0.14 * r;
+      ctx.fillStyle = tint(fc.color, wh); ctx.globalAlpha *= 0.16 + 0.14 * r + 0.25 * wh;
       ctx.fillRect(-d / 2, -w / 2, d, w); ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
+      if (wh > 0) { // white halo: pulses while locked in melee, solid once broken (readable on pale nations too)
+        ctx.save(); ctx.globalAlpha = Math.min(1, 0.25 + wh * 0.9); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6 + wh * 2.4; ctx.shadowColor = '#fff'; ctx.shadowBlur = 6 + wh * 10;
+        ctx.strokeRect(-d / 2 - 2.5, -w / 2 - 2.5, d + 5, w + 5); ctx.restore();
+      }
       if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail); }
       else {
         const per = u.cls === 'cav' ? 10 : 16, maxF = u.cls === 'cav' ? 26 : 50;
@@ -3279,7 +3469,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           if (wob > 0.05) { x += Math.sin(t * 4 + j * 1.7) * wob * 0.5; y += Math.cos(t * 3.3 + j * 2.1) * wob * 0.5; }
           ctx.fillStyle = 'rgba(0,0,0,0.55)';
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8 + 0.8, fs + 0.8); else ctx.fillRect(x - fs / 2 - 0.4, y - fs / 2 - 0.4, fs + 0.8, fs + 0.8);
-          ctx.fillStyle = flash ? '#fff' : (k[3] < 0.1 && r < 0.6 ? 'rgba(80,80,80,0.9)' : fc.color); // some men already look worn
+          ctx.fillStyle = tint(k[3] < 0.1 && r < 0.6 ? '#505050' : fc.color, wh); // some men already look worn
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8, fs); else ctx.fillRect(x - fs / 2, y - fs / 2, fs, fs);
           if (detail) {
             ctx.fillStyle = u.type === 'guard' ? '#f0c040' : '#e8e0d0'; ctx.fillRect(x - 0.6, y - 0.6, 1.2, 1.2);
@@ -3330,19 +3520,21 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const sk = this.fit * this.cam.z; // device px per world unit
       const r = clamp(u.men / u.max, 0, 1);
       const sel = this.sel.has(u);
-      const flash = u.state === 'routing' && Math.floor(this.t * 4) % 2 === 0;
+      // slow white pulse while locked in melee; solid white once the regiment breaks
+      const wh = u.state === 'routing' ? 1 : u.state === 'fighting' ? 0.12 + 0.5 * (0.5 + 0.5 * Math.sin(this.t * 3.2 + u.id)) : 0;
       ctx.rotate(u.facing);
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
       if (Math.max(w, d) * sk < 46) {
         // far zoom: simple block, kept visible
         const boost = Math.min(3, Math.max(1, 7 / (Math.min(w, d) * sk)));
         const K = this.keys4(u), segs = 9, sw = w * boost / segs, keep = r > 0.85 ? 2 : 0.25 + 0.75 * r;
-        ctx.fillStyle = flash ? '#fff' : fc.color;
+        ctx.fillStyle = tint(fc.color, wh);
         for (let i = 0; i < segs; i++) { if (K[i][0] > keep) continue; ctx.fillRect(-d / 2 + (K[i][1] - 0.5) * (1 - r) * 3, -w * boost / 2 + i * sw, d, sw * 0.92); }
+        if (wh > 0) { ctx.save(); ctx.strokeStyle = '#fff'; ctx.globalAlpha = Math.min(1, 0.3 + wh * 0.9); ctx.lineWidth = (2 + wh * 2) / Math.max(0.5, sk); ctx.strokeRect(-d / 2 - 2, -w * boost / 2 - 2, d + 4, w * boost + 4); ctx.restore(); }
         ctx.strokeStyle = sel ? '#fff' : 'rgba(0,0,0,0.8)'; ctx.lineWidth = (sel ? 2.4 : 1.1) / Math.max(0.5, sk);
         if (sel || r > 0.85) ctx.strokeRect(-d / 2, -w * boost / 2, d, w * boost);
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
-      } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, flash);
+      } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
       // bars and label scale gently with zoom so they stay readable
@@ -3357,7 +3549,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (sk > 0.5) {
         ctx.save(); ctx.translate(0, ext + 3 * us); ctx.scale(us, us);
         ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 2.5; ctx.font = '9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        const label = String(Math.round(u.men));
+        const label = String(Math.round(u.men)) + (u.vet ? ' ' + '\u2605'.repeat(u.vet) : '');
         ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
         ctx.restore();
       }
@@ -3380,21 +3572,21 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom (0.4x-8x) &middot; Home: fit &middot; F: focus selection &middot; Middle-drag or arrows: pan &middot; Space: pause</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; 1-4: formations &middot; C: charge &middot; R: rally &middot; Space: pause &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
           <div class="b-btns">
-            <button data-f="line" title="Line (Q)">Line <kbd>Q</kbd></button>
-            <button data-f="column" title="Column (W)">Column <kbd>W</kbd></button>
-            <button data-f="square" title="Square (E)">Square <kbd>E</kbd></button>
-            <button data-f="skirmish" title="Skirmish (R)">Skirmish <kbd>R</kbd></button>
-            <button data-a="charge" title="Charge (X)">Charge <kbd>X</kbd></button>
-            <button data-a="halt" title="Halt (H)">Halt <kbd>H</kbd></button>
-            <button data-a="rally" id="b-rally" title="Rally (G)">Rally <kbd>G</kbd></button>
+            <button data-f="line" data-tip="<b>Line</b> (key 1)<br>Best firepower. Slow to move. Vulnerable on the flanks and rear.">Line <kbd>1</kbd></button>
+            <button data-f="column" data-tip="<b>Column</b> (key 2)<br>Fast marching, poor firepower. Weak against guns and cavalry. Use it to cross open ground.">Column <kbd>2</kbd></button>
+            <button data-f="square" data-tip="<b>Square</b> (key 3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>3</kbd></button>
+            <button data-f="skirmish" data-tip="<b>Skirmish</b> (key 4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>4</kbd></button>
+            <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
+            <button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
+            <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
-            <button data-sp="1" class="b-sp on">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
+            <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp on" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
             <span class="b-sep"></span><button data-z="out" title="Zoom out (PageDown)">&minus;</button><span id="b-zoom" class="b-zoomlbl">100%</span><button data-z="in" title="Zoom in (PageUp)">+</button><button data-z="fit" title="Fit whole field (Home)">Fit</button><button data-z="focus" title="Focus selection (F)">Focus</button>
             <button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
@@ -3411,7 +3603,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with Q/W/E/R, then press <b>Space</b> to begin.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with keys 1-4, then press <b>Space</b> to begin.</p>`;
     }
 
     bind() {
@@ -3482,12 +3674,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const k = e.key.toLowerCase();
         this.keys[k] = true;
         if (k === ' ') { this.togglePause(); e.preventDefault(); }
-        else if (k === 'q') this.setForm('line'); else if (k === 'w' && !e.ctrlKey) this.setForm('column');
-        else if (k === 'e') this.setForm('square'); else if (k === 'r') this.setForm('skirmish');
-        else if (k === 'x') this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'g') this.rally();
+        else if (k === '1') this.setForm('line'); else if (k === '2') this.setForm('column');
+        else if (k === '3') this.setForm('square'); else if (k === '4') this.setForm('skirmish');
+        else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
-        else if (k === '+' || k === '=') this.setSpeed(Math.min(4, this.speed * 2)); else if (k === '-') this.setSpeed(Math.max(1, this.speed / 2));
+        else if (k === '+' || k === '=') this.stepSpeed(1); else if (k === '-') this.stepSpeed(-1);
         else if (k === 'tab') { e.preventDefault(); }
         else if (k === 'pageup') { this.zoomBy(1.4); e.preventDefault(); } else if (k === 'pagedown') { this.zoomBy(1 / 1.4); e.preventDefault(); }
         else if (k === 'home') { this.zoomFit(); e.preventDefault(); } else if (k === 'f') { this.focusSelection(); }
@@ -3577,6 +3769,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       this.root.querySelector('#b-banner').classList.toggle('hide', !this.paused ? true : this.t > 0);
       this.root.querySelector('#b-help').classList.add('hide');
     }
+    stepSpeed(d) { const L = [0.25, 0.5, 1, 2, 4]; const i = L.indexOf(this.speed); this.setSpeed(L[Math.max(0, Math.min(L.length - 1, (i < 0 ? 1 : i) + d))]); }
     setSpeed(s) { this.speed = s; this.root.querySelectorAll('.b-sp').forEach((b) => b.classList.toggle('on', +b.dataset.sp === s)); }
     withdraw() {
       if (this.over) return;
@@ -3618,11 +3811,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (this.camGoal) { const g = this.camGoal, k = 1 - Math.exp(-dt * 10); this.cam.x += (g.x - this.cam.x) * k; this.cam.y += (g.y - this.cam.y) * k; if (Math.hypot(g.x - this.cam.x, g.y - this.cam.y) < 1) this.camGoal = null; }
       // camera keys
       const ks = 520 * dt / this.cam.z;
-      if (this.keys.arrowleft || this.keys.arrowright || this.keys.arrowup || this.keys.arrowdown || this.keys.a || this.keys.d || this.keys.s) this.camGoal = null;
+      if (this.keys.arrowleft || this.keys.arrowright || this.keys.arrowup || this.keys.arrowdown || this.keys.a || this.keys.d || this.keys.s || this.keys.w) this.camGoal = null;
       if (this.keys.a && !this.keys.control) this.cam.x -= ks; if (this.keys.d) this.cam.x += ks;
       if (this.keys.arrowleft) this.cam.x -= ks; if (this.keys.arrowright) this.cam.x += ks;
       if (this.keys.arrowup) this.cam.y -= ks; if (this.keys.arrowdown) this.cam.y += ks;
-      if (this.keys.s) this.cam.y += ks; if (this.keys.w && false) this.cam.y -= ks;
+      if (this.keys.s) this.cam.y += ks; if (this.keys.w) this.cam.y -= ks;
       this.cam.x = clamp(this.cam.x, 0, FW); this.cam.y = clamp(this.cam.y, 0, FH);
       if (this.replay) this.stepReplay(dt);
       if (!this.paused && !this.over) {
@@ -3740,7 +3933,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         u.x = a[0] + (c[0] - a[0]) * k; u.y = a[1] + (c[1] - a[1]) * k;
         let df = c[2] - a[2]; while (df > Math.PI) df -= TAU; while (df < -Math.PI) df += TAU;
         u.facing = a[2] + df * k;
-        u.men = a[3] + (c[3] - a[3]) * k; u.state = a[4] ? 'routing' : 'idle'; u.dead = !!a[5]; u.fled = !!a[6]; u.formation = a[7]; u.morale = a[8];
+        u.men = a[3] + (c[3] - a[3]) * k; u.state = a[4] === 1 ? 'routing' : a[4] === 2 ? 'fighting' : 'idle'; u.dead = !!a[5]; u.fled = !!a[6]; u.formation = a[7]; u.morale = a[8];
         if (u.cls === 'gen') { u.w = u.d = 14; } else [u.w, u.d] = dims(u);
       });
       this.t = r.f;
@@ -3815,8 +4008,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     { id: 'camera', title: 'Move around the map', manual: true, text: `<b>Drag</b> with the left mouse button to pan, use the <b>mouse wheel</b> to zoom, or click the <b>minimap</b> at the bottom left to jump anywhere. Province names appear as you zoom in. Each coloured region belongs to one nation; thick dark lines are national borders.` },
     { id: 'selprov', title: 'Select a province', text: `Click <b>Paris</b> (marked with a pulsing ring). The panel on the right shows what the province produces, its fortifications, its unrest, and what you can recruit or build there.`, pulse: () => 'paris', check: (c) => c.ui.sel.prov === 'paris' && !c.ui.sel.army },
     { id: 'panel', title: 'Gold, manpower and unrest', manual: true, text: `<b>Income</b> (gold) pays for regiments and buildings. <b>Manpower</b> is the soldiers you can recruit. Both are shown in the top bar. <b>Unrest</b> rises in conquered lands that you do not garrison, and above 60% it cuts income and eventually triggers a revolt. Use the <i>Policy</i> setting to trade tax for order.`, hl: ['#polpick'] },
-    { id: 'recruit', title: 'Raise a regiment', text: `Click <b>Line Infantry</b> under <i>Recruit</i>. It costs gold and manpower and arrives in a turn or two. Mix infantry, cavalry and artillery for the best results.`, hl: ['[data-rec="line"]'], check: (c) => c.S.provinces.paris.queue.length > 0 || c.S.armies.some((a) => a.prov === 'paris' && a.owner === c.S.player && a.units.length > 4) },
-    { id: 'build', title: 'Invest in the province', text: `Now click <b>Market</b> under <i>Construction</i> (+50% income). Barracks boost manpower, and Fortifications make sieges last longer.`, hl: ['[data-bld="market"]'], check: (c) => !!c.S.provinces.paris.build || c.S.provinces.paris.market > 0 },
+    { id: 'recruit', title: 'Raise a regiment', text: `Click <b>Line Infantry</b> under <i>Recruit</i>. It costs gold and manpower and arrives in a turn or two. Mix infantry, cavalry and artillery for the best results. Hover any unit to see what it does; elite units (Grenadiers, Guard, Lancers...) need the right building in the province.`, hl: ['[data-rec="line"]'], check: (c) => c.S.provinces.paris.queue.length > 0 || c.S.armies.some((a) => a.prov === 'paris' && a.owner === c.S.player && a.units.length > 4) },
+    { id: 'build', title: 'Invest in the province', text: `Now click <b>Market</b> under <i>Construction</i> (+50% income). Hover each building to see what it does: Barracks unlock Grenadiers, Stables unlock heavy cavalry, an Arsenal gives cheaper guns, and a Military Academy unlocks the Guard and trains veterans.`, hl: ['[data-bld="market"]'], check: (c) => !!c.S.provinces.paris.build || c.S.provinces.paris.market > 0 },
     { id: 'selarmy', title: 'Select an army', text: `Click the flag in <b>Normandy</b> showing a gold star &mdash; that is Napoleon's Grande Armee. You may need to zoom in a little. The side panel lists its regiments and general.`, pulse: () => 'normandy', check: (c) => { const a = c.S.armies.find((x) => x.id === c.ui.sel.army); return a && a.prov === 'normandy' || (a && a.owner === c.S.player && a.units.length >= 15); } },
     { id: 'army', title: 'Armies, generals and supply', manual: true, text: `Armies hold up to 20 regiments. A <b>general</b> boosts the whole army. Armies far from friendly soil run low on <b>supply</b> and suffer attrition, and <b>forced marches</b> (a checkbox) move two provinces per turn at the cost of men and fatigue. Tired armies fight worse. You can split, merge and disband regiments in the panel.` },
     { id: 'move', title: 'March!', text: `With the army selected, <b>right-click Belgium</b> to order a march there. A dashed line previews the route. Armies advance one province per turn, and cannot enter neutral nations' lands without a declaration of war.`, pulse: () => 'belgium', check: (c) => { const a = c.S.armies.find((x) => x.id === c.ui.sel.army); return a && (a.path.length > 0 || a.prov === 'belgium'); } },
@@ -3825,17 +4018,17 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     { id: 'sea', title: 'Sea routes', manual: true, text: `There are no fleets in Napworld. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
     { id: 'battle', title: 'Battles', manual: true, practice: true, text: `When armies meet you can <b>auto-resolve</b> or <b>fight</b> the battle yourself. Fighting lets you deploy your regiments, use formations and flank the enemy. Weather, time of day, terrain and fortifications all matter. Want to try? Hit <b>Practice battle</b> below &mdash; it won't affect your campaign.` },
     { id: 'siege', title: 'Sieges, assaults and rebellion', manual: true, text: `To take a province, move an army in and hold it. Fortified provinces need several turns of siege (artillery speeds this up), or you can <b>storm the walls</b> at a cost in men. Conquered provinces need a garrison or they will revolt, so do not spread your army too thin.` },
-    { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Press <b>How to play (?)</b> any time for a reminder. Vive l'Empereur!` }
+    { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Press <b>How to play (?)</b> any time for a reminder. For a first real campaign we suggest <b>Russia</b> (the gentlest start) or <b>Britain</b> (safe and rich); France, the nation in this tutorial, is much harder. Vive l'Empereur!` }
   ];
 
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
-    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use Q/W/E/R to change formation. Press <b>Space</b> when ready.' },
+    { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use keys 1-4 to change formation (1 Line, 2 Column, 3 Square, 4 Skirmish). Press <b>Space</b> when ready.' },
     { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 95 px) and fire. Artillery fires on its own up to 330 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
     { id: 'range', when: (B) => B.t >= 25 && B.enemies(0).some((u) => B.friends(0).some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 160)), text: '<b>Firefights.</b> Units in <b>line</b> shoot best, <b>columns</b> move fast but shoot poorly. Shots from the <b>flank or rear</b> hurt far more and shake morale, so try to turn the enemy line.' },
-    { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>E</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },
-    { id: 'rout', when: (B) => B.friends(0).some((u) => u.state === 'routing'), text: '<b>A regiment is breaking.</b> Routing units flee and spread panic. Keep your general (the star) close to them and press <b>G</b> to rally them. Generals also boost the morale and firepower of nearby units.' },
-    { id: 'win', when: (B) => B.t > 60, text: 'Break the enemy army: when most of their regiments are routed or destroyed you win. You can speed up time with + / &minus;, or pause with Space to plan.' }
+    { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>3</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },
+    { id: 'rout', when: (B) => B.friends(0).some((u) => u.state === 'routing'), text: '<b>A regiment is breaking.</b> Routing units flee and spread panic. Keep your general (the star) close to them and press <b>R</b> to rally them. Generals also boost the morale and firepower of nearby units.' },
+    { id: 'win', when: (B) => B.t > 60, text: 'Break the enemy army: when most of their regiments are routed or destroyed you win. The battle starts at half speed. Use the speed buttons (&frac14;x to 4x) or + / &minus; to change it, and Space to pause and plan.' }
   ];
 
   G.practiceSpec = function () {
@@ -3865,7 +4058,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   const SAVE_KEY = 'napworld-save-v1', AUTOSAVE_KEY = 'napworld-autosave-v1', SUMMARY_KEY = 'napworld-summary-off';
 
   const ui = (NAP.ui = {
-    sel: { prov: null, army: null }, cam: { x: 525, y: 555, z: 0.8 }, hover: null, opts: {}, picked: 'france', difficulty: 'normal', minor: false
+    sel: { prov: null, army: null }, cam: { x: 525, y: 555, z: 0.8 }, hover: null, opts: {}, picked: 'russia', difficulty: 'normal', minor: false
   });
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
@@ -3902,12 +4095,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
-      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div><div class="cards">`;
-    const order = ['france', 'britain', 'austria', 'prussia', 'russia', 'ottoman', 'spain', 'portugal', 'sweden', 'denmark', 'naples', 'bavaria'];
+      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div>
+      <div class="guidebox"><b>Which nation should I pick?</b> New to the game? Start with <b>Russia</b>: it is huge, far from the early fighting, and nobody can reach you for months, so you can learn at your own pace. <b>Britain</b> is a relaxed second choice (rich, safe on an island, few battles at first). Each card shows a difficulty rating from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span> and a one-line reason. Hover a card for tips. The tutorial campaign teaches the controls using France, which is a <i>hard</i> nation to win with.</div>
+      <div class="cards">`;
+    const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
     for (const id of order) {
-      const f = F(id), st = startFactionStats(id), d = DIFF[id] || 3;
-      html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}"><h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div><p>${esc(f.desc)}</p>
-        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span><span class="diff">${'★'.repeat(6 - d)}${'☆'.repeat(d - 1)} <span class="muted">ease</span></span></div></div>`;
+      const f = F(id), st = startFactionStats(id), g = NAP.NATION_GUIDE[id];
+      const tips = '<b>' + esc(f.name) + '</b><br>' + g.tips.map((t) => '\u2022 ' + esc(t)).join('<br>');
+      html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}" data-tip="${esc(tips)}">${g.ribbon ? `<span class="ribbon">${esc(g.ribbon)}</span>` : ''}
+        <h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div>
+        <div><span class="tier tier-${g.tier.toLowerCase()}">${g.tier}</span>${g.war ? '<span class="tag war" style="margin-left:6px">starts at war</span>' : '<span class="tag peace" style="margin-left:6px">starts at peace</span>'}</div>
+        <p>${esc(f.desc)}</p><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
+        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;
     $('#start').innerHTML = html; $('#start').hidden = false;
@@ -4021,6 +4220,34 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const ps = S().provinces[p.id];
     return `${esc(p.name)} — ${esc(F(ps.owner).adj)}`;
   }
+  const dots = (v, max) => '\u25CF'.repeat(Math.max(0, Math.min(max, v))) + '\u25CB'.repeat(max - Math.max(0, Math.min(max, v)));
+  function unitTip(t, ps, err, cost) {
+    const u = U[t], bt = (NAP.BT || {})[t] || {};
+    const fire = u.cls === 'cav' ? 0 : u.cls === 'art' ? (t === 'hart' ? 4 : 5) : Math.round((bt.fire || 0) / 0.0085 * 5);
+    const melee = Math.max(1, Math.round((bt.melee || 0) / 0.009 * 5));
+    let h = `<b>${u.name}</b><br>${u.desc}<br><span class="ttk">Men ${u.men} \u00B7 Cost ${cost}g \u00B7 Upkeep ${u.upkeep}/turn \u00B7 Trains in ${u.time} turn${u.time > 1 ? 's' : ''}</span>`;
+    h += `<br><span class="ttk">Firepower ${dots(fire, 5)} \u00B7 Melee ${dots(melee, 5)} \u00B7 Morale ${u.morale} \u00B7 Speed ${u.speed}</span>`;
+    if (u.needs) h += `<br>${ps[u.needs] ? '\u2714' : '\u{1F512}'} Needs a <b>${NAP.BUILDINGS[u.needs].name}</b> in this province.`;
+    if (ps.academy) h += '<br>\u2605 Raised as veterans (Military Academy).';
+    if (u.cls === 'art' && ps.arsenal) h += '<br>Arsenal: 20% cheaper.'; if (u.cls === 'cav' && ps.stables) h += '<br>Stables: 10% cheaper.';
+    if (err && !String(err).startsWith('Requires')) h += `<br><span class="bad">${err}</span>`;
+    return h;
+  }
+  function buildingTip(b, ps, err) {
+    const bd = NAP.BUILDINGS[b], d = NAP.world.byId[ps.id];
+    let h = `<b>${bd.name}</b><br>${bd.desc}<br><span class="ttk">Cost ${bd.cost}g \u00B7 Build time ${bd.time} turns</span>`;
+    if (b === 'market') h += `<br>In this province: about <b>+${Math.round(d.income * 8 * 0.5)} gold</b> per turn.`;
+    if (b === 'barracks') h += `<br>In this province: about <b>+${Math.round(d.manpower * 25 * 0.5)} men</b> per turn.`;
+    const unlocks = Object.keys(U).filter((t) => U[t].needs === b).map((t) => U[t].name);
+    if (unlocks.length) h += `<br>Unlocks: <b>${unlocks.join(', ')}</b>`;
+    const needed = Object.keys(NAP.BUILDINGS).filter((k) => NAP.BUILDINGS[k].req === b).map((k) => NAP.BUILDINGS[k].name);
+    if (needed.length) h += `<br>Required for: ${needed.join(', ')}`;
+    if (bd.req) h += `<br>${ps[bd.req] ? '\u2714' : '\u{1F512}'} Requires <b>${NAP.BUILDINGS[bd.req].name}</b> first.`;
+    if (b === 'fort') h += `<br>Currently level ${ps.fort} of ${bd.max}.`;
+    if (err) h += `<br><span class="${err === 'Already built' ? 'good' : 'bad'}">${err}</span>`;
+    return h;
+  }
+
   function renderSide() {
     const el = $('#side'), s = S();
     const army = ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null;
@@ -4035,7 +4262,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <div class="kv"><span>Income</span><b>${fmt(C.provIncome(ps))}/turn</b></div>
       <div class="kv"><span>Manpower</span><b>+${fmt(p.manpower * 25 * (1 + 0.5 * ps.barracks))}/turn</b></div>
       <div class="kv"><span>Fortification</span><b>${ps.fort ? '♖'.repeat(ps.fort) : 'None'}</b></div>
-      <div class="kv"><span>Buildings</span><b>${[ps.market ? 'Market' : '', ps.barracks ? 'Barracks' : ''].filter(Boolean).join(', ') || '—'}</b></div>
+      <div class="kv"><span>Buildings</span><b style="text-align:right">${Object.keys(NAP.BUILDINGS).filter((b) => b !== 'fort' && ps[b]).map((b) => NAP.BUILDINGS[b].name).join(', ') || '—'}</b></div>
       <div class="kv"><span>Unrest</span><b class="${(ps.unrest || 0) >= 60 ? 'bad' : (ps.unrest || 0) >= 30 ? 'warn' : ''}">${Math.round(ps.unrest || 0)}%</b></div><div class="bar"><i style="width:${Math.round(ps.unrest || 0)}%"></i></div>
       ${!mine && C.atWar(s.player, owner) ? `<div class="kv"><span>Garrison</span><b>~${fmt(C.garrisonStrength(pid))} men</b></div>` : ''}
       ${ps.siege ? `<div class="kv bad"><span>Under siege</span><b>${ps.siege.progress}/${ps.fort + 1}</b></div>` : ''}</div>`;
@@ -4044,16 +4271,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     if (mine) {
       html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option></select></div>`;
-      html += `<div class="sec"><h4>Recruit</h4>`;
-      for (const t in U) {
-        const u = U[t], err = C.recruitCheck(pid, t);
-        html += `<button class="ubtn" data-rec="${t}" ${err ? 'disabled title="' + esc(err) + '"' : ''}><span>${u.name} <small class="muted">(${u.men})</small></span><span>${u.cost}g · ${u.time}t</span></button>`;
-      }
+      const unitRow = (t) => {
+        const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs];
+        return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
+      };
+      html += `<div class="sec"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
+      html += Object.keys(U).filter((t) => !U[t].needs).map(unitRow).join('');
+      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs).map(unitRow).join('');
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
-      html += `</div><div class="sec"><h4>Construction</h4>`;
-      for (const b in NAP.BUILDINGS) {
-        const bd = NAP.BUILDINGS[b], err = C.buildCheck(pid, b);
-        html += `<button class="ubtn" data-bld="${b}" ${err ? 'disabled title="' + esc(err) + '"' : `title="${bd.desc}"`}><span>${bd.name}</span><span>${bd.cost}g · ${bd.time}t</span></button>`;
+      html += `</div><div class="sec"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
+      for (const b of Object.keys(NAP.BUILDINGS)) {
+        const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
+        html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
       }
       if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
       html += `</div>`;
@@ -4092,7 +4321,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
-      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
+      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
     });
     html += `</div>`;
     if (mine) {
@@ -4134,7 +4363,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
-      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, Q/W/E/R for Line/Column/Square/Skirmish, X to charge, H to halt, G to rally with your general, Space to pause. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
+      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, keys 1-4 for Line/Column/Square/Skirmish, C to charge, H to halt, R to rally with your general, Space to pause. Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
   }
   function relBar(v) {
@@ -4452,6 +4681,25 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);
     drawMinimap();
   }
+
+  // ------------------------------------------------------------------ tooltips (data-tip, and any title attribute)
+  const tt = document.createElement('div'); tt.id = 'tt'; tt.hidden = true; $('#app').appendChild(tt);
+  const posTip = (e) => {
+    const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    tt.style.left = Math.max(6, x) + 'px'; tt.style.top = Math.max(6, y) + 'px';
+  };
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip],[title]');
+    if (!el) { tt.hidden = true; return; }
+    if (el.hasAttribute('title')) { if (!el.dataset.tip) el.dataset.tip = el.getAttribute('title').replace(/&/g, '&amp;').replace(/</g, '&lt;'); el.removeAttribute('title'); }
+    tt.innerHTML = el.dataset.tip; tt.hidden = false; posTip(e);
+  });
+  document.addEventListener('mousemove', (e) => { if (!tt.hidden) posTip(e); });
+  document.addEventListener('mouseleave', () => { tt.hidden = true; });
+  document.addEventListener('mousedown', () => { tt.hidden = true; });
 
   // ------------------------------------------------------------------ boot
   NAP.buildWorld();

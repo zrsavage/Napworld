@@ -249,17 +249,47 @@
   // ---- Unit types ----
   // men: regiment size, cost: gold, mp: manpower (=men), upkeep: gold/turn
   NAP.UNITS = {
-    line:    { name:'Line Infantry',   short:'Line',  men:800, cost:90,  upkeep:3, time:1, cls:'inf',  power:1.0, morale:70, speed:22, w:80, d:12 },
-    light:   { name:'Light Infantry',  short:'Light', men:600, cost:100, upkeep:3, time:1, cls:'inf',  power:1.0, morale:66, speed:32, w:60, d:10 },
-    guard:   { name:'Guard Infantry',  short:'Guard', men:700, cost:210, upkeep:6, time:2, cls:'inf',  power:1.7, morale:100, speed:22, w:62, d:12, needs:'barracks' },
-    hussar:  { name:'Light Cavalry',   short:'Hussar',men:250, cost:105, upkeep:4, time:1, cls:'cav',  power:1.4, morale:66, speed:72, w:50, d:10 },
-    cuirass: { name:'Heavy Cavalry',   short:'Cuirass',men:250,cost:150, upkeep:5, time:2, cls:'cav',  power:1.9, morale:76, speed:58, w:50, d:10 },
-    art:     { name:'Artillery Battery',short:'Guns', men:80,  cost:140, upkeep:4, time:1, cls:'art',  power:5.0, morale:62, speed:12, w:30, d:14 }
+    line:      { name:'Line Infantry',    short:'Line',     men:800, cost:90,  upkeep:3, time:1, cls:'inf', power:1.0,  morale:70,  speed:22, w:80, d:12,
+                 desc:'The backbone of every army. Dependable volley fire and cheap to raise.' },
+    light:     { name:'Light Infantry',   short:'Light',    men:600, cost:100, upkeep:3, time:1, cls:'inf', power:1.0,  morale:66,  speed:32, w:60, d:10,
+                 desc:'Skirmishers who screen the line, harass the enemy and move quickly. Fragile in a straight fight.' },
+    grenadier: { name:'Grenadiers',       short:'Grenadier',men:700, cost:150, upkeep:4, time:1, cls:'inf', power:1.35, morale:84,  speed:22, w:64, d:12, needs:'barracks',
+                 desc:'Picked, taller veterans. Harder hitting and steadier than line infantry.' },
+    guard:     { name:'Guard Infantry',   short:'Guard',    men:700, cost:230, upkeep:6, time:2, cls:'inf', power:1.75, morale:100, speed:22, w:62, d:12, needs:'academy',
+                 desc:'The finest infantry a nation fields. Excellent fire and melee, almost never break.' },
+    hussar:    { name:'Light Cavalry',    short:'Hussar',   men:250, cost:105, upkeep:4, time:1, cls:'cav', power:1.4,  morale:66,  speed:72, w:50, d:10,
+                 desc:'Fast scouts and flankers. Good for chasing routers and hitting artillery.' },
+    lancer:    { name:'Lancers',          short:'Lancer',   men:250, cost:125, upkeep:4, time:1, cls:'cav', power:1.6,  morale:70,  speed:66, w:50, d:10, needs:'stables',
+                 desc:'Shock cavalry whose lances give a devastating first charge, weaker in a long melee.' },
+    cuirass:   { name:'Heavy Cavalry',    short:'Cuirass',  men:250, cost:150, upkeep:5, time:2, cls:'cav', power:1.9,  morale:76,  speed:58, w:50, d:10, needs:'stables',
+                 desc:'Armoured horsemen who break infantry lines and win long melees.' },
+    art:       { name:'Artillery Battery',short:'Guns',     men:80,  cost:140, upkeep:4, time:1, cls:'art', power:5.0,  morale:62,  speed:12, w:30, d:14,
+                 desc:'Long-range cannon: devastating against columns and squares, vulnerable if caught alone.' },
+    hart:      { name:'Horse Artillery',  short:'H. Guns',  men:80,  cost:190, upkeep:5, time:2, cls:'art', power:4.6,  morale:66,  speed:24, w:28, d:14, needs:'arsenal',
+                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' }
   };
   NAP.BUILDINGS = {
-    market:   { name:'Market',       cost:220, time:3, desc:'+50% province income', max:1 },
-    barracks: { name:'Barracks',     cost:260, time:3, desc:'+50% manpower; unlocks Guard', max:1 },
-    fort:     { name:'Fortifications',cost:320,time:4, desc:'+1 fort level (siege resistance)', max:3 }
+    market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
+    barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },
+    stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
+    arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },
+    academy:  { name:'Military Academy',cost:360, time:4, max:1, req:'barracks', desc:'Unlocks Guard Infantry here. New regiments raised here start as veterans (+morale, +firepower).' },
+    fort:     { name:'Fortifications',  cost:320, time:4, max:3, desc:'+1 fort level: longer sieges and a stronger garrison.' }
+  };
+  // Beginner guidance shown on the start screen
+  NAP.NATION_GUIDE = {
+    russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
+    britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },
+    austria:  { tier:'Medium', rank:3, war:false, why:'A big army and rich provinces, but a French-led war reaches you in mid-1805.', tips:['Fortify Tyrol and Bohemia.','Russia is your ally: join forces before fighting Napoleon.'] },
+    prussia:  { tier:'Medium', rank:4, war:false, why:'Safe and neutral at the start, so you can build up first. Your well-drilled army is untested.', tips:['Choose your moment and your side.','Silesia and Saxony are the main prizes.'] },
+    france:   { tier:'Hard', rank:5, war:true, why:'The strongest army and best generals, but you start at war with Britain and Austria and Russia join in 1805.', tips:['Win decisive battles early with Napoleon.','Garrison conquered lands or they revolt.'] },
+    ottoman:  { tier:'Hard', rank:6, war:false, why:'Large and distant, but morale is weak, rebels stir, and Russia and Austria press you.', tips:['Fortified provinces and cavalry are your strengths.'] },
+    spain:    { tier:'Hard', rank:7, war:true, why:'Allied to France against Britain, with a modest army and an uprising looming in 1808.', tips:['Keep your armies near Madrid.'] },
+    sweden:   { tier:'Hard', rank:8, war:false, why:'A fading power with Finland exposed to Russia.', tips:['Hold Finland and Stockholm.'] },
+    denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
+    naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
+    portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
+    bavaria:  { tier:'Expert', rank:12, war:false, why:'Tiny and sandwiched between Austria and France.', tips:['Stay close to your French ally.'] }
   };
 
   // ---- Generals ----

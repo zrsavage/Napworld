@@ -11,7 +11,7 @@
   const SAVE_KEY = 'napworld-save-v1', AUTOSAVE_KEY = 'napworld-autosave-v1', SUMMARY_KEY = 'napworld-summary-off';
 
   const ui = (NAP.ui = {
-    sel: { prov: null, army: null }, cam: { x: 525, y: 555, z: 0.8 }, hover: null, opts: {}, picked: 'france', difficulty: 'normal', minor: false
+    sel: { prov: null, army: null }, cam: { x: 525, y: 555, z: 0.8 }, hover: null, opts: {}, picked: 'russia', difficulty: 'normal', minor: false
   });
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
@@ -48,12 +48,18 @@
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
-      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div><div class="cards">`;
-    const order = ['france', 'britain', 'austria', 'prussia', 'russia', 'ottoman', 'spain', 'portugal', 'sweden', 'denmark', 'naples', 'bavaria'];
+      ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div>
+      <div class="guidebox"><b>Which nation should I pick?</b> New to the game? Start with <b>Russia</b>: it is huge, far from the early fighting, and nobody can reach you for months, so you can learn at your own pace. <b>Britain</b> is a relaxed second choice (rich, safe on an island, few battles at first). Each card shows a difficulty rating from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span> and a one-line reason. Hover a card for tips. The tutorial campaign teaches the controls using France, which is a <i>hard</i> nation to win with.</div>
+      <div class="cards">`;
+    const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
     for (const id of order) {
-      const f = F(id), st = startFactionStats(id), d = DIFF[id] || 3;
-      html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}"><h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div><p>${esc(f.desc)}</p>
-        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span><span class="diff">${'★'.repeat(6 - d)}${'☆'.repeat(d - 1)} <span class="muted">ease</span></span></div></div>`;
+      const f = F(id), st = startFactionStats(id), g = NAP.NATION_GUIDE[id];
+      const tips = '<b>' + esc(f.name) + '</b><br>' + g.tips.map((t) => '\u2022 ' + esc(t)).join('<br>');
+      html += `<div class="card${id === ui.picked ? ' sel' : ''}" data-f="${id}" style="--c:${f.color}" data-tip="${esc(tips)}">${g.ribbon ? `<span class="ribbon">${esc(g.ribbon)}</span>` : ''}
+        <h3>${esc(f.name)}</h3><div class="leader">${esc(f.leader)}</div>
+        <div><span class="tier tier-${g.tier.toLowerCase()}">${g.tier}</span>${g.war ? '<span class="tag war" style="margin-left:6px">starts at war</span>' : '<span class="tag peace" style="margin-left:6px">starts at peace</span>'}</div>
+        <p>${esc(f.desc)}</p><p class="why"><b>Why ${g.tier.toLowerCase()}:</b> ${esc(g.why)}</p>
+        <div class="stats"><span>${st.n} provinces</span><span>${st.units} regiments</span></div></div>`;
     }
     html += `</div><div id="startbar"><button class="primary" id="beginbtn" style="font-size:18px;padding:10px 40px">Begin the Campaign</button></div>`;
     $('#start').innerHTML = html; $('#start').hidden = false;
@@ -167,6 +173,34 @@
     const ps = S().provinces[p.id];
     return `${esc(p.name)} — ${esc(F(ps.owner).adj)}`;
   }
+  const dots = (v, max) => '\u25CF'.repeat(Math.max(0, Math.min(max, v))) + '\u25CB'.repeat(max - Math.max(0, Math.min(max, v)));
+  function unitTip(t, ps, err, cost) {
+    const u = U[t], bt = (NAP.BT || {})[t] || {};
+    const fire = u.cls === 'cav' ? 0 : u.cls === 'art' ? (t === 'hart' ? 4 : 5) : Math.round((bt.fire || 0) / 0.0085 * 5);
+    const melee = Math.max(1, Math.round((bt.melee || 0) / 0.009 * 5));
+    let h = `<b>${u.name}</b><br>${u.desc}<br><span class="ttk">Men ${u.men} \u00B7 Cost ${cost}g \u00B7 Upkeep ${u.upkeep}/turn \u00B7 Trains in ${u.time} turn${u.time > 1 ? 's' : ''}</span>`;
+    h += `<br><span class="ttk">Firepower ${dots(fire, 5)} \u00B7 Melee ${dots(melee, 5)} \u00B7 Morale ${u.morale} \u00B7 Speed ${u.speed}</span>`;
+    if (u.needs) h += `<br>${ps[u.needs] ? '\u2714' : '\u{1F512}'} Needs a <b>${NAP.BUILDINGS[u.needs].name}</b> in this province.`;
+    if (ps.academy) h += '<br>\u2605 Raised as veterans (Military Academy).';
+    if (u.cls === 'art' && ps.arsenal) h += '<br>Arsenal: 20% cheaper.'; if (u.cls === 'cav' && ps.stables) h += '<br>Stables: 10% cheaper.';
+    if (err && !String(err).startsWith('Requires')) h += `<br><span class="bad">${err}</span>`;
+    return h;
+  }
+  function buildingTip(b, ps, err) {
+    const bd = NAP.BUILDINGS[b], d = NAP.world.byId[ps.id];
+    let h = `<b>${bd.name}</b><br>${bd.desc}<br><span class="ttk">Cost ${bd.cost}g \u00B7 Build time ${bd.time} turns</span>`;
+    if (b === 'market') h += `<br>In this province: about <b>+${Math.round(d.income * 8 * 0.5)} gold</b> per turn.`;
+    if (b === 'barracks') h += `<br>In this province: about <b>+${Math.round(d.manpower * 25 * 0.5)} men</b> per turn.`;
+    const unlocks = Object.keys(U).filter((t) => U[t].needs === b).map((t) => U[t].name);
+    if (unlocks.length) h += `<br>Unlocks: <b>${unlocks.join(', ')}</b>`;
+    const needed = Object.keys(NAP.BUILDINGS).filter((k) => NAP.BUILDINGS[k].req === b).map((k) => NAP.BUILDINGS[k].name);
+    if (needed.length) h += `<br>Required for: ${needed.join(', ')}`;
+    if (bd.req) h += `<br>${ps[bd.req] ? '\u2714' : '\u{1F512}'} Requires <b>${NAP.BUILDINGS[bd.req].name}</b> first.`;
+    if (b === 'fort') h += `<br>Currently level ${ps.fort} of ${bd.max}.`;
+    if (err) h += `<br><span class="${err === 'Already built' ? 'good' : 'bad'}">${err}</span>`;
+    return h;
+  }
+
   function renderSide() {
     const el = $('#side'), s = S();
     const army = ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null;
@@ -181,7 +215,7 @@
       <div class="kv"><span>Income</span><b>${fmt(C.provIncome(ps))}/turn</b></div>
       <div class="kv"><span>Manpower</span><b>+${fmt(p.manpower * 25 * (1 + 0.5 * ps.barracks))}/turn</b></div>
       <div class="kv"><span>Fortification</span><b>${ps.fort ? '♖'.repeat(ps.fort) : 'None'}</b></div>
-      <div class="kv"><span>Buildings</span><b>${[ps.market ? 'Market' : '', ps.barracks ? 'Barracks' : ''].filter(Boolean).join(', ') || '—'}</b></div>
+      <div class="kv"><span>Buildings</span><b style="text-align:right">${Object.keys(NAP.BUILDINGS).filter((b) => b !== 'fort' && ps[b]).map((b) => NAP.BUILDINGS[b].name).join(', ') || '—'}</b></div>
       <div class="kv"><span>Unrest</span><b class="${(ps.unrest || 0) >= 60 ? 'bad' : (ps.unrest || 0) >= 30 ? 'warn' : ''}">${Math.round(ps.unrest || 0)}%</b></div><div class="bar"><i style="width:${Math.round(ps.unrest || 0)}%"></i></div>
       ${!mine && C.atWar(s.player, owner) ? `<div class="kv"><span>Garrison</span><b>~${fmt(C.garrisonStrength(pid))} men</b></div>` : ''}
       ${ps.siege ? `<div class="kv bad"><span>Under siege</span><b>${ps.siege.progress}/${ps.fort + 1}</b></div>` : ''}</div>`;
@@ -190,16 +224,18 @@
     }
     if (mine) {
       html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option></select></div>`;
-      html += `<div class="sec"><h4>Recruit</h4>`;
-      for (const t in U) {
-        const u = U[t], err = C.recruitCheck(pid, t);
-        html += `<button class="ubtn" data-rec="${t}" ${err ? 'disabled title="' + esc(err) + '"' : ''}><span>${u.name} <small class="muted">(${u.men})</small></span><span>${u.cost}g · ${u.time}t</span></button>`;
-      }
+      const unitRow = (t) => {
+        const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs];
+        return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
+      };
+      html += `<div class="sec"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
+      html += Object.keys(U).filter((t) => !U[t].needs).map(unitRow).join('');
+      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs).map(unitRow).join('');
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
-      html += `</div><div class="sec"><h4>Construction</h4>`;
-      for (const b in NAP.BUILDINGS) {
-        const bd = NAP.BUILDINGS[b], err = C.buildCheck(pid, b);
-        html += `<button class="ubtn" data-bld="${b}" ${err ? 'disabled title="' + esc(err) + '"' : `title="${bd.desc}"`}><span>${bd.name}</span><span>${bd.cost}g · ${bd.time}t</span></button>`;
+      html += `</div><div class="sec"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
+      for (const b of Object.keys(NAP.BUILDINGS)) {
+        const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
+        html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
       }
       if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
       html += `</div>`;
@@ -238,7 +274,7 @@
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
-      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
+      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
     });
     html += `</div>`;
     if (mine) {
@@ -280,7 +316,7 @@
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
-      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, Q/W/E/R for Line/Column/Square/Skirmish, X to charge, H to halt, G to rally with your general, Space to pause. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
+      <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, keys 1-4 for Line/Column/Square/Skirmish, C to charge, H to halt, R to rally with your general, Space to pause. Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
   }
   function relBar(v) {
@@ -598,6 +634,25 @@
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);
     drawMinimap();
   }
+
+  // ------------------------------------------------------------------ tooltips (data-tip, and any title attribute)
+  const tt = document.createElement('div'); tt.id = 'tt'; tt.hidden = true; $('#app').appendChild(tt);
+  const posTip = (e) => {
+    const pad = 14, w = tt.offsetWidth, h = tt.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    tt.style.left = Math.max(6, x) + 'px'; tt.style.top = Math.max(6, y) + 'px';
+  };
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip],[title]');
+    if (!el) { tt.hidden = true; return; }
+    if (el.hasAttribute('title')) { if (!el.dataset.tip) el.dataset.tip = el.getAttribute('title').replace(/&/g, '&amp;').replace(/</g, '&lt;'); el.removeAttribute('title'); }
+    tt.innerHTML = el.dataset.tip; tt.hidden = false; posTip(e);
+  });
+  document.addEventListener('mousemove', (e) => { if (!tt.hidden) posTip(e); });
+  document.addEventListener('mouseleave', () => { tt.hidden = true; });
+  document.addEventListener('mousedown', () => { tt.hidden = true; });
 
   // ------------------------------------------------------------------ boot
   NAP.buildWorld();

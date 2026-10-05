@@ -25,6 +25,12 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - Win by holding 55% of Europe or eliminating every rival; survive to the end of 1815 for a territorial score.
   Save/load via browser storage.
 
+**Buildings & elite troops (v4)**
+- Buildings unlock better soldiers in the province where they stand: **Barracks** (+50% manpower, Grenadiers), **Stables** (Lancers, Heavy Cavalry, cheaper cavalry), **Arsenal** (Horse Artillery, cheaper guns), **Military Academy** (needs Barracks; Guard Infantry, new regiments start as veterans), **Market** (+50% income), **Fortifications**. Capitals start with several.
+- Veteran regiments (from an Academy or from winning battles) get a morale and firepower bonus and show a ★.
+- Hover anything for a tooltip: every unit and building explains its role, stats, unlocks and requirements.
+- The start screen rates every nation from Beginner to Expert with a reason; **Russia** is the best first pick, **Britain** a relaxed second.
+
 **Campaign depth added in v3**
 - **War score & peace terms:** battles and conquests build war score; negotiate white peace, demand gold or an occupied province, pay tribute or return land. AI nations may offer peace for a price.
 - **Unrest & occupation:** conquered provinces grow restless unless garrisoned (income penalties, then revolt). Province **policies** (taxation / conscription / martial order).
@@ -39,6 +45,8 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   **morale**, routing and rallying, terrain (hills, forests, villages, rocks) and a commander with an aura
   who can rally broken units.
 - **Battle minimap** (bottom right; click/drag to move the view) and two-finger pinch zoom on touch screens.
+- **Visible fire:** tracer dashes and muzzle flashes for muskets, round shot with trails and dirt bursts for guns. Regiments locked in melee pulse with a white halo and go solid white when they break. Villages are drawn as proper villages (cottages, church, fields, road) and terrain is captioned.
+- **Battle speed** starts at ½x with ¼x slow-motion and 1x/2x/4x.
 - **Zoomable battlefield (0.4x–8x):** smooth wheel zoom toward the cursor, PageUp/PageDown, Fit (Home), Focus selection (F), middle-drag or arrow-key panning. Zoomed in, every regiment is drawn soldier by soldier; as men fall the block shrinks, its ranks thin out and fray, standards are lost and morale makes the line shuffle and scatter.
 - **Weather & time of day:** rain weakens muskets, fog shortens sight, snow slows and tires, dusk ends the battle at nightfall. Fortified provinces put walls on the field.
 - **Smarter AI:** reserves, skirmish screens and artillery that withdraws from cavalry.
@@ -68,10 +76,11 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 | Left-click / drag | select / box-select (double-click selects all of a type, Ctrl+A all) |
 | Right-click | move (on an enemy: attack; Ctrl/Shift+right-click: charge) |
 | Right-drag | draw a line to deploy selected units facing the enemy |
-| Q / W / E / R | Line / Column / Square / Skirmish |
-| X / H / G | Charge / Halt / Rally (general) |
+| 1 / 2 / 3 / 4 | Line / Column / Square / Skirmish |
+| C / H / R | Charge / Halt / Rally (general) |
 | Space, + / − | Pause, game speed |
 | WASD / arrows, wheel | pan, zoom |
+| ½x–4x speed buttons, +/− | battle speed (starts at ½x) |
 
 ## Layout
 
