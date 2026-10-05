@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Napworld balance harness (headless Chromium via Playwright).
+/* Savage Napoleonic War Simulation balance harness (headless Chromium via Playwright).
  *   node tools/balance.js battles [n]            battle matchups, split by attacker/defender
  *   node tools/balance.js campaign [runs] [diff] bot-played campaigns, per-nation territory stats
  *   node tools/balance.js all

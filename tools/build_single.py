@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bundle Napworld into single self-contained HTML files.
+"""Bundle Savage Napoleonic War Simulation into single self-contained HTML files.
 
   dist/napworld.html           full standalone document (open it directly, no server needed)
   dist/napworld.artifact.html  body-only fragment for hosts that supply their own <html>/<head>
@@ -14,7 +14,7 @@ scripts = re.findall(r'<script src="([^"]+)"></script>', index)
 js = '\n'.join('/* ---- %s ---- */\n%s' % (s, (root / s).read_text(encoding='utf8').replace('</script', '<\\/script')) for s in scripts)
 
 body = re.search(r'<body>(.*?)<script src=', index, re.S).group(1).strip()
-title = 'Napworld'
+title = 'Savage Napoleonic War Simulation'
 
 full = f'''<!DOCTYPE html>
 <html lang="en">

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Napworld</title>
+<title>Savage Napoleonic War Simulation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=IM+Fell+English:ital@0;1&display=swap">
 <style>
 :root { color-scheme: dark; }
@@ -237,7 +237,7 @@ button.on { border-color: #6c6; }
 /* title screen and nation selection */
 #start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
 #start .titlebox { text-align: center; }
-#start.title h1 { font-size: 64px; letter-spacing: 12px; }
+#start.title h1 { font-size: 52px; letter-spacing: 8px; line-height: 1.15; }
 #start.title .sub { font-size: 16px; margin: 10px 0 36px; }
 #start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
 #start .menu button { padding: 11px 16px; font-size: 16px; }
@@ -4998,7 +4998,7 @@ button.on { border-color: #6c6; }
   // ------------------------------------------------------------------ campaign tutorial
   // Each step: id, title, text (HTML), pulse(S)->province id, hl: CSS selectors to highlight, check(ctx)->done (auto-advance), manual: show Next button
   G.STEPS = [
-    { id: 'welcome', title: 'Welcome to Napworld', manual: true, text: `You command the <b>French Empire</b> in January 1805. Britain is already at war with you, and the old monarchies of Europe are watching. This short tutorial walks through the essentials. You can skip it at any time.<br><br><b>Goal:</b> hold 55% of Europe's provinces (or eliminate every rival) before the end of 1815.` },
+    { id: 'welcome', title: 'Welcome', manual: true, text: `You command the <b>French Empire</b> in January 1805. Britain is already at war with you, and the old monarchies of Europe are watching. This short tutorial walks through the essentials. You can skip it at any time.<br><br><b>Goal:</b> hold 55% of Europe's provinces (or eliminate every rival) before the end of 1815.` },
     { id: 'camera', title: 'Move around the map', manual: true, text: `<b>Drag</b> with the left mouse button to pan, use the <b>mouse wheel</b> to zoom, or click the <b>minimap</b> at the bottom left to jump anywhere. Province names appear as you zoom in. Each coloured region belongs to one nation; thick dark lines are national borders.` },
     { id: 'selprov', title: 'Select a province', text: `Click <b>Paris</b> (marked with a pulsing ring). The panel on the right shows what the province produces, its fortifications, its unrest, and what you can recruit or build there.`, pulse: () => 'paris', check: (c) => c.ui.sel.prov === 'paris' && !c.ui.sel.army },
     { id: 'panel', title: 'Gold, manpower and unrest', manual: true, text: `<b>Income</b> (gold) pays for regiments and buildings. <b>Manpower</b> is the soldiers you can recruit. Both are shown in the top bar. <b>Unrest</b> rises in conquered lands that you do not garrison, and above 60% it cuts income and eventually triggers a revolt. Use the <i>Policy</i> setting to trade tax for order.`, hl: ['#polpick'] },
@@ -5009,7 +5009,7 @@ button.on { border-color: #6c6; }
     { id: 'move', title: 'March!', text: `With the army selected, <b>right-click Belgium</b> to order a march there. A dashed line previews the route. Armies advance one province per turn, and cannot enter neutral nations' lands without a declaration of war.`, pulse: () => 'belgium', check: (c) => { const a = c.S.armies.find((x) => x.id === c.ui.sel.army); return a && (a.path.length > 0 || a.prov === 'belgium'); } },
     { id: 'endturn', title: 'End the turn', text: `Press <b>End Turn</b> (or <kbd>Enter</kbd>). Every nation moves at once. One turn is one month. After each turn you get a summary of income, battles and diplomatic news.`, hl: ['#endturn'], check: (c) => c.S.turn >= 1 },
     { id: 'diplo', title: 'Diplomacy', text: `Open <b>Diplomacy</b> from the top bar. Here you can declare war, propose alliances, and negotiate peace. When you make peace you choose the <b>terms</b>: gold or provinces to demand, or concessions to offer. Your <b>war score</b> &mdash; battles won and provinces taken &mdash; decides what the enemy will accept.`, hl: ['#b-dip'], check: (c) => c.ui.dipOpened },
-    { id: 'sea', title: 'Sea routes', manual: true, text: `There are no fleets in Napworld. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
+    { id: 'sea', title: 'Sea routes', manual: true, text: `Unless you switched on naval warfare, there are no fleets. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
     { id: 'battle', title: 'Battles', manual: true, practice: true, text: `When armies meet you can <b>auto-resolve</b> or <b>fight</b> the battle yourself. Fighting lets you deploy your regiments, use formations and flank the enemy. Weather, time of day, terrain and fortifications all matter. Want to try? Hit <b>Practice battle</b> below &mdash; it won't affect your campaign.` },
     { id: 'siege', title: 'Sieges, assaults and rebellion', manual: true, text: `To take a province, move an army in and hold it. Fortified provinces need several turns of siege (artillery speeds this up), or you can <b>storm the walls</b> at a cost in men. Conquered provinces need a garrison or they will revolt, so do not spread your army too thin.` },
     { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Press <b>How to play (?)</b> any time for a reminder. For a first real campaign we suggest <b>Russia</b> (the gentlest start) or <b>Britain</b> (safe and rich); France, the nation in this tutorial, is much harder. Vive l'Empereur!` }
@@ -5117,7 +5117,7 @@ button.on { border-color: #6c6; }
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `<div class="titlebox"><h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `<div class="titlebox"><h1>SAVAGE NAPOLEONIC<br>WAR SIMULATION</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
@@ -5136,7 +5136,7 @@ button.on { border-color: #6c6; }
     if (!ui.seenIntro && !lsGet('napworld-seen')) {
       ui.seenIntro = true;
       try { localStorage.setItem('napworld-seen', '1'); } catch (e) {}
-      modal(`<h2>Welcome to Napworld</h2>${NAP.guide.eventArt({ art: 'flags' })}<div class="body"><p style="font-size:15px">Europe, 1805. Napoleon stands at the head of France, Britain funds coalition after coalition, and the old crowns of Austria, Russia and Prussia prepare to fight. Take any of twelve nations through the Napoleonic Wars with a turn-based campaign map and real-time battles.</p><p>New here? The short guided tutorial teaches the controls in a few minutes.</p></div><div class="foot"><button data-r="no">I'll figure it out</button><button class="primary" data-r="yes">Start the tutorial</button></div>`, 'event').then((r) => { if (r === 'yes') startTutorial(); });
+      modal(`<h2>Welcome to Savage Napoleonic War Simulation</h2>${NAP.guide.eventArt({ art: 'flags' })}<div class="body"><p style="font-size:15px">Europe, 1805. Napoleon stands at the head of France, Britain funds coalition after coalition, and the old crowns of Austria, Russia and Prussia prepare to fight. Take any of twelve nations through the Napoleonic Wars with a turn-based campaign map and real-time battles.</p><p>New here? The short guided tutorial teaches the controls in a few minutes.</p></div><div class="foot"><button data-r="no">I'll figure it out</button><button class="primary" data-r="yes">Start the tutorial</button></div>`, 'event').then((r) => { if (r === 'yes') startTutorial(); });
     }
   }
 

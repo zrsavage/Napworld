@@ -76,7 +76,7 @@
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `<div class="titlebox"><h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `<div class="titlebox"><h1>SAVAGE NAPOLEONIC<br>WAR SIMULATION</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
@@ -95,7 +95,7 @@
     if (!ui.seenIntro && !lsGet('napworld-seen')) {
       ui.seenIntro = true;
       try { localStorage.setItem('napworld-seen', '1'); } catch (e) {}
-      modal(`<h2>Welcome to Napworld</h2>${NAP.guide.eventArt({ art: 'flags' })}<div class="body"><p style="font-size:15px">Europe, 1805. Napoleon stands at the head of France, Britain funds coalition after coalition, and the old crowns of Austria, Russia and Prussia prepare to fight. Take any of twelve nations through the Napoleonic Wars with a turn-based campaign map and real-time battles.</p><p>New here? The short guided tutorial teaches the controls in a few minutes.</p></div><div class="foot"><button data-r="no">I'll figure it out</button><button class="primary" data-r="yes">Start the tutorial</button></div>`, 'event').then((r) => { if (r === 'yes') startTutorial(); });
+      modal(`<h2>Welcome to Savage Napoleonic War Simulation</h2>${NAP.guide.eventArt({ art: 'flags' })}<div class="body"><p style="font-size:15px">Europe, 1805. Napoleon stands at the head of France, Britain funds coalition after coalition, and the old crowns of Austria, Russia and Prussia prepare to fight. Take any of twelve nations through the Napoleonic Wars with a turn-based campaign map and real-time battles.</p><p>New here? The short guided tutorial teaches the controls in a few minutes.</p></div><div class="foot"><button data-r="no">I'll figure it out</button><button class="primary" data-r="yes">Start the tutorial</button></div>`, 'event').then((r) => { if (r === 'yes') startTutorial(); });
     }
   }
 

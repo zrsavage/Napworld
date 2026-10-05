@@ -1,4 +1,4 @@
-# Napworld
+# Savage Napoleonic War Simulation
 
 A Total War–style grand strategy game set in Napoleonic Europe (1805–1815), built with plain
 HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `index.html` in a browser
