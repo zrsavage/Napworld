@@ -229,10 +229,21 @@ button.on { border-color: #6c6; }
 /* title screen and nation selection */
 #start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
 #start .titlebox { text-align: center; }
-#start.title h1 { font: 400 84px/1.05 'Pinyon Script', 'Snell Roundhand', 'Brush Script MT', cursive; letter-spacing: 1px; text-shadow: 0 3px 14px #000, 0 0 30px rgba(241,212,135,.25); }
+#start.title h1 { font: 900 54px/1.18 'Cinzel Decorative', 'Cinzel', Georgia, serif; letter-spacing: 3px; color: #f6dc9c; text-shadow: 0 2px 0 #5a3a10, 0 4px 18px #000, 0 0 40px rgba(0,0,0,.8); margin: 0; }
 #start.title .sub { font-size: 16px; margin: 10px 0 36px; }
 #start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
 #start .menu button { padding: 11px 16px; font-size: 16px; }
 #start .navbar { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; margin-bottom: 8px; }
 #start .navbar h1 { font-size: 30px; letter-spacing: 3px; }
 #start .navbar button { justify-self: start; }
+
+#start.title { overflow: hidden; background: #0d1426; }
+#start .titleart { position: absolute; inset: 0; width: 100%; height: 100%; }
+#start .titlebox { position: relative; z-index: 2; margin-top: -4vh; }
+#start .orn { display: flex; align-items: center; justify-content: center; gap: 14px; color: #e6c46f; margin: 10px 0 2px; text-shadow: 0 2px 6px #000; }
+#start .orn i { display: block; width: 170px; height: 2px; background: linear-gradient(90deg, transparent, #e6c46f); }
+#start .orn i:last-child { background: linear-gradient(270deg, transparent, #e6c46f); }
+#start.title .sub { color: #f1e6cc; text-shadow: 0 2px 8px #000, 0 0 14px #000; font-size: 17px; margin: 6px 0 30px; }
+#start .menu { padding: 16px; background: rgba(12,10,18,.55); border: 1px solid rgba(230,196,111,.45); border-radius: 10px; backdrop-filter: blur(3px); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+#start .menu button { background: rgba(30,28,40,.85); border-color: rgba(230,196,111,.35); }
+#start .menu button.primary { background: linear-gradient(#e0bd63, #b8913c); border-color: #f1d487; }

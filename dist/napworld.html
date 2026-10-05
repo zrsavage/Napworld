@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Savage Napoleonic War Simulation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Pinyon+Script&family=IM+Fell+English:ital@0;1&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Cinzel+Decorative:wght@700;900&family=IM+Fell+English:ital@0;1&display=swap">
 <style>
 :root { color-scheme: dark; }
 :root {
@@ -237,13 +237,24 @@ button.on { border-color: #6c6; }
 /* title screen and nation selection */
 #start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
 #start .titlebox { text-align: center; }
-#start.title h1 { font: 400 84px/1.05 'Pinyon Script', 'Snell Roundhand', 'Brush Script MT', cursive; letter-spacing: 1px; text-shadow: 0 3px 14px #000, 0 0 30px rgba(241,212,135,.25); }
+#start.title h1 { font: 900 54px/1.18 'Cinzel Decorative', 'Cinzel', Georgia, serif; letter-spacing: 3px; color: #f6dc9c; text-shadow: 0 2px 0 #5a3a10, 0 4px 18px #000, 0 0 40px rgba(0,0,0,.8); margin: 0; }
 #start.title .sub { font-size: 16px; margin: 10px 0 36px; }
 #start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
 #start .menu button { padding: 11px 16px; font-size: 16px; }
 #start .navbar { display: grid; grid-template-columns: 120px 1fr 120px; align-items: center; margin-bottom: 8px; }
 #start .navbar h1 { font-size: 30px; letter-spacing: 3px; }
 #start .navbar button { justify-self: start; }
+
+#start.title { overflow: hidden; background: #0d1426; }
+#start .titleart { position: absolute; inset: 0; width: 100%; height: 100%; }
+#start .titlebox { position: relative; z-index: 2; margin-top: -4vh; }
+#start .orn { display: flex; align-items: center; justify-content: center; gap: 14px; color: #e6c46f; margin: 10px 0 2px; text-shadow: 0 2px 6px #000; }
+#start .orn i { display: block; width: 170px; height: 2px; background: linear-gradient(90deg, transparent, #e6c46f); }
+#start .orn i:last-child { background: linear-gradient(270deg, transparent, #e6c46f); }
+#start.title .sub { color: #f1e6cc; text-shadow: 0 2px 8px #000, 0 0 14px #000; font-size: 17px; margin: 6px 0 30px; }
+#start .menu { padding: 16px; background: rgba(12,10,18,.55); border: 1px solid rgba(230,196,111,.45); border-radius: 10px; backdrop-filter: blur(3px); box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+#start .menu button { background: rgba(30,28,40,.85); border-color: rgba(230,196,111,.35); }
+#start .menu button.primary { background: linear-gradient(#e0bd63, #b8913c); border-color: #f1d487; }
 
 </style>
 </head>
@@ -5057,7 +5068,7 @@ button.on { border-color: #6c6; }
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
   ui.folds = {}; ui.playback = lsGet('napworld-playback') || 'normal';
-  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "16px Pinyon Script"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
+  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "700 16px Cinzel Decorative"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
 
   // ------------------------------------------------------------------ utilities
   function modal(html, cls) {
@@ -5111,13 +5122,42 @@ button.on { border-color: #6c6; }
     $('#beginbtn').onclick = () => beginGame(ui.picked);
     $('#backbtn').onclick = showStart;
   }
+  // painted-in-code backdrop for the title screen: dusk sky, powder smoke, ridgelines of marching infantry, guns and a cavalry officer
+  function titleArt() {
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const ridge = (x, base, a1, a2, ph) => base + Math.sin(x / a1 + ph) * 22 + Math.sin(x / a2 + ph * 2) * 9;
+    const path = (base, a1, a2, ph) => { let d = `M0 900 L0 ${ridge(0, base, a1, a2, ph).toFixed(1)}`; for (let x = 20; x <= 1620; x += 20) d += ` L${x} ${ridge(x, base, a1, a2, ph).toFixed(1)}`; return d + ' L1600 900 Z'; };
+    const men = (base, a1, a2, ph, n, sc, col, y0) => { let o = ''; for (let i = 0; i < n; i++) { const x = 40 + i * (1520 / n) + rnd() * 6, y = ridge(x, base, a1, a2, ph) + (y0 || 0); o += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) scale(${sc})" fill="${col}"><rect x="-2.2" y="-14" width="4.4" height="13"/><rect x="-3" y="-1" width="2.4" height="7"/><rect x="0.6" y="-1" width="2.4" height="7"/><circle cx="0" cy="-17" r="2.8"/><rect x="-2.8" y="-24" width="5.6" height="6"/><rect x="2.5" y="-30" width="1" height="26"/><path d="M3 -30 l0 -6" stroke="${col}" stroke-width="0.8"/></g>`; } return o; };
+    const smoke = (x, y, r, o) => `<ellipse cx="${x}" cy="${y}" rx="${r * 1.6}" ry="${r * 0.7}" fill="rgba(230,205,170,${o})" filter="url(#bl)"/>`;
+    return `<svg class="titleart" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1426"/><stop offset=".45" stop-color="#2c2a4a"/><stop offset=".72" stop-color="#9a4a3a"/><stop offset=".88" stop-color="#e9a15a"/><stop offset="1" stop-color="#f6cf86"/></linearGradient>
+        <radialGradient id="sun" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff0c0" stop-opacity=".95"/><stop offset=".35" stop-color="#ffc870" stop-opacity=".55"/><stop offset="1" stop-color="#ff9a50" stop-opacity="0"/></radialGradient>
+        <radialGradient id="vig" cx=".5" cy=".45" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient>
+        <filter id="bl"><feGaussianBlur stdDeviation="14"/></filter>
+      </defs>
+      <rect width="1600" height="900" fill="url(#sky)"/>
+      <circle cx="1130" cy="640" r="320" fill="url(#sun)"/>
+      ${Array.from({ length: 70 }, () => `<circle cx="${(rnd() * 1600).toFixed(0)}" cy="${(rnd() * 330).toFixed(0)}" r="${(rnd() * 1.3 + 0.3).toFixed(1)}" fill="#fff" opacity="${(rnd() * 0.6 + 0.2).toFixed(2)}"/>`).join('')}
+      ${smoke(260, 560, 170, 0.5)}${smoke(640, 620, 220, 0.42)}${smoke(1040, 560, 190, 0.38)}${smoke(1400, 600, 210, 0.45)}${smoke(820, 470, 150, 0.2)}
+      <path d="${path(640, 140, 53, 1)}" fill="#4a3a52"/>
+      <path d="${path(700, 120, 41, 2.4)}" fill="#33283f"/>
+      ${men(700, 120, 41, 2.4, 70, 0.42, '#2a2034', 4)}
+      <path d="${path(770, 160, 63, 4)}" fill="#241b30"/>
+      ${men(770, 160, 63, 4, 56, 0.66, '#17111f', 4)}
+      <path d="${path(840, 190, 47, 0.5)}" fill="#120d19"/>
+      ${men(840, 190, 47, 0.5, 40, 1.0, '#0b0710', 5)}
+      <g transform="translate(250 ${(ridge(250, 840, 190, 47, 0.5) - 6).toFixed(0)})" fill="#08050c"><rect x="-40" y="-26" width="86" height="10" rx="4" transform="rotate(-8)"/><circle cx="-6" cy="-10" r="19"/><circle cx="-6" cy="-10" r="5" fill="#241b30"/><rect x="-32" y="-8" width="64" height="5"/><path d="M-60 -2 l30 -8 l0 10 z"/></g>
+      <g transform="translate(1210 ${(ridge(1210, 840, 190, 47, 0.5) - 4).toFixed(0)})" fill="#08050c"><rect x="-4" y="-130" width="3" height="130"/><path d="M-1 -130 q26 -10 50 0 q-10 14 0 28 q-26 -10 -50 0 z" fill="#7a1c24"/><ellipse cx="-72" cy="-52" rx="30" ry="15"/><rect x="-92" y="-38" width="5" height="40"/><rect x="-60" y="-38" width="5" height="40"/><rect x="-100" y="-40" width="52" height="8"/><path d="M-48 -62 q18 -24 34 -4 l-14 14 z"/><circle cx="-60" cy="-86" r="7"/><rect x="-65" y="-80" width="10" height="24" rx="3"/></g>
+      <rect width="1600" height="900" fill="url(#vig)"/></svg>`;
+  }
   // ---- title screen: just the way in; nations are chosen on the next screen
   function showStart() {
     if (ui.tut && ui.tut.on) tutEnd();
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `${titleArt()}<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="orn"><i></i><span>&#9876;</span><i></i></div><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>

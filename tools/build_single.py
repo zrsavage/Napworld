@@ -22,7 +22,7 @@ full = f'''<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Pinyon+Script&family=IM+Fell+English:ital@0;1&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Cinzel+Decorative:wght@700;900&family=IM+Fell+English:ital@0;1&display=swap">
 <style>
 {css}
 </style>
@@ -36,7 +36,7 @@ full = f'''<!DOCTYPE html>
 </html>
 '''
 fragment = f'''<title>{title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Pinyon+Script&family=IM+Fell+English:ital@0;1&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Cinzel+Decorative:wght@700;900&family=IM+Fell+English:ital@0;1&display=swap">
 <style>
 {css}
 html, body {{ height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }}
