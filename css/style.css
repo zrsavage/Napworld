@@ -50,7 +50,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 #tip { position: absolute; background: rgba(15,18,24,.92); border: 1px solid var(--gold); padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 4; white-space: nowrap; }
 #hint { position: absolute; left: 10px; bottom: 6px; font-size: 11px; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px #000; pointer-events: none; }
 
-#side { position: absolute; top: 8px; right: 8px; bottom: 8px; width: 330px; max-width: 46vw; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
+#side { position: absolute; top: 44px; right: 8px; max-height: calc(100% - 52px); width: 272px; max-width: 40vw; overflow-y: auto; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
 #side .ph { padding: 10px 12px; border-bottom: 3px solid var(--c, var(--gold)); background: linear-gradient(var(--panel2), var(--panel)); }
 #side .ph h2 { margin: 0; font: 700 19px 'IM Fell English', Georgia, serif; }
 #side .ph .own { font-size: 12px; color: var(--muted); }
@@ -70,12 +70,12 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 .gen { background: rgba(216,180,90,.1); border: 1px solid rgba(216,180,90,.35); border-radius: 4px; padding: 5px 8px; font-size: 12px; margin-bottom: 6px; }
 .queue { font-size: 12px; color: var(--muted); }
 
-#log { position: absolute; left: 8px; top: 8px; width: 340px; max-width: 40vw; background: rgba(20,24,31,.88); border: 1px solid var(--line); border-radius: 8px; z-index: 3; font-size: 12px; }
+#log { position: absolute; left: 8px; top: 8px; width: 290px; max-width: 34vw; background: rgba(20,24,31,.88); border: 1px solid var(--line); border-radius: 8px; z-index: 3; font-size: 12px; }
 #logbar { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 #logbar b { color: var(--gold); flex: 1; }
 #logbar label { color: var(--muted); font-size: 11px; }
 #logbar button { padding: 0 7px; }
-#loglist { max-height: 210px; overflow-y: auto; padding: 4px 8px; }
+#loglist { max-height: 130px; overflow-y: auto; padding: 4px 8px; }
 #log.min #loglist { display: none; }
 #loglist div { padding: 2px 0; border-bottom: 1px dotted #ffffff12; }
 #loglist .t { color: var(--muted); margin-right: 4px; font-size: 10px; }
@@ -132,8 +132,8 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
   #side { width: 280px; } #log { width: 260px; }
 }
 
-#minimap { position: absolute; left: 8px; bottom: 28px; width: 210px; height: 222px; border: 2px solid var(--gold); border-radius: 4px; background: #7fa6b8; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 3; cursor: pointer; }
-@media (max-height: 640px) { #minimap { width: 140px; height: 148px; } }
+#minimap { position: absolute; left: 8px; bottom: 28px; width: 150px; height: 158px; opacity: .92; border: 2px solid var(--gold); border-radius: 4px; background: #7fa6b8; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 3; cursor: pointer; }
+@media (max-height: 640px) { #minimap { width: 110px; height: 116px; } }
 
 .b-banner.deploy { top: 70px; transform: translateX(-50%); pointer-events: none; padding: 10px 22px; background: rgba(10,12,16,.78); }
 .b-banner.deploy h2 { font-size: 20px; margin-bottom: 4px; }
@@ -208,3 +208,20 @@ button.on { border-color: #6c6; }
 
 .navalopt { max-width: 760px; margin: 10px auto 0; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: rgba(0,0,0,.18); text-align: left; font-size: 13px; }
 .navalopt .muted { margin-top: 4px; font-size: 12px; line-height: 1.45; }
+
+/* compact side panel */
+#side.hide { display: none; }
+#sidetoggle { position: absolute; top: 8px; right: 8px; z-index: 4; padding: 4px 10px; font-size: 12px; }
+#side .ph { padding: 7px 10px; } #side .ph h2 { font-size: 17px; }
+#side .sec { padding: 6px 10px; }
+#side .sec h4 { margin-bottom: 4px; }
+#side .kv { font-size: 12px; }
+#side .ubtn { padding: 2px 7px; margin: 1px 0; font-size: 12px; }
+#side .subh { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 4px 0 2px; }
+#side [data-fold] > h4 { cursor: pointer; user-select: none; }
+#side [data-fold] > h4::before { content: "\25BE "; }
+#side [data-fold].folded > h4::before { content: "\25B8 "; }
+#side [data-fold].folded > :not(h4) { display: none; }
+#phasebanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 6px 18px; background: rgba(15,18,24,.92); border: 2px solid var(--c, var(--gold)); border-radius: 6px; font: 700 16px 'IM Fell English', Georgia, serif; color: #fff; pointer-events: none; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+#phasebanner[hidden] { display: none; }
+#playsel { font-size: 12px; padding: 3px 4px; }

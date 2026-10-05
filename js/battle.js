@@ -8,16 +8,16 @@
 
   // Battle stats per unit class/type
   const BT = {
-    line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
-    militia: { range: 78,  fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
-    light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
-    grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
+    line:    { range: 140, fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    militia: { range: 115, fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
+    light:   { range: 165, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
+    grenadier:{ range: 145, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
     lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
-    hart:    { range: 290, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
-    guard:   { range: 100, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    hart:    { range: 400, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
+    guard:   { range: 150, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
-    art:     { range: 330, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
+    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
   };
   const FORM_SPEED = { line: 0.85, column: 1.25, square: 0.35, skirmish: 1.1 };
   const FORM_FIRE = { line: 1.0, column: 0.3, square: 0.5, skirmish: 0.55 };
@@ -436,6 +436,15 @@
         if (gp < 3 && gp < mg) { mg = gp; melee = e; }
       }
       const maxRange = bt.range * (tinfo.hill ? 1.08 : 1) * this.wx.range;
+      // a moving regiment that has an enemy in range ahead of it halts and opens fire (Ctrl+right-click orders a move that ignores enemies)
+      if (u.order && u.order.type === 'move' && !u.order.run && !melee && bt.range > 0 && u.cls !== 'cav' && u.formation !== 'skirmish' && !u.wantForm) {
+        const hd = Math.hypot(u.order.x - u.x, u.order.y - u.y) || 1, hx = (u.order.x - u.x) / hd, hy = (u.order.y - u.y) / hd, rr = maxRange * 0.95;
+        for (const e of en) {
+          if (e.state === 'routing') continue;
+          const dx = e.x - u.x, dy = e.y - u.y, dd = Math.hypot(dx, dy);
+          if (dd <= rr && (dx * hx + dy * hy) / (dd || 1) > 0.25) { u.order = null; u.target = e; break; }
+        }
+      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
@@ -1254,7 +1263,7 @@
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -1565,6 +1574,7 @@
 
     hud() {
       const r = this.root;
+      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 ? 'block' : 'none'; }
       this.drawMini();
       if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {

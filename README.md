@@ -63,6 +63,13 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
   - A fleet alone at sea **blockades** enemy ports in that zone: income halved, no shipbuilding. Armies cannot sail across a zone held by an enemy fleet unless they have a fleet of their own there.
   - Ships cost upkeep. Britain gets +25% fleet strength; most nations start with a small fleet. The AI builds fleets in proportion to its income and fights, blockades or stays in port.
 
+**v7: readability pass**
+- **Turn playback:** each nation's moves are shown in turn with arrows and a banner (Playback: normal / fast / off in the top bar). Advance ▶▶ skips it.
+- **Pursuit:** an army that marches into the province an enemy army has just left catches its rearguard (about 6% losses and extra fatigue), so constantly moving armies can be harassed.
+- **Trade agreements** show the gold per month each side gains (about 7% of the partner's provincial income, max 45) in the diplomacy table and the offer dialog.
+- **Compact interface:** narrower details panel (collapse it with the Details button or Tab), foldable Recruit / Construction / Navy sections, smaller minimap and dispatch log. The battle minimap only appears when you are zoomed in.
+- **Battles:** muskets now reach 140 px (line) to 165 px (light), guns 480 px, so lines stand off and trade volleys; a regiment on a move order halts and opens fire when an enemy comes into range ahead of it (Ctrl+right-click moves without stopping).
+
 **Tactical battles** (real-time, rectangles on a field)
 - Regiments as blocks with **formations** (line, column, square, skirmish), facing, **flanking / rear** bonuses,
   musket and artillery **range** (canister up close), cavalry **charges**, squares vs cavalry, fatigue,

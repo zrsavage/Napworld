@@ -486,6 +486,19 @@
         opts.markers.push({ id: a.id, x, y, w: mw, h: mh });
       });
     }
+    // move arrows while a nation's turn is being played back
+    if (opts.moveArrows) {
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const m of opts.moveArrows) {
+        const a = w.byId[m.from], b = w.byId[m.to], ang = Math.atan2(b.cy - a.cy, b.cx - a.cx), hs = 11;
+        for (const [col, lw] of [['#fff', 7], [m.color, 4]]) {
+          ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw;
+          ctx.beginPath(); ctx.moveTo(a.cx, a.cy); ctx.lineTo(b.cx - Math.cos(ang) * 6, b.cy - Math.sin(ang) * 6); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(b.cx, b.cy); ctx.lineTo(b.cx - Math.cos(ang - 0.45) * hs * (lw / 4), b.cy - Math.sin(ang - 0.45) * hs * (lw / 4)); ctx.lineTo(b.cx - Math.cos(ang + 0.45) * hs * (lw / 4), b.cy - Math.sin(ang + 0.45) * hs * (lw / 4)); ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
     // fleets: docked ones sit left of the port, those at sea at the centre of their zone
     const fl = state.fleets || [], slots = {};
     NAP.zonePos = (i) => NAP.proj(NAP.SEA_ZONES[i].c[0], NAP.SEA_ZONES[i].c[1]);

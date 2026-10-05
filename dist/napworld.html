@@ -58,7 +58,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 #tip { position: absolute; background: rgba(15,18,24,.92); border: 1px solid var(--gold); padding: 4px 8px; border-radius: 4px; font-size: 12px; pointer-events: none; z-index: 4; white-space: nowrap; }
 #hint { position: absolute; left: 10px; bottom: 6px; font-size: 11px; color: rgba(255,255,255,.85); text-shadow: 0 1px 3px #000; pointer-events: none; }
 
-#side { position: absolute; top: 8px; right: 8px; bottom: 8px; width: 330px; max-width: 46vw; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
+#side { position: absolute; top: 44px; right: 8px; max-height: calc(100% - 52px); width: 272px; max-width: 40vw; overflow-y: auto; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
 #side .ph { padding: 10px 12px; border-bottom: 3px solid var(--c, var(--gold)); background: linear-gradient(var(--panel2), var(--panel)); }
 #side .ph h2 { margin: 0; font: 700 19px 'IM Fell English', Georgia, serif; }
 #side .ph .own { font-size: 12px; color: var(--muted); }
@@ -78,12 +78,12 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 .gen { background: rgba(216,180,90,.1); border: 1px solid rgba(216,180,90,.35); border-radius: 4px; padding: 5px 8px; font-size: 12px; margin-bottom: 6px; }
 .queue { font-size: 12px; color: var(--muted); }
 
-#log { position: absolute; left: 8px; top: 8px; width: 340px; max-width: 40vw; background: rgba(20,24,31,.88); border: 1px solid var(--line); border-radius: 8px; z-index: 3; font-size: 12px; }
+#log { position: absolute; left: 8px; top: 8px; width: 290px; max-width: 34vw; background: rgba(20,24,31,.88); border: 1px solid var(--line); border-radius: 8px; z-index: 3; font-size: 12px; }
 #logbar { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 #logbar b { color: var(--gold); flex: 1; }
 #logbar label { color: var(--muted); font-size: 11px; }
 #logbar button { padding: 0 7px; }
-#loglist { max-height: 210px; overflow-y: auto; padding: 4px 8px; }
+#loglist { max-height: 130px; overflow-y: auto; padding: 4px 8px; }
 #log.min #loglist { display: none; }
 #loglist div { padding: 2px 0; border-bottom: 1px dotted #ffffff12; }
 #loglist .t { color: var(--muted); margin-right: 4px; font-size: 10px; }
@@ -140,8 +140,8 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
   #side { width: 280px; } #log { width: 260px; }
 }
 
-#minimap { position: absolute; left: 8px; bottom: 28px; width: 210px; height: 222px; border: 2px solid var(--gold); border-radius: 4px; background: #7fa6b8; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 3; cursor: pointer; }
-@media (max-height: 640px) { #minimap { width: 140px; height: 148px; } }
+#minimap { position: absolute; left: 8px; bottom: 28px; width: 150px; height: 158px; opacity: .92; border: 2px solid var(--gold); border-radius: 4px; background: #7fa6b8; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 3; cursor: pointer; }
+@media (max-height: 640px) { #minimap { width: 110px; height: 116px; } }
 
 .b-banner.deploy { top: 70px; transform: translateX(-50%); pointer-events: none; padding: 10px 22px; background: rgba(10,12,16,.78); }
 .b-banner.deploy h2 { font-size: 20px; margin-bottom: 4px; }
@@ -217,6 +217,23 @@ button.on { border-color: #6c6; }
 .navalopt { max-width: 760px; margin: 10px auto 0; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: rgba(0,0,0,.18); text-align: left; font-size: 13px; }
 .navalopt .muted { margin-top: 4px; font-size: 12px; line-height: 1.45; }
 
+/* compact side panel */
+#side.hide { display: none; }
+#sidetoggle { position: absolute; top: 8px; right: 8px; z-index: 4; padding: 4px 10px; font-size: 12px; }
+#side .ph { padding: 7px 10px; } #side .ph h2 { font-size: 17px; }
+#side .sec { padding: 6px 10px; }
+#side .sec h4 { margin-bottom: 4px; }
+#side .kv { font-size: 12px; }
+#side .ubtn { padding: 2px 7px; margin: 1px 0; font-size: 12px; }
+#side .subh { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 4px 0 2px; }
+#side [data-fold] > h4 { cursor: pointer; user-select: none; }
+#side [data-fold] > h4::before { content: "\25BE "; }
+#side [data-fold].folded > h4::before { content: "\25B8 "; }
+#side [data-fold].folded > :not(h4) { display: none; }
+#phasebanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 6px 18px; background: rgba(15,18,24,.92); border: 2px solid var(--c, var(--gold)); border-radius: 6px; font: 700 16px 'IM Fell English', Georgia, serif; color: #fff; pointer-events: none; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+#phasebanner[hidden] { display: none; }
+#playsel { font-size: 12px; padding: 3px 4px; }
+
 </style>
 </head>
 <body>
@@ -228,9 +245,11 @@ button.on { border-color: #6c6; }
     <div id="mapwrap">
       <canvas id="map"></canvas>
       <div id="tip" hidden></div>
+      <button id="sidetoggle" title="Show or hide the details panel (Tab)">Details &#9656;</button>
       <aside id="side"></aside>
+      <div id="phasebanner" hidden></div>
       <div id="log"><div id="logbar"><b>Dispatches</b><label><input type="checkbox" id="logminor"> world news</label><button id="logtoggle" title="Collapse">&minus;</button></div><div id="loglist"></div></div>
-      <canvas id="minimap" width="210" height="222" title="Click or drag to move the view"></canvas>
+      <canvas id="minimap" width="150" height="158" title="Click or drag to move the view"></canvas>
       <div id="hint">Left-click: select &middot; Right-click: move army &middot; Drag: pan &middot; Wheel: zoom &middot; Enter: end turn</div>
     </div>
   </div>
@@ -1333,6 +1352,19 @@ button.on { border-color: #6c6; }
         opts.markers.push({ id: a.id, x, y, w: mw, h: mh });
       });
     }
+    // move arrows while a nation's turn is being played back
+    if (opts.moveArrows) {
+      ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const m of opts.moveArrows) {
+        const a = w.byId[m.from], b = w.byId[m.to], ang = Math.atan2(b.cy - a.cy, b.cx - a.cx), hs = 11;
+        for (const [col, lw] of [['#fff', 7], [m.color, 4]]) {
+          ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw;
+          ctx.beginPath(); ctx.moveTo(a.cx, a.cy); ctx.lineTo(b.cx - Math.cos(ang) * 6, b.cy - Math.sin(ang) * 6); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(b.cx, b.cy); ctx.lineTo(b.cx - Math.cos(ang - 0.45) * hs * (lw / 4), b.cy - Math.sin(ang - 0.45) * hs * (lw / 4)); ctx.lineTo(b.cx - Math.cos(ang + 0.45) * hs * (lw / 4), b.cy - Math.sin(ang + 0.45) * hs * (lw / 4)); ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
     // fleets: docked ones sit left of the port, those at sea at the centre of their zone
     const fl = state.fleets || [], slots = {};
     NAP.zonePos = (i) => NAP.proj(NAP.SEA_ZONES[i].c[0], NAP.SEA_ZONES[i].c[1]);
@@ -1575,6 +1607,8 @@ button.on { border-color: #6c6; }
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
     return Math.round(v * S.factions[f].incomeMult * (dm || 1) * NAP.perk(f, 'income'));
   };
+  // gold per month a trade agreement brings `f` when signed with `partner` (about 7% of the partner's provincial income, capped at 45)
+  C.tradeGain = (f, partner) => Math.round(Math.min(45, C.provincesOf(partner).reduce((q, p) => q + C.provIncome(S.provinces[p.id]), 0) * 0.07) * (S.factions[f].incomeMult || 1) * NAP.perk(f, 'income'));
   C.factionUpkeep = (f) => NAP.perk(f, 'upkeep') * (C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0) + C.shipUpkeep(f));
   C.setStaff = function (army, id) {
     if (!id) { army.staff = null; return null; }
@@ -2143,6 +2177,7 @@ button.on { border-color: #6c6; }
     const from = a.prov;
     const sea = isSea(from, dest);
     a.path.shift();
+    (S.moveLog = S.moveLog || []).push({ id: a.id, from, to: dest });
     a.from = from;
     if (sea && a.units.length > SEA_CAP) { plog(`The ${F(a.owner).adj} army is too large to sail (max ${SEA_CAP} regiments).`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
     if (sea && C.seaBlocked(a.owner, from, dest)) { plog(`An enemy fleet bars the ${F(a.owner).adj} army from sailing from ${C.def(from).name}.`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
@@ -2166,6 +2201,24 @@ button.on { border-color: #6c6; }
     }
   }
 
+  // A column that marches into the province an enemy army has just left catches its rearguard: a free blow for the pursuer.
+  function pursuit() {
+    const log = S.moveLog || []; S.moveLog = [];
+    const arm = (id) => S.armies.find((x) => x.id === id);
+    const cav = (a) => a.units.filter((u) => U[u.type].cls === 'cav').length / Math.max(1, a.units.length);
+    for (const m of log) {
+      const A = arm(m.id); if (!A) continue;
+      for (const o of log) {
+        const B = arm(o.id); if (!B || B === A || !atWar(A.owner, B.owner)) continue;
+        if (o.from !== m.to || o.to === m.to || A.prov !== m.to) continue; // B left the province A entered
+        if (B.prov === A.prov) continue;
+        if (rnd() < 0.55 + 0.25 * cav(A) - 0.25 * cav(B)) {
+          applyCasualties([B], 0.06); B.fatigue = Math.min(100, (B.fatigue || 0) + 15);
+          plog(`The ${F(A.owner).adj} army overtakes the rearguard of the ${F(B.owner).adj} army leaving ${C.def(m.to).name}.`, A.owner === S.player ? 'good' : B.owner === S.player ? 'bad' : 'info-minor', [A.owner, B.owner]);
+        }
+      }
+    }
+  }
   function siegePhase(f) {
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
@@ -3109,13 +3162,19 @@ button.on { border-color: #6c6; }
     const rot = S.turn % order.length;
     const rotated = order.slice(rot).concat(order.slice(0, rot));
     for (const f of rotated) {
+      const before = new Map(S.armies.map((a) => [a.id, a.prov]));
       for (const a of C.armiesOf(f)) {
         if (!S.armies.includes(a)) continue;
         await stepArmy(a);
       }
       siegePhase(f);
+      if (H().phase) {
+        const moves = S.armies.filter((a) => a.owner === f && before.has(a.id) && before.get(a.id) !== a.prov).map((a) => ({ from: before.get(a.id), to: a.prov, n: a.units.length }));
+        if (moves.length) await H().phase({ f, moves });
+      }
     }
     navalPhase();
+    pursuit();
     // minor faction sieges (they never move) - none
     attrition();
     generalsPhase();
@@ -3208,16 +3267,16 @@ button.on { border-color: #6c6; }
 
   // Battle stats per unit class/type
   const BT = {
-    line:    { range: 95,  fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
-    militia: { range: 78,  fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
-    light:   { range: 115, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
-    grenadier:{ range: 100, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
+    line:    { range: 140, fire: 0.0050, melee: 0.0036, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    militia: { range: 115, fire: 0.0032, melee: 0.0026, speed: 24, turn: 1.4, forms: ['line', 'column', 'square'] },
+    light:   { range: 165, fire: 0.0044, melee: 0.0030, speed: 34, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'] },
+    grenadier:{ range: 145, fire: 0.0062, melee: 0.0058, speed: 23, turn: 1.6, forms: ['line', 'column', 'square'] },
     lancer:  { range: 0,   fire: 0,      melee: 0.0058, speed: 66, turn: 2.8, forms: ['line'] },
-    hart:    { range: 290, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
-    guard:   { range: 100, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
+    hart:    { range: 400, fire: 0,      melee: 0.0010, speed: 24, turn: 1.6, forms: ['line'] },
+    guard:   { range: 150, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
-    art:     { range: 330, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
+    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
   };
   const FORM_SPEED = { line: 0.85, column: 1.25, square: 0.35, skirmish: 1.1 };
   const FORM_FIRE = { line: 1.0, column: 0.3, square: 0.5, skirmish: 0.55 };
@@ -3636,6 +3695,15 @@ button.on { border-color: #6c6; }
         if (gp < 3 && gp < mg) { mg = gp; melee = e; }
       }
       const maxRange = bt.range * (tinfo.hill ? 1.08 : 1) * this.wx.range;
+      // a moving regiment that has an enemy in range ahead of it halts and opens fire (Ctrl+right-click orders a move that ignores enemies)
+      if (u.order && u.order.type === 'move' && !u.order.run && !melee && bt.range > 0 && u.cls !== 'cav' && u.formation !== 'skirmish' && !u.wantForm) {
+        const hd = Math.hypot(u.order.x - u.x, u.order.y - u.y) || 1, hx = (u.order.x - u.x) / hd, hy = (u.order.y - u.y) / hd, rr = maxRange * 0.95;
+        for (const e of en) {
+          if (e.state === 'routing') continue;
+          const dx = e.x - u.x, dy = e.y - u.y, dd = Math.hypot(dx, dy);
+          if (dd <= rr && (dx * hx + dy * hy) / (dd || 1) > 0.25) { u.order = null; u.target = e; break; }
+        }
+      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
@@ -4454,7 +4522,7 @@ button.on { border-color: #6c6; }
           <div class="b-feed" id="b-feed"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -4765,6 +4833,7 @@ button.on { border-color: #6c6; }
 
     hud() {
       const r = this.root;
+      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 ? 'block' : 'none'; }
       this.drawMini();
       if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {
@@ -4923,7 +4992,7 @@ button.on { border-color: #6c6; }
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
     { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Faint cones show each regiment\'s range (press <b>V</b> to hide them). Press <b>Space</b> when ready.' },
-    { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 95 px) and fire. Artillery fires on its own up to 330 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
+    { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 140 px) and fire. Artillery fires on its own up to 480 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
     { id: 'range', when: (B) => B.t >= 25 && B.enemies(0).some((u) => B.friends(0).some((m) => Math.hypot(m.x - u.x, m.y - u.y) < 160)), text: '<b>Firefights.</b> Units in <b>line</b> shoot best, <b>columns</b> move fast but shoot poorly. Shots from the <b>flank or rear</b> hurt far more and shake morale, so try to turn the enemy line.' },
     { id: 'cav', when: (B) => B.enemies(0).some((u) => u.cls === 'cav' && u.charging), text: '<b>Cavalry charge!</b> Select the threatened infantry and press <b>3</b> to form <b>square</b>. Squares are nearly immune to cavalry but vulnerable to artillery and musket fire.' },
     { id: 'rout', when: (B) => B.friends(0).some((u) => u.state === 'routing'), text: '<b>A regiment is breaking.</b> Routing units flee and spread panic. Keep your general (the star) close to them and press <b>R</b> to rally them. Generals also boost the morale and firepower of nearby units.' },
@@ -4961,6 +5030,7 @@ button.on { border-color: #6c6; }
   });
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
+  ui.folds = {}; ui.playback = lsGet('napworld-playback') || 'normal';
   if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
 
   // ------------------------------------------------------------------ utilities
@@ -5066,7 +5136,7 @@ button.on { border-color: #6c6; }
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-ov">Overview</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
       <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
@@ -5074,6 +5144,7 @@ button.on { border-color: #6c6; }
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = () => endTurn();
     $('#advance').onclick = advance;
+    $('#playsel').value = ui.playback; $('#playsel').onchange = (e) => { ui.playback = e.target.value; try { localStorage.setItem('napworld-playback', ui.playback); } catch (x) {} };
     $('#b-att').onclick = showAttention;
   }
 
@@ -5121,6 +5192,7 @@ button.on { border-color: #6c6; }
   async function advance() {
     const s = S();
     if (s.busy || s.winner) return;
+    ui.skipPhase = true;
     for (let i = 0; i < 6; i++) {
       await turnCore();
       if (s.winner) break;
@@ -5129,6 +5201,7 @@ button.on { border-color: #6c6; }
       const urgent = C.attention(s.player).filter((x) => x.sev >= 2);
       if (key || urgent.length) { if (urgent.length) focusAttention(urgent[0]); break; }
     }
+    ui.skipPhase = false;
     if (!s.winner) await showSummary();
     if (s.winner) await showEnd(s.winner);
     refresh();
@@ -5237,11 +5310,11 @@ button.on { border-color: #6c6; }
         const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs];
         return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
       };
-      html += `<div class="sec"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
+      html += `<div class="sec" data-fold="recruit"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
       html += Object.keys(U).filter((t) => !U[t].needs).map(unitRow).join('');
       html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs).map(unitRow).join('');
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
-      html += `</div><div class="sec"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
+      html += `</div><div class="sec" data-fold="build"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
       for (const b of Object.keys(NAP.BUILDINGS)) {
         if (NAP.BUILDINGS[b].port && (!p.port || !s.naval)) continue;
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
@@ -5250,7 +5323,7 @@ button.on { border-color: #6c6; }
       if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
       html += `</div>`;
       if (p.port && s.naval) {
-        html += `<div class="sec"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
+        html += `<div class="sec" data-fold="navy"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
         html += Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' \u00B7 Cost ' + C.shipCost(pid, t) + 'g \u00B7 Upkeep ' + sh.upkeep + '/turn \u00B7 Builds in ' + sh.time + ' turns \u00B7 Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
         if ((ps.shipQueue || []).length) html += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
         html += `</div>`;
@@ -5261,6 +5334,11 @@ button.on { border-color: #6c6; }
         <div class="row">${war ? '<span class="bad">At war</span>' : C.allied(s.player, owner) ? '<span class="good">Allied</span>' : `<button data-war="${owner}" class="danger">Declare war on ${esc(F(owner).adj)}</button>`}</div></div>`;
     }
     el.innerHTML = html;
+    el.querySelectorAll('[data-fold]').forEach((sec) => {
+      const k = sec.dataset.fold, forced = ui.tut && ui.tut.on;
+      sec.classList.toggle('folded', !forced && (k in ui.folds ? ui.folds[k] : k !== 'recruit'));
+      sec.querySelector('h4').onclick = (e) => { if (e.target.closest('.qm')) return; sec.classList.toggle('folded'); ui.folds[k] = sec.classList.contains('folded'); };
+    });
     el.querySelectorAll('[data-army]').forEach((e) => (e.onclick = () => { ui.sel.army = +e.dataset.army; ui.sel.fleet = null; refresh(); }));
     el.querySelectorAll('[data-fleet]').forEach((e) => (e.onclick = () => { ui.sel.fleet = +e.dataset.fleet; ui.sel.army = null; refresh(); }));
     el.querySelectorAll('[data-ship]').forEach((b) => (b.onclick = () => { const e = C.buildShip(pid, b.dataset.ship); if (e) toast(e); refresh(); }));
@@ -5382,7 +5460,8 @@ button.on { border-color: #6c6; }
         const ws = war ? C.warScore(me, f) : 0;
         const status = war ? `<span class="tag war">WAR</span> <small class="${ws >= 0 ? 'good' : 'bad'}" title="War score">${ws >= 0 ? '+' : ''}${Math.round(ws)}</small>` : al ? '<span class="tag ally">ALLY</span>' : '<span class="tag peace">PEACE</span>';
         const tr = (k, lbl, tip) => (C.hasTreaty(k, me, f) ? `<button data-d="un-${k}:${f}" class="on" data-tip="${tip} Click to cancel.">${lbl} \u2714</button>` : `<button data-d="${k}:${f}" data-tip="${tip}">${lbl}</button>`);
-        const treat = f !== 'minor' && !war ? tr('trade', 'Trade', '<b>Trade agreement</b><br>Both sides earn extra gold each turn. Needs fair relations.') + tr('access', 'Access', '<b>Military access</b><br>Lets armies cross each other\'s land without war (and keeps supply lines open).') + (al ? tr('marriage', 'Marriage', '<b>Royal marriage</b><br>Binds an alliance: harder to break, and the partner is far more likely to join your wars. Needs relations +30.') : '') : '';
+        const tg = f !== 'minor' ? C.tradeGain(me, f) : 0, tg2 = f !== 'minor' ? C.tradeGain(f, me) : 0;
+        const treat = f !== 'minor' && !war ? tr('trade', C.hasTreaty('trade', me, f) ? 'Trade' : `Trade +${tg}/mo`, `<b>Trade agreement</b><br>${C.hasTreaty('trade', me, f) ? `Currently earns you about <b>+${tg} gold per month</b> (they earn about +${tg2}).` : `You would earn about <b>+${tg} gold per month</b>, and the ${esc(F(f).adj)} about +${tg2}. The bonus is about 7% of the partner's provincial income (max 45 a month) and ends if war breaks out. Needs fair relations.`}`) + tr('access', 'Access', '<b>Military access</b><br>Lets armies cross each other\'s land without war (and keeps supply lines open).') + (al ? tr('marriage', 'Marriage', '<b>Royal marriage</b><br>Binds an alliance: harder to break, and the partner is far more likely to join your wars. Needs relations +30.') : '') : '';
         const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : (al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`) + treat;
         return `<tr><td>${flag(f)}${esc(F(f).name)}</td><td>${status}</td><td>${relBar(rel)}</td><td>${C.provincesOf(f).length}</td><td class="btns">${btns}</td></tr>`;
       }).join('');
@@ -5449,6 +5528,21 @@ button.on { border-color: #6c6; }
     list.scrollTop = list.scrollHeight;
   }
   C.hooks.refresh = () => refresh();
+  // turn playback: each nation's moves are shown in turn
+  C.hooks.phase = async ({ f, moves }) => {
+    if (ui.skipPhase || ui.playback === 'off' || $('#game').hidden) return;
+    const w = NAP.world, inView = (id) => { const p = w.byId[id], sx = (p.cx - ui.cam.x) * ui.cam.z + vw / 2, sy = (p.cy - ui.cam.y) * ui.cam.z + vh / 2; return sx > 20 && sy > 20 && sx < vw - 20 && sy < vh - 20; };
+    const s = S(), relevant = f === s.player || C.atWar(f, s.player) || C.allied(f, s.player);
+    const visible = moves.some((m) => inView(m.from) || inView(m.to));
+    if (!visible && !relevant) return;
+    if (!visible) { const p = w.byId[moves[0].to]; ui.cam.x = p.cx; ui.cam.y = p.cy; clampCam(); }
+    ui.moveArrows = moves.map((m) => ({ from: m.from, to: m.to, color: F(f).color }));
+    const b = $('#phasebanner'); b.hidden = false; b.style.setProperty('--c', F(f).color);
+    b.textContent = `${F(f).name} moves \u2014 ${moves.length} ${moves.length > 1 ? 'armies' : 'army'}`;
+    dirty = true;
+    await new Promise((r) => setTimeout(r, ui.playback === 'fast' ? 380 : 900));
+    ui.moveArrows = null; b.hidden = true; dirty = true;
+  };
 
   C.hooks.askBattle = async (info) => {
     const s = S();
@@ -5482,7 +5576,7 @@ button.on { border-color: #6c6; }
   };
   C.hooks.offer = async (m) => {
     const f = F(m.from);
-    if (m.type === 'trade-offer') return (await modal(`<h2>Trade proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes a trade agreement: both nations will earn more gold each month.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Sign agreement</button></div>`, 'event')) === 'yes';
+    if (m.type === 'trade-offer') return (await modal(`<h2>Trade proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes a trade agreement. You would earn about <b>+${C.tradeGain(S().player, m.from)} gold per month</b> and they about +${C.tradeGain(m.from, S().player)}. The agreement ends if war breaks out between you.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Sign agreement</button></div>`, 'event')) === 'yes';
     const html = m.type === 'peace-offer'
       ? `<h2>Peace proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) offers peace${m.demand ? ` on condition that you pay <b>${m.demand} gold</b>` : ''}. Captured provinces will remain with their current owners.</p></div><div class="foot"><button data-r="no">Refuse</button><button class="primary" data-r="yes">Accept peace</button></div>`
       : `<h2>Alliance proposal</h2><div class="body"><p>The ${esc(f.name)} (${esc(f.leader)}) proposes an alliance against our common enemies.</p></div><div class="foot"><button data-r="no">Decline</button><button class="primary" data-r="yes">Accept alliance</button></div>`;
@@ -5579,6 +5673,8 @@ button.on { border-color: #6c6; }
     ui.cam.x += before.x - after.x; ui.cam.y += before.y - after.y; clampCam(); dirty = true;
   }, { passive: false });
   function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
+  function toggleSide() { const hid = $('#side').classList.toggle('hide'); $('#sidetoggle').innerHTML = hid ? '&#9666; Details' : 'Details &#9656;'; }
+  $('#sidetoggle').onclick = toggleSide;
   function selFleet() { const s = S(); return s && ui.sel.fleet ? (s.fleets || []).find((x) => x.id === ui.sel.fleet) : null; }
   function selArmy() { const s = S(); return s && ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null; }
 
@@ -5586,6 +5682,7 @@ button.on { border-color: #6c6; }
     if ($('#game').hidden || !$('#battle').hidden || !$('#modal').hidden) return;
     if (/input|select|textarea/i.test(e.target.tagName)) return;
     if (e.key === 'Enter') { endTurn(); e.preventDefault(); }
+    else if (e.key === 'Tab') { toggleSide(); e.preventDefault(); }
     else if (e.key === 'Escape') { ui.sel = { prov: null, army: null }; refresh(); }
     else if (e.key === 'd' || e.key === 'D') showDiplomacy();
     const step = 40 / ui.cam.z;
@@ -5688,7 +5785,7 @@ button.on { border-color: #6c6; }
     const s = S(), a = selArmy();
     const opts = ui.opts;
     opts.selProv = ui.sel.prov; opts.hoverProv = ui.hover;
-    opts.selFleet = selFleet() || null;
+    opts.selFleet = selFleet() || null; opts.moveArrows = ui.moveArrows || null;
     opts.selArmy = ui.sel.army; opts.pulse = ui.pulseProv || null;
     opts.targets = a && a.owner === s.player ? C.neighbors(a.owner, a.prov) : [];
     opts.seaFrom = a && a.owner === s.player && NAP.world.byId[a.prov].port ? a.prov : null;

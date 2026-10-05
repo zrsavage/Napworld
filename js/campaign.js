@@ -197,6 +197,8 @@
     const dm = f === S.player ? { easy: 1.15, normal: 1, hard: 0.95 }[S.difficulty] : { easy: 0.88, normal: 1, hard: 1.1 }[S.difficulty];
     return Math.round(v * S.factions[f].incomeMult * (dm || 1) * NAP.perk(f, 'income'));
   };
+  // gold per month a trade agreement brings `f` when signed with `partner` (about 7% of the partner's provincial income, capped at 45)
+  C.tradeGain = (f, partner) => Math.round(Math.min(45, C.provincesOf(partner).reduce((q, p) => q + C.provIncome(S.provinces[p.id]), 0) * 0.07) * (S.factions[f].incomeMult || 1) * NAP.perk(f, 'income'));
   C.factionUpkeep = (f) => NAP.perk(f, 'upkeep') * (C.armiesOf(f).reduce((s, a) => s + a.units.reduce((t, u) => t + U[u.type].upkeep, 0) + (a.staff ? NAP.STAFF[a.staff].upkeep : 0), 0) + C.shipUpkeep(f));
   C.setStaff = function (army, id) {
     if (!id) { army.staff = null; return null; }
@@ -765,6 +767,7 @@
     const from = a.prov;
     const sea = isSea(from, dest);
     a.path.shift();
+    (S.moveLog = S.moveLog || []).push({ id: a.id, from, to: dest });
     a.from = from;
     if (sea && a.units.length > SEA_CAP) { plog(`The ${F(a.owner).adj} army is too large to sail (max ${SEA_CAP} regiments).`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
     if (sea && C.seaBlocked(a.owner, from, dest)) { plog(`An enemy fleet bars the ${F(a.owner).adj} army from sailing from ${C.def(from).name}.`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
@@ -788,6 +791,24 @@
     }
   }
 
+  // A column that marches into the province an enemy army has just left catches its rearguard: a free blow for the pursuer.
+  function pursuit() {
+    const log = S.moveLog || []; S.moveLog = [];
+    const arm = (id) => S.armies.find((x) => x.id === id);
+    const cav = (a) => a.units.filter((u) => U[u.type].cls === 'cav').length / Math.max(1, a.units.length);
+    for (const m of log) {
+      const A = arm(m.id); if (!A) continue;
+      for (const o of log) {
+        const B = arm(o.id); if (!B || B === A || !atWar(A.owner, B.owner)) continue;
+        if (o.from !== m.to || o.to === m.to || A.prov !== m.to) continue; // B left the province A entered
+        if (B.prov === A.prov) continue;
+        if (rnd() < 0.55 + 0.25 * cav(A) - 0.25 * cav(B)) {
+          applyCasualties([B], 0.06); B.fatigue = Math.min(100, (B.fatigue || 0) + 15);
+          plog(`The ${F(A.owner).adj} army overtakes the rearguard of the ${F(B.owner).adj} army leaving ${C.def(m.to).name}.`, A.owner === S.player ? 'good' : B.owner === S.player ? 'bad' : 'info-minor', [A.owner, B.owner]);
+        }
+      }
+    }
+  }
   function siegePhase(f) {
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
@@ -1731,13 +1752,19 @@
     const rot = S.turn % order.length;
     const rotated = order.slice(rot).concat(order.slice(0, rot));
     for (const f of rotated) {
+      const before = new Map(S.armies.map((a) => [a.id, a.prov]));
       for (const a of C.armiesOf(f)) {
         if (!S.armies.includes(a)) continue;
         await stepArmy(a);
       }
       siegePhase(f);
+      if (H().phase) {
+        const moves = S.armies.filter((a) => a.owner === f && before.has(a.id) && before.get(a.id) !== a.prov).map((a) => ({ from: before.get(a.id), to: a.prov, n: a.units.length }));
+        if (moves.length) await H().phase({ f, moves });
+      }
     }
     navalPhase();
+    pursuit();
     // minor faction sieges (they never move) - none
     attrition();
     generalsPhase();
