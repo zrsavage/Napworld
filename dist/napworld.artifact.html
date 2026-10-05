@@ -2230,16 +2230,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     for (const p of own) for (const q of S.provinces[p.id].queue) { counts[q.type] = (counts[q.type] || 0) + 1; total++; }
     const diffMul = S.difficulty === 'hard' ? 1.15 : S.difficulty === 'easy' ? 0.85 : 1;
     const budgetUp = income * (en.length ? (C.provincesOf(f).length <= 4 ? 0.92 : 0.78) : 0.5) * diffMul;
-    // close to losing: few provinces, capital lost or besieged, or badly outgunned -> raise cheap militia
-    const capPs = S.provinces[fs.cap];
-    const myPow = C.factionPower(f), foePow = en.reduce((m, e) => (e === 'minor' ? m : Math.max(m, C.factionPower(e))), 0);
-    const invaded = S.armies.some((x) => en.includes(x.owner) && S.provinces[x.prov].owner === f);
-    const desperate = en.length > 0 && (capPs.owner !== f || !!capPs.siege || (invaded && (C.provincesOf(f).length <= 3 || (foePow > 0 && myPow < foePow * 0.5))));
-    const want = Object.assign({}, WANT, desperate ? { militia: 0.4 } : {});
+    // militia only evens the odds: raised while outnumbered by the strongest enemy, with cash in hand, and never past a third of the army
+    const menOf = (list) => list.reduce((n, a) => n + a.units.reduce((m, u) => m + u.men, 0), 0);
+    let myMen = menOf(C.armiesOf(f)) + own.reduce((n, p) => n + S.provinces[p.id].queue.reduce((m, q) => m + U[q.type].men, 0), 0);
+    const foeMen = en.reduce((m, e) => (e === 'minor' ? m : Math.max(m, menOf(C.armiesOf(e)))), 0);
+    const nMilitia = () => (counts.militia || 0) / Math.max(1, total);
+    const evening = () => en.length > 0 && myMen < foeMen * 0.95 && nMilitia() < 0.33 && fs.gold >= 150;
+    const want = Object.assign({}, WANT);
     let guard = 0;
-    while (guard++ < (desperate ? 7 : 5)) {
-      if (up >= budgetUp * (desperate ? 1.15 : 1)) break;
-      if (fs.gold < (desperate ? 40 : 100 + (en.length ? 0 : 150))) break;
+    while (guard++ < 5) {
+      want.militia = evening() ? 0.4 : 0;
+      if (up >= budgetUp) break;
+      if (fs.gold < 100 + (en.length ? 0 : 150) && !(want.militia && fs.gold >= 150)) break;
       // pick type with greatest deficit
       let best = null, bd = -9;
       for (const t in want) {
@@ -2257,7 +2259,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         pick = cands[Math.min(cands.length - 1, Math.floor(rnd() * Math.min(3, cands.length)))];
       } else pick = cands[Math.floor(rnd() * cands.length)];
       if (C.recruit(pick.id, best)) break;
-      counts[best] = (counts[best] || 0) + 1; total++; up += U[best].upkeep;
+      counts[best] = (counts[best] || 0) + 1; total++; up += U[best].upkeep;; myMen += U[best].men;
     }
     for (const p of own) { const ps = S.provinces[p.id]; ps.policy = (ps.unrest || 0) > 35 ? 'order' : fs.gold < 120 ? 'tax' : 'balanced'; }
     // buildings
