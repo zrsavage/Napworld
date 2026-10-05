@@ -34,12 +34,12 @@
   const W = () => NAP.world;
 
   // -------------------------------------------------------------------- state
-  C.newGame = function (player, difficulty) {
+  C.newGame = function (player, difficulty, opts) {
     const w = W();
     S = {
       version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
-      fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
+      naval: !!(opts && opts.naval), fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced', shipyard: 0, shipQueue: [], blockade: false };
@@ -74,7 +74,7 @@
         }
       }
     }
-    for (const f in NAP.START_FLEETS) for (const [pid, spec] of NAP.START_FLEETS[f]) {
+    if (S.naval) for (const f in NAP.START_FLEETS) for (const [pid, spec] of NAP.START_FLEETS[f]) {
       if (!W().byId[pid] || !W().byId[pid].port) continue;
       const ships = {}; spec.split(' ').forEach((t) => { const [k, n] = t.split(':'); ships[k] = +n; });
       S.provinces[pid].shipyard = 1; C.newFleet(f, pid, ships);
@@ -320,6 +320,7 @@
   };
   C.buildCheck = function (pid, b) {
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
+    if (bd.port && !S.naval) return 'Naval warfare is switched off in this game';
     if (bd.port && !W().byId[pid].port) return 'Needs a port';
     if (ps.build) return 'Already constructing';
     if (ps.siege) return 'Province is besieged';
@@ -1670,7 +1671,7 @@
     }
   }
   function navalPhase() {
-    if (!S.fleets) return;
+    if (!S.fleets || !S.naval) return;
     fleetCleanup();
     navalMoves();
     navalCombat();
@@ -1679,6 +1680,7 @@
   }
   // ---- naval AI: build a fleet in proportion to wealth, then fight, blockade or sit in port
   function aiNavy(f) {
+    if (!S.naval) return;
     const fs = S.factions[f]; if (f === 'minor' || !fs.alive) return;
     const ports = C.provincesOf(f).filter((p) => p.port);
     if (!ports.length) return;
@@ -1804,6 +1806,7 @@
     }
     for (const w of Object.values(d.wars || {})) { if (!w.s) w.s = {}; if (w.exh === undefined) w.exh = 0; if (!w.goal) w.goal = { by: null, type: 'none' }; }
     if (!d.fleets) { d.fleets = []; d.nextFleet = 1; }
+    if (d.naval === undefined) d.naval = d.fleets.length > 0;
     for (const ps of Object.values(d.provinces)) { if (ps.shipyard === undefined) ps.shipyard = 0; if (!ps.shipQueue) ps.shipQueue = []; ps.blockade = false; }
     if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
     if (!d.truce) d.truce = {};

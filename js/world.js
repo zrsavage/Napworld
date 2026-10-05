@@ -16,16 +16,16 @@
     let r = coastCache.get(flat); if (r) return r;
     let pts = []; for (let i = 0; i < flat.length; i += 2) pts.push(NAP.proj(flat[i], flat[i + 1]));
     let seed = 1234567 + flat.length * 31; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
-    for (let pass = 0; pass < 2; pass++) {
+    for (let pass = 0; pass < 3; pass++) {
       const out = [];
       for (let i = 0; i < pts.length; i++) {
         const a = pts[i], b = pts[(i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
         out.push(a);
-        if (len > 5) { const k = rnd() * 0.3 * len * (pass ? 0.6 : 1); out.push([(a[0] + b[0]) / 2 - dy / len * k, (a[1] + b[1]) / 2 + dx / len * k]); }
+        if (len > 4) { const k = rnd() * 0.3 * len * (pass === 0 ? 1 : pass === 1 ? 0.6 : 0.4); out.push([(a[0] + b[0]) / 2 - dy / len * k, (a[1] + b[1]) / 2 + dx / len * k]); }
       }
       pts = out;
     }
-    for (let pass = 0; pass < 2; pass++) { // Chaikin corner cutting
+    for (let pass = 0; pass < 3; pass++) { // Chaikin corner cutting
       const out = [];
       for (let i = 0; i < pts.length; i++) {
         const a = pts[i], b = pts[(i + 1) % pts.length];
@@ -195,6 +195,53 @@
       const p = pg[y * gw + x];
       return p ? provs[p - 1] : null;
     };
+    // Smooth vector province borders: trace the pixel boundaries into chains, then round them off.
+    // Chains run between junctions (whose points stay fixed), so neighbouring provinces share one edge with no gaps.
+    {
+      const V = gw + 1, ex = [], adj = new Map();
+      const addE = (x1, y1, x2, y2, a, b) => { const i = ex.length; ex.push([x1, y1, x2, y2, a, b]); for (const k of [y1 * V + x1, y2 * V + x2]) { let l = adj.get(k); if (!l) adj.set(k, (l = [])); l.push(i); } };
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        const pp = pg[y * gw + x]; if (!pp) continue;
+        if (x + 1 < gw) { const q = pg[y * gw + x + 1]; if (q && q !== pp) addE(x + 1, y, x + 1, y + 1, pp, q); }
+        if (y + 1 < gh) { const q = pg[(y + 1) * gw + x]; if (q && q !== pp) addE(x, y + 1, x + 1, y + 1, pp, q); }
+      }
+      const used = new Uint8Array(ex.length), chains = [];
+      const other = (e, k) => { const t = ex[e]; return t[1] * V + t[0] === k ? t[3] * V + t[2] : t[1] * V + t[0]; };
+      const walk = (k0, e0) => {
+        const pts = [k0]; let k = k0, e = e0;
+        for (;;) {
+          used[e] = 1; k = other(e, k); pts.push(k);
+          const l = adj.get(k);
+          if (l.length !== 2 || k === k0) break;
+          const ne = l[0] === e ? l[1] : l[0]; if (used[ne]) break; e = ne;
+        }
+        return { pts: pts.map((q) => [(q % V), Math.floor(q / V)]), a: ex[e0][4], b: ex[e0][5], closed: pts[0] === pts[pts.length - 1] };
+      };
+      for (const [k, l] of adj) if (l.length !== 2) for (const e of l) if (!used[e]) chains.push(walk(k, e));
+      for (let e = 0; e < ex.length; e++) if (!used[e]) { const t = ex[e]; chains.push(walk(t[1] * V + t[0], e)); }
+      const smooth = (c) => {
+        let P = c.pts; const n0 = P.length; if (n0 < 3) return P.map((q) => [q[0] * cs, q[1] * cs]);
+        if (c.closed) P = P.slice(0, -1);
+        for (let pass = 0; pass < 3; pass++) {
+          const n = P.length, R = [];
+          for (let i = 0; i < n; i++) {
+            if (!c.closed && (i === 0 || i === n - 1)) { R.push(P[i]); continue; }
+            const a = P[(i + n - 1) % n], b = P[i], d = P[(i + 1) % n];
+            R.push([a[0] * 0.25 + b[0] * 0.5 + d[0] * 0.25, a[1] * 0.25 + b[1] * 0.5 + d[1] * 0.25]);
+          }
+          P = R;
+        }
+        for (let pass = 0; pass < 2; pass++) {
+          const n = P.length, R = c.closed ? [] : [P[0]];
+          for (let i = 0; i < (c.closed ? n : n - 1); i++) { const a = P[i], b = P[(i + 1) % n]; R.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); }
+          if (!c.closed) R.push(P[n - 1]);
+          P = R;
+        }
+        if (c.closed) P.push(P[0]);
+        return P.map((q) => [q[0] * cs, q[1] * cs]);
+      };
+      world.chains = chains.map((c) => ({ a: c.a, b: c.b, pts: smooth(c), closed: c.closed }));
+    }
     // Colour layer cache
     world.colorCanvas = document.createElement('canvas');
     world.colorCanvas.width = gw; world.colorCanvas.height = gh;
@@ -229,26 +276,18 @@
       // subtle noise for a paper look
       const n = ((x * 73856093) ^ (y * 19349663)) & 7;
       r += n - 3; g += n - 3; b += n - 3;
-      // borders
-      const right = x + 1 < gw ? pg[i + 1] : 0, down = y + 1 < gh ? pg[i + gw] : 0;
-      const left = x > 0 ? pg[i - 1] : 0, up = y > 0 ? pg[i - gw] : 0;
-      let border = 0; // 0 none, 1 provincial, 2 national, 3 coast
-      const chk = (q) => {
-        if (q === p) return;
-        if (!q) border = Math.max(border, 3);
-        else if (ownerIdx[q - 1] !== ownerIdx[p - 1]) border = Math.max(border, 2);
-        else border = Math.max(border, 1);
-      };
-      chk(right); chk(down); chk(left); chk(up);
-      if (border === 1 && (right !== p && right || down !== p && down)) { r *= 0.78; g *= 0.78; b *= 0.78; }
-      else if (border === 1) { /* only left/up neighbour differs: skip to keep lines thin */ }
-      else if (border === 2) { r = 28; g = 24; b = 20; }
-      else if (border === 3) { r *= 0.55; g *= 0.55; b *= 0.5; }
       const o = i * 4;
       d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
     ctx.putImageData(id, 0, 0);
     w.hlCache = {};
+    // vector borders: provincial (same owner) and national (owner changes)
+    const prov = new Path2D(), nat = new Path2D();
+    for (const c of w.chains) {
+      const path = ownerIdx[c.a - 1] !== ownerIdx[c.b - 1] ? nat : prov;
+      c.pts.forEach((q, i) => { if (i) path.lineTo(q[0], q[1]); else path.moveTo(q[0], q[1]); });
+    }
+    w.borderProv = prov; w.borderNat = nat;
   };
 
   // Highlight overlay for a set of provinces
@@ -322,6 +361,20 @@
     if (opts.selProv) ctx.drawImage(hlCanvas([opts.selProv], [255, 255, 255, 95]), 0, 0, gw * cs, gh * cs);
     { const mo = state.month, tint = (mo === 12 || mo <= 2) ? 'rgba(235,243,255,0.30)' : mo === 3 ? 'rgba(235,243,255,0.10)' : (mo === 10 || mo === 11) ? 'rgba(200,120,40,0.10)' : (mo >= 7 && mo <= 8) ? 'rgba(255,220,120,0.06)' : null;
       if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, gw * cs, gh * cs); } }
+    // smooth vector borders (inside the land clip)
+    { const lw = Math.max(0.7, 1.6 / Math.sqrt(cam.z));
+      if (w.borderProv) {
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(60,45,30,0.38)'; ctx.lineWidth = lw; ctx.stroke(w.borderProv);
+        ctx.strokeStyle = 'rgba(24,20,16,0.88)'; ctx.lineWidth = lw * 1.9; ctx.stroke(w.borderNat);
+        const hl = [opts.selProv, opts.hoverProv].filter(Boolean);
+        for (const [pid, col, k] of [[opts.hoverProv, 'rgba(255,255,255,0.55)', 1.6], [opts.selProv, 'rgba(255,255,255,0.95)', 2.4]]) {
+          if (!pid) continue; const idx = w.byId[pid].idx + 1, hp = new Path2D();
+          for (const c of w.chains) if (c.a === idx || c.b === idx) c.pts.forEach((q, i) => { if (i) hp.lineTo(q[0], q[1]); else hp.moveTo(q[0], q[1]); });
+          ctx.strokeStyle = col; ctx.lineWidth = lw * k; ctx.stroke(hp);
+        }
+      }
+    }
     ctx.restore();
     // coast line
     ctx.strokeStyle = 'rgba(40,35,25,0.9)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';

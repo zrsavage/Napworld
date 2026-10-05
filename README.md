@@ -55,7 +55,9 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 
 **v6: navy and Franconia**
 - **PC only:** the game targets desktop browsers with mouse and keyboard. Touch and mobile layouts are not supported and the pinch-zoom code has been removed.
+- **Smoother map:** province borders are now smooth vector curves traced from the territory grid (national borders thicker than provincial ones), and coastlines have more detail.
 - **Bavaria** gains a fourth province, **Franconia**, with its own garrison.
+- **Naval warfare is optional** (checkbox on the start screen; off by default, harder when on; never used in the tutorial). When off, the seas stay a simple transport network, there are no fleets, shipyards or blockades.
 - **Fleets and basic naval warfare:** Ships of the Line and Frigates are built at a **Shipyard** (ports only). Five sea zones (Atlantic & North Sea, Western Mediterranean, Eastern Mediterranean, Black Sea, Baltic) connect through shared ports. Select a fleet and choose a destination, or right-click a sea ring or friendly port.
   - Hostile fleets in the same zone fight an automatic battle (docked fleets get a defender bonus plus fort level); beaten fleets shelter in a friendly port or are scattered.
   - A fleet alone at sea **blockades** enemy ports in that zone: income halved, no shipbuilding. Armies cannot sail across a zone held by an enemy fleet unless they have a fleet of their own there.

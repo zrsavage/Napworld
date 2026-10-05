@@ -209,6 +209,9 @@ button.on { border-color: #6c6; }
 .perks .pl { color: #8fd68f; } .perks .pl::before { content: "+"; }
 .perks .mi { color: #e89a8a; } .perks .mi::before { content: "\2212"; }
 
+.navalopt { max-width: 760px; margin: 10px auto 0; padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px; background: rgba(0,0,0,.18); text-align: left; font-size: 13px; }
+.navalopt .muted { margin-top: 4px; font-size: 12px; line-height: 1.45; }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -854,16 +857,16 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     let r = coastCache.get(flat); if (r) return r;
     let pts = []; for (let i = 0; i < flat.length; i += 2) pts.push(NAP.proj(flat[i], flat[i + 1]));
     let seed = 1234567 + flat.length * 31; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
-    for (let pass = 0; pass < 2; pass++) {
+    for (let pass = 0; pass < 3; pass++) {
       const out = [];
       for (let i = 0; i < pts.length; i++) {
         const a = pts[i], b = pts[(i + 1) % pts.length], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
         out.push(a);
-        if (len > 5) { const k = rnd() * 0.3 * len * (pass ? 0.6 : 1); out.push([(a[0] + b[0]) / 2 - dy / len * k, (a[1] + b[1]) / 2 + dx / len * k]); }
+        if (len > 4) { const k = rnd() * 0.3 * len * (pass === 0 ? 1 : pass === 1 ? 0.6 : 0.4); out.push([(a[0] + b[0]) / 2 - dy / len * k, (a[1] + b[1]) / 2 + dx / len * k]); }
       }
       pts = out;
     }
-    for (let pass = 0; pass < 2; pass++) { // Chaikin corner cutting
+    for (let pass = 0; pass < 3; pass++) { // Chaikin corner cutting
       const out = [];
       for (let i = 0; i < pts.length; i++) {
         const a = pts[i], b = pts[(i + 1) % pts.length];
@@ -1033,6 +1036,53 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const p = pg[y * gw + x];
       return p ? provs[p - 1] : null;
     };
+    // Smooth vector province borders: trace the pixel boundaries into chains, then round them off.
+    // Chains run between junctions (whose points stay fixed), so neighbouring provinces share one edge with no gaps.
+    {
+      const V = gw + 1, ex = [], adj = new Map();
+      const addE = (x1, y1, x2, y2, a, b) => { const i = ex.length; ex.push([x1, y1, x2, y2, a, b]); for (const k of [y1 * V + x1, y2 * V + x2]) { let l = adj.get(k); if (!l) adj.set(k, (l = [])); l.push(i); } };
+      for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+        const pp = pg[y * gw + x]; if (!pp) continue;
+        if (x + 1 < gw) { const q = pg[y * gw + x + 1]; if (q && q !== pp) addE(x + 1, y, x + 1, y + 1, pp, q); }
+        if (y + 1 < gh) { const q = pg[(y + 1) * gw + x]; if (q && q !== pp) addE(x, y + 1, x + 1, y + 1, pp, q); }
+      }
+      const used = new Uint8Array(ex.length), chains = [];
+      const other = (e, k) => { const t = ex[e]; return t[1] * V + t[0] === k ? t[3] * V + t[2] : t[1] * V + t[0]; };
+      const walk = (k0, e0) => {
+        const pts = [k0]; let k = k0, e = e0;
+        for (;;) {
+          used[e] = 1; k = other(e, k); pts.push(k);
+          const l = adj.get(k);
+          if (l.length !== 2 || k === k0) break;
+          const ne = l[0] === e ? l[1] : l[0]; if (used[ne]) break; e = ne;
+        }
+        return { pts: pts.map((q) => [(q % V), Math.floor(q / V)]), a: ex[e0][4], b: ex[e0][5], closed: pts[0] === pts[pts.length - 1] };
+      };
+      for (const [k, l] of adj) if (l.length !== 2) for (const e of l) if (!used[e]) chains.push(walk(k, e));
+      for (let e = 0; e < ex.length; e++) if (!used[e]) { const t = ex[e]; chains.push(walk(t[1] * V + t[0], e)); }
+      const smooth = (c) => {
+        let P = c.pts; const n0 = P.length; if (n0 < 3) return P.map((q) => [q[0] * cs, q[1] * cs]);
+        if (c.closed) P = P.slice(0, -1);
+        for (let pass = 0; pass < 3; pass++) {
+          const n = P.length, R = [];
+          for (let i = 0; i < n; i++) {
+            if (!c.closed && (i === 0 || i === n - 1)) { R.push(P[i]); continue; }
+            const a = P[(i + n - 1) % n], b = P[i], d = P[(i + 1) % n];
+            R.push([a[0] * 0.25 + b[0] * 0.5 + d[0] * 0.25, a[1] * 0.25 + b[1] * 0.5 + d[1] * 0.25]);
+          }
+          P = R;
+        }
+        for (let pass = 0; pass < 2; pass++) {
+          const n = P.length, R = c.closed ? [] : [P[0]];
+          for (let i = 0; i < (c.closed ? n : n - 1); i++) { const a = P[i], b = P[(i + 1) % n]; R.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); }
+          if (!c.closed) R.push(P[n - 1]);
+          P = R;
+        }
+        if (c.closed) P.push(P[0]);
+        return P.map((q) => [q[0] * cs, q[1] * cs]);
+      };
+      world.chains = chains.map((c) => ({ a: c.a, b: c.b, pts: smooth(c), closed: c.closed }));
+    }
     // Colour layer cache
     world.colorCanvas = document.createElement('canvas');
     world.colorCanvas.width = gw; world.colorCanvas.height = gh;
@@ -1067,26 +1117,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // subtle noise for a paper look
       const n = ((x * 73856093) ^ (y * 19349663)) & 7;
       r += n - 3; g += n - 3; b += n - 3;
-      // borders
-      const right = x + 1 < gw ? pg[i + 1] : 0, down = y + 1 < gh ? pg[i + gw] : 0;
-      const left = x > 0 ? pg[i - 1] : 0, up = y > 0 ? pg[i - gw] : 0;
-      let border = 0; // 0 none, 1 provincial, 2 national, 3 coast
-      const chk = (q) => {
-        if (q === p) return;
-        if (!q) border = Math.max(border, 3);
-        else if (ownerIdx[q - 1] !== ownerIdx[p - 1]) border = Math.max(border, 2);
-        else border = Math.max(border, 1);
-      };
-      chk(right); chk(down); chk(left); chk(up);
-      if (border === 1 && (right !== p && right || down !== p && down)) { r *= 0.78; g *= 0.78; b *= 0.78; }
-      else if (border === 1) { /* only left/up neighbour differs: skip to keep lines thin */ }
-      else if (border === 2) { r = 28; g = 24; b = 20; }
-      else if (border === 3) { r *= 0.55; g *= 0.55; b *= 0.5; }
       const o = i * 4;
       d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
     ctx.putImageData(id, 0, 0);
     w.hlCache = {};
+    // vector borders: provincial (same owner) and national (owner changes)
+    const prov = new Path2D(), nat = new Path2D();
+    for (const c of w.chains) {
+      const path = ownerIdx[c.a - 1] !== ownerIdx[c.b - 1] ? nat : prov;
+      c.pts.forEach((q, i) => { if (i) path.lineTo(q[0], q[1]); else path.moveTo(q[0], q[1]); });
+    }
+    w.borderProv = prov; w.borderNat = nat;
   };
 
   // Highlight overlay for a set of provinces
@@ -1160,6 +1202,20 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (opts.selProv) ctx.drawImage(hlCanvas([opts.selProv], [255, 255, 255, 95]), 0, 0, gw * cs, gh * cs);
     { const mo = state.month, tint = (mo === 12 || mo <= 2) ? 'rgba(235,243,255,0.30)' : mo === 3 ? 'rgba(235,243,255,0.10)' : (mo === 10 || mo === 11) ? 'rgba(200,120,40,0.10)' : (mo >= 7 && mo <= 8) ? 'rgba(255,220,120,0.06)' : null;
       if (tint) { ctx.fillStyle = tint; ctx.fillRect(0, 0, gw * cs, gh * cs); } }
+    // smooth vector borders (inside the land clip)
+    { const lw = Math.max(0.7, 1.6 / Math.sqrt(cam.z));
+      if (w.borderProv) {
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(60,45,30,0.38)'; ctx.lineWidth = lw; ctx.stroke(w.borderProv);
+        ctx.strokeStyle = 'rgba(24,20,16,0.88)'; ctx.lineWidth = lw * 1.9; ctx.stroke(w.borderNat);
+        const hl = [opts.selProv, opts.hoverProv].filter(Boolean);
+        for (const [pid, col, k] of [[opts.hoverProv, 'rgba(255,255,255,0.55)', 1.6], [opts.selProv, 'rgba(255,255,255,0.95)', 2.4]]) {
+          if (!pid) continue; const idx = w.byId[pid].idx + 1, hp = new Path2D();
+          for (const c of w.chains) if (c.a === idx || c.b === idx) c.pts.forEach((q, i) => { if (i) hp.lineTo(q[0], q[1]); else hp.moveTo(q[0], q[1]); });
+          ctx.strokeStyle = col; ctx.lineWidth = lw * k; ctx.stroke(hp);
+        }
+      }
+    }
     ctx.restore();
     // coast line
     ctx.strokeStyle = 'rgba(40,35,25,0.9)'; ctx.lineWidth = 1.5; ctx.lineJoin = 'round';
@@ -1350,12 +1406,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   const W = () => NAP.world;
 
   // -------------------------------------------------------------------- state
-  C.newGame = function (player, difficulty) {
+  C.newGame = function (player, difficulty, opts) {
     const w = W();
     S = {
       version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
-      fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
+      naval: !!(opts && opts.naval), fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced', shipyard: 0, shipQueue: [], blockade: false };
@@ -1390,7 +1446,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         }
       }
     }
-    for (const f in NAP.START_FLEETS) for (const [pid, spec] of NAP.START_FLEETS[f]) {
+    if (S.naval) for (const f in NAP.START_FLEETS) for (const [pid, spec] of NAP.START_FLEETS[f]) {
       if (!W().byId[pid] || !W().byId[pid].port) continue;
       const ships = {}; spec.split(' ').forEach((t) => { const [k, n] = t.split(':'); ships[k] = +n; });
       S.provinces[pid].shipyard = 1; C.newFleet(f, pid, ships);
@@ -1636,6 +1692,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   };
   C.buildCheck = function (pid, b) {
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
+    if (bd.port && !S.naval) return 'Naval warfare is switched off in this game';
     if (bd.port && !W().byId[pid].port) return 'Needs a port';
     if (ps.build) return 'Already constructing';
     if (ps.siege) return 'Province is besieged';
@@ -2986,7 +3043,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
   }
   function navalPhase() {
-    if (!S.fleets) return;
+    if (!S.fleets || !S.naval) return;
     fleetCleanup();
     navalMoves();
     navalCombat();
@@ -2995,6 +3052,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   // ---- naval AI: build a fleet in proportion to wealth, then fight, blockade or sit in port
   function aiNavy(f) {
+    if (!S.naval) return;
     const fs = S.factions[f]; if (f === 'minor' || !fs.alive) return;
     const ports = C.provincesOf(f).filter((p) => p.port);
     if (!ports.length) return;
@@ -3120,6 +3178,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     for (const w of Object.values(d.wars || {})) { if (!w.s) w.s = {}; if (w.exh === undefined) w.exh = 0; if (!w.goal) w.goal = { by: null, type: 'none' }; }
     if (!d.fleets) { d.fleets = []; d.nextFleet = 1; }
+    if (d.naval === undefined) d.naval = d.fleets.length > 0;
     for (const ps of Object.values(d.provinces)) { if (ps.shipyard === undefined) ps.shipyard = 0; if (!ps.shipQueue) ps.shipQueue = []; ps.blockade = false; }
     if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
     if (!d.truce) d.truce = {};
@@ -4931,6 +4990,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     let html = `<h1>NAPWORLD</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="opts"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
       ${hasAuto ? '<button id="autobtn">Continue (autosave)</button>' : ''}${has ? '<button id="loadbtn">Load saved campaign</button>' : ''}<button id="tutbtn" class="primary">&#9654; Tutorial campaign</button><button id="practbtn">Practice battle</button><button id="helpbtn">How to play</button></div>
+      <div class="navalopt"><label><input type="checkbox" id="navalchk" ${ui.naval ? 'checked' : ''}> <b>Naval warfare</b> (harder)</label><div class="muted"><b>Off</b> (default): the seas are a simple transport network, as in earlier versions. <b>On</b>: every nation has a fleet, you build ships at Shipyards, enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings, and you need your own navy to keep them open. That is more to manage and a real extra threat, so it is recommended once you know the basics. Not used in the tutorial.</div></div>
       <div class="guidebox"><b>Which nation should I pick?</b> New to the game? Start with <b>Russia</b>: it is huge, far from the early fighting, and nobody can reach you for months, so you can learn at your own pace. <b>Britain</b> is a relaxed second choice (rich, safe on an island, few battles at first). Each card shows a difficulty rating from <span class="tier tier-beginner">Beginner</span> to <span class="tier tier-expert">Expert</span> and a one-line reason. Hover a card for tips. The tutorial campaign teaches the controls using France, which is a <i>hard</i> nation to win with.</div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
@@ -4947,6 +5007,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     $('#start').innerHTML = html; $('#start').hidden = false;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
+    $('#navalchk').onchange = (e) => (ui.naval = e.target.checked);
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => { ui.picked = c.dataset.f; $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c)); }));
     $('#beginbtn').onclick = () => beginGame(ui.picked);
     $('#helpbtn').onclick = showHelp;
@@ -4961,10 +5022,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
   }
 
-  function beginGame(f) {
+  function beginGame(f, noNaval) {
     ui.tut = { on: false, step: 0 }; ui.dipOpened = false;
     if (NAP.audio) { NAP.audio.init(); NAP.audio.music('map'); }
-    C.newGame(f, ui.difficulty);
+    C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval });
     enterGame();
     const cap = NAP.world.byId[S().factions[f].cap];
     ui.cam = { x: cap.cx, y: cap.cy, z: 1.15 };
@@ -4995,7 +5056,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <span class="stat" title="Treasury / net per turn (income ${fmt(inc)} - upkeep ${fmt(up)})">&#128176; <b>${fmt(fs.gold)}</b> <small class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${fmt(net)}</small> <small>(${fmt(inc)} − ${fmt(up)})</small></span>
       <span class="stat" title="Manpower pool / monthly growth">&#128100; <b>${fmt(fs.manpower)}</b> <small>+${fmt(C.manpowerGain(p))}</small></span>
       <span class="stat" title="Provinces held; win at 55%">&#9873; <b>${provs}</b><small>/${total}</small></span>
-      <span class="stat" title="Ships in your navy">&#9875; <b>${C.fleetsOf(p).reduce((a, x) => a + C.shipCount(x), 0)}</b> <small>ships</small></span>
+      ${s.naval ? '' : '<!--'}<span class="stat" title="Ships in your navy">&#9875; <b>${C.fleetsOf(p).reduce((a, x) => a + C.shipCount(x), 0)}</b> <small>ships</small></span>${s.naval ? '' : '-->'}
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
@@ -5176,13 +5237,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       html += `</div><div class="sec"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
       for (const b of Object.keys(NAP.BUILDINGS)) {
-        if (NAP.BUILDINGS[b].port && !p.port) continue;
+        if (NAP.BUILDINGS[b].port && (!p.port || !s.naval)) continue;
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
         html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
       }
       if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
       html += `</div>`;
-      if (p.port) {
+      if (p.port && s.naval) {
         html += `<div class="sec"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
         html += Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' \u00B7 Cost ' + C.shipCost(pid, t) + 'g \u00B7 Upkeep ' + sh.upkeep + '/turn \u00B7 Builds in ' + sh.time + ' turns \u00B7 Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
         if ((ps.shipQueue || []).length) html += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
@@ -5295,7 +5356,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <p><b>Economy:</b> provinces produce gold and manpower. Recruit regiments and build Markets, Barracks and Fortifications from the province panel. Regiments cost gold to raise and upkeep every month &mdash; go bankrupt and they desert. Stacks hold up to 20 regiments; split and merge them in the army panel. Appoint a general to boost an army.</p>
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
-      <p><b>Navy:</b> build a <i>Shipyard</i> in a port, then Ships of the Line and Frigates. Select a fleet (its little ship icon) and pick a destination from the list, or right-click a sea zone ring or a friendly port. There are five seas (Atlantic &amp; North Sea, Western and Eastern Mediterranean, Black Sea, Baltic); neighbouring seas connect through shared ports. Hostile fleets in the same sea fight an automatic battle. A fleet at sea alone <b>blockades</b> enemy ports in that sea (income halved, no shipbuilding) and enemy armies cannot sail through it unless they have a fleet of their own there.</p>
+      <p><b>Navy (optional, chosen on the start screen; harder):</b> build a <i>Shipyard</i> in a port, then Ships of the Line and Frigates. Select a fleet (its little ship icon) and pick a destination from the list, or right-click a sea zone ring or a friendly port. There are five seas (Atlantic &amp; North Sea, Western and Eastern Mediterranean, Black Sea, Baltic); neighbouring seas connect through shared ports. Hostile fleets in the same sea fight an automatic battle. A fleet at sea alone <b>blockades</b> enemy ports in that sea (income halved, no shipbuilding) and enemy armies cannot sail through it unless they have a fleet of their own there.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
       <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, F1-F4 for Line/Column/Square/Skirmish, Ctrl+1-9 to save a control group (press the digit to recall it, twice to centre), C to charge, H to halt, R to rally with your general, Space to pause (you can still give orders while paused). Hold the flagged objectives for victory points: hold them all for 75 seconds or lead by 25 VP at the time limit to win. Hover or select a regiment to see its flank arcs (green front, yellow flanks, red rear). Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
       </div><div class="foot"><button class="primary" data-r="x">Got it</button></div>`);
@@ -5363,8 +5424,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const s = S();
     const rows = Object.keys(s.factions).filter((f) => f !== 'minor').map((f) => ({ f, alive: s.factions[f].alive, n: C.provincesOf(f).length, inc: C.factionIncome(f), arm: C.armiesOf(f).reduce((a, x) => a + x.units.length, 0), ships: C.fleetsOf(f).reduce((a, x) => a + C.shipCount(x), 0), pow: C.factionPower(f), gold: s.factions[f].gold, war: C.warsOf(f).map((x) => F(x).adj).join(', ') }))
       .sort((a, b) => b.n - a.n);
-    const html = `<h2>Overview of Europe</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Prov</th><th>Income</th><th>Regts</th><th>Ships</th><th>Army</th><th>Treasury</th><th>At war with</th></tr>
-      ${rows.map((r) => `<tr style="${r.alive ? '' : 'opacity:.4'}"><td>${flag(r.f)}${esc(F(r.f).name)}${r.f === s.player ? ' <b>(you)</b>' : ''}</td><td>${r.n}</td><td>${fmt(r.inc)}</td><td>${r.arm}</td><td>${r.ships}</td><td>${fmt(r.pow / 1000)}k</td><td>${fmt(r.gold)}</td><td>${r.alive ? esc(r.war || '—') : 'Eliminated'}</td></tr>`).join('')}</table>
+    const html = `<h2>Overview of Europe</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Prov</th><th>Income</th><th>Regts</th>${s.naval ? '<th>Ships</th>' : ''}<th>Army</th><th>Treasury</th><th>At war with</th></tr>
+      ${rows.map((r) => `<tr style="${r.alive ? '' : 'opacity:.4'}"><td>${flag(r.f)}${esc(F(r.f).name)}${r.f === s.player ? ' <b>(you)</b>' : ''}</td><td>${r.n}</td><td>${fmt(r.inc)}</td><td>${r.arm}</td>${s.naval ? `<td>${r.ships}</td>` : ''}<td>${fmt(r.pow / 1000)}k</td><td>${fmt(r.gold)}</td><td>${r.alive ? esc(r.war || '—') : 'Eliminated'}</td></tr>`).join('')}</table>
       <p class="muted">Victory: hold 55% of all provinces, or eliminate every rival. Survive until the end of 1815 for a score by territory.</p></div><div class="foot"><button data-r="x">Close</button></div>`;
     await modal(html);
   }
@@ -5532,7 +5593,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   // ------------------------------------------------------------------ tutorial & practice battle
   function startTutorial() {
     ui.difficulty = 'easy'; ui.picked = 'france';
-    beginGame('france');
+    beginGame('france', true);
     ui.tut = { on: true, step: 0 };
     ui.sel = { prov: null, army: null };
     refresh();
