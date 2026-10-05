@@ -49,7 +49,7 @@ HTML/CSS/JavaScript and `<canvas>` — no build step, no dependencies. Open `ind
 - **Sound & polish:** positional battle sound, bugle/hoof cues, dust trails.
 - **Map:** province borders prefer to follow rivers and mountain ridges; hover a province for an info card.
 - **Tooling:** `node tools/balance.js battles|campaign|all` runs repeatable battle matchups and bot-played campaigns (needs Playwright + Chromium).
-- **Range cones** (toggle with V) show every regiment's firing reach: guns cover most of the field, light infantry out-range line, cavalry show charge reach. **Militia** are very cheap (40g) but short-ranged, weak in melee and break easily.
+- **Range cones** (toggle with V) show every regiment's firing reach: guns cover most of the field, light infantry out-range line, cavalry show charge reach. **Militia** are very cheap (40g; after 3 battles they can be upgraded to Line Infantry for free) but short-ranged, weak in melee and break easily.
 - **Saves** are versioned and older saves are migrated; saves from a newer game version are refused politely.
 
 **Tactical battles** (real-time, rectangles on a field)

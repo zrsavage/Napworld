@@ -95,6 +95,13 @@
   }
   C.newUnit = (type, vet) => ({ type, men: U[type].men, max: U[type].men, xp: 0, vet: vet || 0 });
   // veteran level: from an Academy at recruitment or from battles survived and won
+  C.MILITIA_FIGHTS = 3;
+  C.canUpgrade = (u) => u.type === 'militia' && (u.fights || 0) >= C.MILITIA_FIGHTS;
+  C.upgradeMilitia = function (a, i) {
+    const u = a.units[i]; if (!u || !C.canUpgrade(u)) return false;
+    const frac = u.men / u.max; u.type = 'line'; u.max = U.line.men; u.men = Math.round(U.line.men * frac); u.fights = 0;
+    return true;
+  };
   C.vetOf = (u) => Math.max(u.vet || 0, (u.xp || 0) >= 6 ? 2 : (u.xp || 0) >= 3 ? 1 : 0);
   C.unitCost = function (pid, type) {
     const u = U[type], ps = S.provinces[pid];
@@ -611,6 +618,7 @@
     if (victory && armies.length && rnd() < 0.14) spawnColonel(armies[0].owner);
     for (const a of armies) {
       if (victory) for (const u of a.units) u.xp = (u.xp || 0) + 1;
+      for (const u of a.units) { u.fights = (u.fights || 0) + 1; if (u.type === 'militia' && u.fights === C.MILITIA_FIGHTS && a.owner === S.player) plog('A militia regiment has seen enough battles to be drilled into line infantry (free upgrade in the army panel).', 'good', [a.owner]); }
       if (!a.general) continue;
       const g = S.generals[a.general];
       g.loyalty = Math.max(0, Math.min(100, (g.loyalty || 70) + (victory ? 4 : -6)));
@@ -857,6 +865,7 @@
       const ps = S.provinces[a.prov], nm = C.def(a.prov).name, home = ps.owner === f || allied(f, ps.owner), besieging = ps.siege && ps.siege.by === f;
       if (!a.path.length && !besieging && !home) out.push({ kind: 'idle', sev: 2, army: a.id, prov: a.prov, text: `${a.units.length}-regiment army idle in ${nm}` });
       else if (!a.path.length && home && warNow && a.units.length >= 8) out.push({ kind: 'idle-home', sev: 1, army: a.id, prov: a.prov, text: `Large army (${a.units.length} regts) waiting in ${nm}` });
+      { const n = a.units.filter(C.canUpgrade).length; if (n) out.push({ kind: 'upgrade', sev: 1, army: a.id, prov: a.prov, text: `${n} militia in ${nm} can be upgraded to Line Infantry for free` }); }
       if ((a.supply || 0) >= 2) out.push({ kind: 'supply', sev: 2, army: a.id, prov: a.prov, text: `Army in ${nm} is short of supply` });
       if (!a.general && a.units.length >= 5 && C.availableGenerals(f).length) out.push({ kind: 'general', sev: 1, army: a.id, prov: a.prov, text: `Army in ${nm} has no general (one is available)` });
     }

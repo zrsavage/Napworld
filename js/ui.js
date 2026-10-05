@@ -326,12 +326,14 @@
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
-      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
+      html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.canUpgrade(u) ? ' <span class="good" title="Ready to upgrade to Line Infantry">\u25B2</span>' : ''}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
     });
     html += `</div>`;
     if (mine) {
       const sErr = C.assaultCheck(a);
       html += `<div class="row"><label><input type="checkbox" data-act="forced" ${a.forced ? 'checked' : ''}> Forced march <span class="muted">(2 provinces/turn, −3% men, +fatigue)</span></label></div>`;
+      const up = a.units.map((u, i) => (C.canUpgrade(u) ? i : -1)).filter((i) => i >= 0);
+      if (up.length) html += `<div class="row"><button data-act="upmil" class="primary" data-tip="Battle-hardened militia are drilled into Line Infantry for free (keeps veteran stars and current strength ratio).">Upgrade ${up.length} militia \u2192 Line (free)</button></div>`;
       html += `<div class="row"><label data-tip="Living off the land: fewer losses from supply shortage, but the province is stripped and angered (unrest +8, income cut next month)."><input type="checkbox" data-act="forage" ${a.forage ? 'checked' : ''}> Forage <span class="muted">(fewer losses, ruins the province)</span></label></div>`;
       html += `<div class="row"><select id="staffpick" data-tip="Staff officers cost gold once and a little upkeep each turn."><option value="">${a.staff ? 'Staff: ' + esc(NAP.STAFF[a.staff].name) + ' (change)' : 'Hire staff officer\u2026'}</option>${Object.keys(NAP.STAFF).filter((k) => k !== a.staff).map((k) => `<option value="${k}">${esc(NAP.STAFF[k].name)} \u2014 ${NAP.STAFF[k].cost}g: ${esc(NAP.STAFF[k].desc)}</option>`).join('')}${a.staff ? '<option value="none">Dismiss staff officer</option>' : ''}</select></div>`;
       if (!sErr) html += `<div class="row"><button data-act="storm" class="danger" title="Garrison about ${C.garrisonStrength(a.prov)} men">Storm the walls</button></div>`;
@@ -349,6 +351,7 @@
       const act = b.dataset.act;
       if (act === 'forced') { a.forced = b.checked; return; }
       if (act === 'forage') { a.forage = b.checked; return; }
+      if (act === 'upmil') { let n = 0; a.units.forEach((u, i) => { if (C.upgradeMilitia(a, i)) n++; }); toast(`${n} militia upgraded to Line Infantry`); }
       if (act === 'split') { const idx = checked(); if (!idx.length || idx.length >= a.units.length) return toast('Select some (not all) regiments'); const na = C.splitArmy(a, idx); if (na) ui.sel.army = na.id; }
       else if (act === 'merge') { const others = S().armies.filter((x) => x !== a && x.prov === a.prov && x.owner === a.owner); let n = 0; others.forEach((o) => { if (C.mergeArmies(a, o)) n++; }); toast(n ? `Merged ${n} army` : 'Nothing to merge (stack limit?)'); }
       else if (act === 'stop') a.path = [];
