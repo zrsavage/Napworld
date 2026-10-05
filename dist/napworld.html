@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Savage Napoleonic War Simulation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=IM+Fell+English:ital@0;1&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Pinyon+Script&family=IM+Fell+English:ital@0;1&display=swap">
 <style>
 :root { color-scheme: dark; }
 :root {
@@ -237,7 +237,7 @@ button.on { border-color: #6c6; }
 /* title screen and nation selection */
 #start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
 #start .titlebox { text-align: center; }
-#start.title h1 { font-size: 52px; letter-spacing: 8px; line-height: 1.15; }
+#start.title h1 { font: 400 84px/1.05 'Pinyon Script', 'Snell Roundhand', 'Brush Script MT', cursive; letter-spacing: 1px; text-shadow: 0 3px 14px #000, 0 0 30px rgba(241,212,135,.25); }
 #start.title .sub { font-size: 16px; margin: 10px 0 36px; }
 #start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
 #start .menu button { padding: 11px 16px; font-size: 16px; }
@@ -5057,7 +5057,7 @@ button.on { border-color: #6c6; }
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
   ui.folds = {}; ui.playback = lsGet('napworld-playback') || 'normal';
-  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
+  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "16px Pinyon Script"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
 
   // ------------------------------------------------------------------ utilities
   function modal(html, cls) {
@@ -5117,7 +5117,7 @@ button.on { border-color: #6c6; }
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `<div class="titlebox"><h1>SAVAGE NAPOLEONIC<br>WAR SIMULATION</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>

@@ -16,7 +16,7 @@
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
   ui.folds = {}; ui.playback = lsGet('napworld-playback') || 'normal';
-  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
+  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "16px Pinyon Script"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
 
   // ------------------------------------------------------------------ utilities
   function modal(html, cls) {
@@ -76,7 +76,7 @@
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `<div class="titlebox"><h1>SAVAGE NAPOLEONIC<br>WAR SIMULATION</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
