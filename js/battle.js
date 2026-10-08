@@ -2,6 +2,7 @@
 (function () {
   const NAP = window.NAP;
   const FW = 1600, FH = 900;
+  const esc2 = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const FIRE_RATE = 0.6; // overall lethality of shooting: lower = longer, easier-to-read battles
   const TAU = Math.PI * 2;
   const rnd = Math.random;
@@ -64,7 +65,7 @@
       this.rallyCd = [0, 0];
       this.initialMen = [0, 0];
       this.deadGen = [];
-      this.genDead = [false, false];
+      this.genDead = [false, false]; this.noGen = [false, false];
       const W = spec.weather || 'clear';
       this.wx = { fire: W === 'rain' ? 0.65 : 1, artFire: W === 'rain' ? 0.85 : 1, speed: W === 'rain' ? 0.9 : W === 'snow' ? 0.85 : 1, range: W === 'fog' ? 0.7 : 1, fat: W === 'snow' ? 1.3 : 1 };
       this.timeLimit = spec.tod === 'dusk' ? 420 : 600;
@@ -205,7 +206,7 @@
         const g = sides[s].general;
         const gu = {
           id: this.nextId++, side: s, type: 'gen', cls: 'gen', faction: sides[s].faction, name: g ? g.name : 'Colonel', gen: g || { name: 'Colonel', atk: 3, def: 3, lead: 3 },
-          x: baseX - dir * 120, y: FH / 2, facing: s === 0 ? 0 : Math.PI, men: 1, max: 1, morale: 100, baseMorale: 100, fatigue: 0,
+          x: baseX - dir * 120, y: FH / 2, facing: s === 0 ? 0 : Math.PI, men: 90, max: 90, morale: 100, baseMorale: 100, fatigue: 0,
           formation: 'line', w: 14, d: 14, state: 'idle', order: null, target: null, kills: 0, calm: 0
         };
         this.units.push(gu);
@@ -252,12 +253,21 @@
     msg(text) { this.msgs.unshift({ t: this.t, text }); if (this.msgs.length > 6) this.msgs.pop(); }
 
     damage(target, cas, src, moraleMul, kind) {
+      if (target.cls === 'gen') { // a commander is a target too: bodyguards soak most of the fire
+        if (target.dead) return;
+        const guard = this.units.some((f) => f.side === target.side && f.cls === 'inf' && this.alive(f) && f.state !== 'routing' && Math.hypot(f.x - target.x, f.y - target.y) < 55);
+        target.men -= cas * (guard ? 0.3 : 1); target.hitT = 0.3;
+        if (target.men <= 0) { target.men = 0; target.dead = true; this.onGeneralDead(target); }
+        return;
+      }
       cas = Math.min(target.men, cas * target.takeMul * (FORM_TAKE[target.formation] || 1));
       if (cas <= 0) return;
       target.men -= cas;
       target.sinceHit = 0; target.hitT = 0.3; target.cumHit = (target.cumHit || 0) + cas;
       if (src) src.kills += cas;
-      const m = (cas / target.max) * 100 * 1.7 * (moraleMul || 1);
+      // being hit from the flank or rear shakes men far more than a frontal exchange
+      const exm = src && target.cls !== 'art' ? this.exposure(target, src) : 1;
+      const m = (cas / target.max) * 100 * 1.7 * (moraleMul || 1) * (1 + (exm - 1) * 1.6);
       target.morale -= m;
       if (target.men < 1) { target.men = 0; target.dead = true; }
       // blood stains
@@ -303,6 +313,7 @@
     // Visible fire: muzzle flashes, tracer dashes, round shot, impacts
     fireVolley(u, tgt) {
       u.volleyT = this.t;
+      for (const g of this.units) if (g.cls === 'gen' && g.side !== u.side && !g.dead && Math.hypot(g.x - tgt.x, g.y - tgt.y) < 55) this.damage(g, u.cls === 'art' ? 9 : 2.5, u); // stray shot
       const ca = Math.cos(u.facing), sa = Math.sin(u.facing);
       const mx = u.x + ca * (u.d / 2 + 3), my = u.y + sa * (u.d / 2 + 3);
       this.snd(u.cls === 'art' ? 'cannon' : 'musket', u.cls === 'art' ? 0.22 : 0.09, u.x, u.y);
@@ -375,6 +386,13 @@
       this.checkEnd();
     }
 
+    onGeneralDead(g) {
+      this.deadGen.push(g.gen.id || null);
+      this.genDead[g.side] = true; this.noGen[g.side] = true;
+      this.msg(`${g.name} has fallen!`); this.snd('rout', 0, g.x, g.y);
+      this.floaters.push({ x: g.x, y: g.y - 20, txt: 'GENERAL KILLED!', t: 0, side: g.side });
+      for (const u of this.units) if (u.side === g.side && u.cls !== 'gen') u.morale -= 18;
+    }
     stepGeneral(g, dt) {
       if (g.dead) return;
       if (g.order && g.order.type === 'move') {
@@ -382,18 +400,10 @@
         if (d < 3) g.order = null;
         else { const sp = 58 * dt; g.x += (dx / d) * Math.min(sp, d); g.y += (dy / d) * Math.min(sp, d); g.facing = Math.atan2(dy, dx); }
       }
-      // danger: enemies in melee contact
+      // danger: enemies riding or marching up to the commander
       for (const e of this.units) {
         if (e.side === g.side || e.cls === 'gen' || !this.alive(e)) continue;
-        if (Math.hypot(e.x - g.x, e.y - g.y) < 22 + e.w * 0.25 && e.state !== 'routing') {
-          if (rnd() < 0.03 * dt * (e.cls === 'cav' ? 2 : 1)) {
-            g.dead = true;
-            this.deadGen.push(g.gen.id || null);
-            this.genDead[g.side] = true;
-            this.msg(`${g.name} has fallen!`);
-            for (const u of this.units) if (u.side === g.side && u.cls !== 'gen') u.morale -= 14;
-          }
-        }
+        if (Math.hypot(e.x - g.x, e.y - g.y) < 22 + e.w * 0.25 && e.state !== 'routing') this.damage(g, (e.cls === 'cav' ? 30 : 8) * dt, e);
       }
     }
 
@@ -606,10 +616,14 @@
       // ---------------- morale
       u.morale = Math.min(u.morale, u.baseMorale * (1.05 - u.fatigue / 400));
       if (u.sinceHit > 4 && !melee) {
-        let reg = 0.9 + (nearGen ? 1.1 : 0);
+        let reg = (0.9 + (nearGen ? 1.1 : 0)) * (this.noGen[s] ? 0.3 : 1);
         u.morale = Math.min(u.baseMorale * (1.02 - u.fatigue / 400), u.morale + reg * dt);
       }
-      const thresh = u.formation === 'square' ? 9 : 18;
+      // flanked, in the rear or surrounded: men lose heart steadily
+      u.thrT = (u.thrT || 0) - dt;
+      if (u.thrT <= 0) { u.thrT = 0.25; this.assessThreat(u); }
+      if (u.threat > 0 && u.state !== 'routing') u.morale -= u.threat * dt;
+      const thresh = (u.formation === 'square' ? 9 : 18) + (this.noGen[s] ? 4 : 0);
       if (u.morale <= thresh && u.state !== 'routing') {
         u.state = 'routing'; u.order = null; u.target = null; u.routT = 0; u.charging = false;
         if (u.formation === 'square' || u.formation === 'column') { u.formation = BT[u.type].forms[0]; u.wantForm = null; [u.w, u.d] = dims(u); }
@@ -752,6 +766,8 @@
             if (c.cls === 'inf' && c.morale < 45) sc *= 1.8;
             if (sc > bs) { bs = sc; best = c; }
           }
+          const eg = this.general(1 - s);
+          if (eg && !en.some((c) => c.cls === 'inf' && c.state !== 'routing' && Math.hypot(c.x - eg.x, c.y - eg.y) < 60)) { const dd = Math.hypot(eg.x - u.x, eg.y - u.y); if (dd < 520) { const sc = 3.2 * 400 / (dd + 60); if (sc > bs) { bs = sc; best = eg; } } }
           if (best && bs > 0.7) { u.order = { type: 'attack', target: best, charge: true }; }
         }
       }
@@ -1072,6 +1088,24 @@
       }
     }
 
+    // which sides of this regiment have enemy troops pressing on them?
+    assessThreat(u) {
+      const sec = { f: 0, l: 0, r: 0, b: 0 };
+      for (const e of this.units) {
+        if (e.side === u.side || e.cls === 'gen' || !this.alive(e) || e.state === 'routing') continue;
+        if (e.cls === 'art' && Math.hypot(e.x - u.x, e.y - u.y) > 60) continue;
+        if (this.gap(u, e) > 75) continue;
+        const da = angDiff(Math.atan2(e.y - u.y, e.x - u.x), u.facing), a = Math.abs(da);
+        if (a < 1.0) sec.f = 1; else if (a > 2.15) sec.b = 1; else if (da > 0) sec.r = 1; else sec.l = 1;
+      }
+      const n = sec.f + sec.l + sec.r + sec.b, fm = (u.formation === 'square' ? 0.35 : u.formation === 'skirmish' ? 0.5 : u.formation === 'column' ? 1.3 : 1) * (u.cls === 'cav' ? 0.5 : 1); // horsemen can wheel and escape
+      let d = 0, st = null;
+      if (sec.l) d += 1.0; if (sec.r) d += 1.0; if (sec.b) d += 2.2;
+      if (n >= 3) d += 3.5;
+      if (n >= 3) st = 'SURROUNDED'; else if (sec.l || sec.r || sec.b) st = 'FLANKED';
+      u.threat = d * fm; if (st && st !== u.status && u.side === 0 && this.t - (u.statusMsgT || -99) > 8) { u.statusMsgT = this.t; this.msg(`${u.name} is ${st.toLowerCase()}!`); }
+      u.status = st;
+    }
     stamina(u) { return u.cls === 'cav' ? clamp(1.25 - u.fatigue / 80, 0.1, 1) : 1; }
     // A line keeps its shape: infantry face the middle of the enemy in reach (not one regiment each) and keep step with idle neighbours.
     lineFacing(u, tgt) {
@@ -1236,8 +1270,11 @@
       ctx.save();
       ctx.translate(u.x, u.y);
       if (u.cls === 'gen') {
+        { const team = u.side === 0 ? '60,200,255' : '255,80,70'; ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke(); }
         ctx.fillStyle = fc.color; ctx.strokeStyle = this.sel.has(u) ? '#fff' : '#111'; ctx.lineWidth = this.sel.has(u) ? 3 : 1.5;
         ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill(); ctx.stroke();
+        if (u.men < u.max) { ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(-12, -19, 24, 3.4); ctx.fillStyle = u.men / u.max > 0.5 ? '#6d6' : '#e55'; ctx.fillRect(-12, -19, 24 * clamp(u.men / u.max, 0, 1), 3.4); }
+        if (u.hitT > 0) { ctx.strokeStyle = 'rgba(255,60,60,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 14 + (0.3 - u.hitT) * 20, 0, TAU); ctx.stroke(); }
         ctx.fillStyle = '#ffd700'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('★', 0, 0.5);
         if (this.sel.has(u)) { ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(0, 0, 230, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
         ctx.restore(); return;
@@ -1252,10 +1289,16 @@
       ctx.rotate(u.facing);
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
       // team marker: cyan = yours, red = enemy, whatever the nation's uniform colour
-      if (u.state !== 'routing') {
-        const team = u.side === 0 ? '60,200,255' : '255,80,70';
-        ctx.fillStyle = `rgba(${team},0.15)`; ctx.fillRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
-        ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = Math.max(1.2, 2.2 / Math.max(0.5, sk)); ctx.strokeRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
+      {
+        const team = u.side === 0 ? '60,200,255' : '255,80,70', rt = u.state === 'routing';
+        ctx.fillStyle = `rgba(${team},${rt ? 0.28 : 0.15})`; ctx.fillRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
+        ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = Math.max(rt ? 2.2 : 1.2, (rt ? 3.4 : 2.2) / Math.max(0.5, sk));
+        if (rt) ctx.setLineDash([6, 4]);
+        ctx.strokeRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8); ctx.setLineDash([]);
+        if (rt) { // chevrons showing the way the broken regiment is running, in its own team colour
+          ctx.strokeStyle = `rgba(${team},0.9)`; ctx.lineWidth = Math.max(1.4, 2.4 / Math.max(0.5, sk));
+          for (let q = 0; q < 3; q++) { const cx = d / 2 + 10 + q * 7; ctx.beginPath(); ctx.moveTo(cx - 3, -6); ctx.lineTo(cx + 2, 0); ctx.lineTo(cx - 3, 6); ctx.stroke(); }
+        }
       }
       if (Math.max(w, d) * sk < 46) {
         // far zoom: simple block, kept visible
@@ -1289,7 +1332,9 @@
         ctx.strokeText(label, 0, 0); ctx.fillText(label, 0, 0);
         ctx.restore();
       }
-      if (u.state === 'routing') { ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textBaseline = 'middle'; ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0); }
+      if (u.state === 'routing') { ctx.fillStyle = u.side === 0 ? '#5fd4ff' : '#ff6a60'; ctx.font = 'bold 13px sans-serif'; ctx.textBaseline = 'middle'; ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0); }
+      { const tag = u.state === 'routing' ? 'ROUTING' : u.status; // status tags above the bars, coloured by side
+        if (tag && sk > 0.45) { ctx.save(); ctx.translate(0, -(Math.max(w, d) / 2) - 17 * us); ctx.scale(us, us); ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.fillStyle = u.state === 'routing' ? (u.side === 0 ? '#7fe0ff' : '#ff8a80') : '#ffd84a'; ctx.strokeText(tag, 0, 0); ctx.fillText(tag, 0, 0); ctx.restore(); } }
       if (u.wantForm) { ctx.fillStyle = '#fc6'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('↻', 0, 0); }
       ctx.restore();
     }
@@ -1307,9 +1352,10 @@
           <div class="b-banner" id="b-banner"></div>
           <div class="b-paused" id="b-paused" hidden>PAUSED &mdash; you can still give orders</div>
           <div class="b-feed" id="b-feed"></div>
+          <div class="b-roster" id="b-roster"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Tab: next regiment &middot; Q: roster &middot; Right-click an enemy general to target him &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -1326,7 +1372,7 @@
             <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp on" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
             <span class="b-sep"></span><button data-z="out" title="Zoom out (PageDown)">&minus;</button><span id="b-zoom" class="b-zoomlbl">100%</span><button data-z="in" title="Zoom in (PageUp)">+</button><button data-z="fit" title="Fit whole field (Home)">Fit</button><button data-z="focus" title="Focus selection (F)">Focus</button>
-            <button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
+            <button data-a="roster" data-tip="<b>Roster</b> (key Q)<br>Show or hide the list of your regiments on the left: click one to select it, double-click to jump to it. Buttons at the top select by type.">Roster <kbd>Q</kbd></button><button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
             <button data-a="withdraw" class="danger">Withdraw</button>
           </div>
         </div>`;
@@ -1413,11 +1459,21 @@
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
         else if (k === '+' || k === '=') this.stepSpeed(1); else if (k === '-') this.stepSpeed(-1);
-        else if (k === 'tab') { e.preventDefault(); }
+        else if (k === 'tab') { this.cycleSelect(e.shiftKey ? -1 : 1); e.preventDefault(); }
+        else if (k === 'q') { this.root.querySelector('#b-roster').classList.toggle('hide'); }
         else if (k === 'pageup') { this.zoomBy(1.4); e.preventDefault(); } else if (k === 'pagedown') { this.zoomBy(1 / 1.4); e.preventDefault(); }
         else if (k === 'home') { this.zoomFit(); e.preventDefault(); } else if (k === 'f') { this.focusSelection(); }
       });
       window.addEventListener('keyup', this.ku = (e) => { this.keys[e.key.toLowerCase()] = false; });
+      const ros = r.querySelector('#b-roster');
+      ros.addEventListener('click', (e) => {
+        const sb = e.target.closest('[data-rsel]'); if (sb) { this.rosterSelect(sb.dataset.rsel); return; }
+        const rc = e.target.closest('[data-uid]'); if (!rc) return;
+        const u = this.units.find((x) => x.id === +rc.dataset.uid); if (!u) return;
+        if (e.shiftKey) { if (this.sel.has(u)) this.sel.delete(u); else this.sel.add(u); } else { this.sel.clear(); this.sel.add(u); }
+        if (e.detail >= 2) { this.zt = Math.max(this.zt, 1.6); this.zAnchor = null; this.camGoal = { x: u.x, y: u.y }; }
+        this.updateInfo();
+      });
       r.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
         if (b.dataset.f) this.setForm(b.dataset.f);
         else if (b.dataset.sp) this.setSpeed(+b.dataset.sp);
@@ -1427,6 +1483,7 @@
         else if (b.dataset.a === 'halt') this.halt();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
+        else if (b.dataset.a === 'roster') this.root.querySelector('#b-roster').classList.toggle('hide');
         else if (b.dataset.a === 'mute') { if (NAP.audio) { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); b.innerHTML = NAP.audio.muted ? '&#128263;' : '&#128266;'; } }
       }));
     }
@@ -1479,8 +1536,8 @@
       // enemy under cursor?
       let hit = null, bd = 1e9;
       for (const u of this.units) {
-        if (u.side !== 1 || u.cls === 'gen' || !this.alive(u)) continue;
-        const d = this.pointGap(u, w);
+        if (u.side !== 1 || !this.alive(u)) continue;
+        const d = u.cls === 'gen' ? Math.hypot(u.x - w.x, u.y - w.y) - 8 : this.pointGap(u, w);
         if (d < 10 && d < bd) { bd = d; hit = u; }
       }
       if (hit) this.orderAttack(sel, hit, e.ctrlKey || e.shiftKey);
@@ -1491,6 +1548,18 @@
       const sel = this.selectedUnits().filter((u) => u.cls === 'inf' || u.cls === 'cav');
       const en = this.enemies(0);
       sel.forEach((u) => { const t = this.nearest(u, en); if (t) this.orderAttack([u], t, true); });
+    }
+    // step through your regiments one by one (Tab / Shift+Tab)
+    cycleSelect(dir) {
+      const list = this.units.filter((u) => u.side === 0 && this.alive(u)).sort((a, b) => (a.cls === 'gen') - (b.cls === 'gen') || a.id - b.id);
+      if (!list.length) return;
+      const cur = [...this.sel][0], i = cur ? list.indexOf(cur) : -1, n = list[(i + dir + list.length) % list.length];
+      this.sel.clear(); this.sel.add(n); this.updateInfo(); this.camGoal = { x: n.x, y: n.y };
+    }
+    rosterSelect(kind) {
+      const us = this.units.filter((u) => u.side === 0 && u.cls !== 'gen' && this.alive(u));
+      const pick = kind === 'inf' ? us.filter((u) => u.cls === 'inf') : kind === 'cav' ? us.filter((u) => u.cls === 'cav') : kind === 'art' ? us.filter((u) => u.cls === 'art') : kind === 'rout' ? us.filter((u) => u.state === 'routing') : us;
+      this.sel.clear(); pick.forEach((u) => this.sel.add(u)); this.updateInfo();
     }
     halt() { this.selectedUnits().forEach((u) => { u.order = null; u.target = null; }); }
     rally() { if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
@@ -1537,7 +1606,7 @@
       if (!sel.length) { el.innerHTML = 'Select units to give orders.'; return; }
       if (sel.length === 1) {
         const u = sel[0];
-        if (u.cls === 'gen') { el.innerHTML = `<b>${u.name}</b> &mdash; Commander (ATK ${u.gen.atk} DEF ${u.gen.def} LEAD ${u.gen.lead}). Aura boosts morale &amp; fire nearby.`; return; }
+        if (u.cls === 'gen') { el.innerHTML = `<b>${u.name}</b> &mdash; Commander (ATK ${u.gen.atk} DEF ${u.gen.def} LEAD ${u.gen.lead}) &middot; health ${Math.round(u.men)}/${u.max}. His aura boosts morale &amp; fire nearby; if he falls, every regiment loses heart and recovers slowly. Keep him behind your infantry.`; return; }
         el.innerHTML = `<b>${NAP.UNITS[u.type].name}</b> &middot; ${Math.round(u.men)}/${u.max} men &middot; morale ${Math.round(u.morale)} &middot; fatigue ${Math.round(u.fatigue)} &middot; ${FORM_NAMES[u.formation]}${u.state === 'routing' ? ' &middot; <span class="bad">ROUTING</span>' : ''}`;
       } else {
         const men = sel.filter((u) => u.cls !== 'gen').reduce((a, u) => a + u.men, 0);
@@ -1619,6 +1688,19 @@
       x.strokeStyle = '#fff'; x.lineWidth = 1.4; x.strokeRect((this.cam.x - vw / 2) * k, (this.cam.y - vh / 2) * k, vw * k, vh * k);
     }
 
+    drawRoster() {
+      const el = this.root.querySelector('#b-roster'); if (!el || el.classList.contains('hide')) return;
+      const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || a.cls.localeCompare(b.cls) || a.id - b.id);
+      const rows = mine.map((u) => {
+        const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
+        const nm = gen ? '\u2605 ' + esc2(u.name) : `${NAP.UNITS[u.type].short} ${Math.round(u.men)}`;
+        const bar = gen ? clamp(u.men / u.max, 0, 1) : mp;
+        const stam = u.cls === 'cav' ? `<i class="rst" style="width:${Math.round(clamp(1 - u.fatigue / 100, 0, 1) * 100)}%"></i>` : '';
+        return `<div class="rc${this.sel.has(u) ? ' sel' : ''}${u.state === 'routing' ? ' rout' : ''}" data-uid="${u.id}"><span class="rn">${nm}</span><span class="rs">${st}</span><span class="rb"><i style="width:${Math.round(bar * 100)}%;background:${bar > 0.6 ? '#4c4' : bar > 0.3 ? '#ec3' : '#e44'}"></i></span>${stam ? `<span class="rb st">${stam}</span>` : ''}</div>`;
+      }).join('');
+      const html = `<div class="rsel"><button data-rsel="all">All</button><button data-rsel="inf">Inf</button><button data-rsel="cav">Cav</button><button data-rsel="art">Art</button><button data-rsel="rout">Routing</button></div>${rows}`;
+      if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
+    }
     hud() {
       const r = this.root;
       { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 ? 'block' : 'none'; }
@@ -1629,6 +1711,7 @@
         r.querySelector('#b-f' + s).style.width = clamp((tot / init) * 100, 0, 100) + '%';
         r.querySelector('#b-m' + s).textContent = `${Math.round(tot)} / ${init}`;
       }
+      if (Math.floor(this.t * 4) !== this._lastRoster || this.paused) { this._lastRoster = Math.floor(this.t * 4); this.drawRoster(); }
       const pz = r.querySelector('#b-paused'); if (pz) pz.hidden = !(this.paused && this.t > 0 && !this.over && !this.replay);
       const ob = r.querySelector('#b-obj');
       if (ob && this.objs && this.objs.length) {
