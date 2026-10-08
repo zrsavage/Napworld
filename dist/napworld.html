@@ -3872,10 +3872,14 @@ table.t { font-size: 14px; }
               moveSpeed = sp;
               let nx = u.x + Math.cos(u.facing) * sp * dt, ny = u.y + Math.sin(u.facing) * sp * dt;
               // blocked by enemy body?
-              let blocked = false;
-              for (const e of en) if (this.gap(u, e, nx, ny) < 1) { blocked = true; break; }
+              let blocked = false, blk = null;
+              for (const e of en) if (this.gap(u, e, nx, ny) < 1) { blocked = true; blk = e; break; }
               if (!blocked) { u.x = nx; u.y = ny; }
-              else moving = false;
+              else { // close the last sliver so contact (gap < 3) registers instead of stalling just short
+                const g0 = this.gap(u, blk);
+                if (g0 > 2.2) { const adv = Math.min(g0 - 2, sp * dt); u.x += Math.cos(u.facing) * adv; u.y += Math.sin(u.facing) * adv; }
+                moving = false;
+              }
             }
           }
         }
@@ -3911,6 +3915,8 @@ table.t { font-size: 14px; }
         let dps = u.men * bt.melee * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300) * this.stamina(u);
         if (u.cls === 'cav' && u.fatigue > 90) u.morale -= 5 * dt; // horses blown: the squadron loses heart
         if (u.cls === 'art') dps *= 0.5;
+        const frontSteady = u.cls === 'cav' && melee.cls === 'inf' && ex === 1 && melee.morale > 55 && melee.state !== 'routing' && melee.formation !== 'column';
+        if (frontSteady) dps *= 0.5; // horsemen ride onto bayonets and stall; they need an angle or a shaken enemy
         // formation matchups for cavalry in melee
         let vuln = 1;
         if (u.cls === 'cav') vuln = melee.cls === 'cav' ? 1 : melee.cls === 'art' ? 1.8 : (FORM_CAV_VULN[melee.formation] || 1);
@@ -3919,9 +3925,20 @@ table.t { font-size: 14px; }
           u.impacted = true; u.cooldown = 5; this.snd('charge', 1.2, u.x, u.y);
           const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
-          const instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250) * this.stamina(u);
+          // cavalry live on angles and weakness: a steady line met head-on shrugs the charge off, a flank or rear hit (or a shaken enemy) is devastating
+          let angF = 1, moraleF = 1;
+          if (u.cls === 'cav' && melee.cls === 'inf') { const k = ex === 1 ? 'front' : ex < 1.5 ? 'flank' : 'rear'; (this.impactStats = this.impactStats || { front: 0, flank: 0, rear: 0, shaken: 0 })[k]++; if (melee.morale < 45) this.impactStats.shaken++; if (ex === 1 && melee.morale > 55) this.impactStats.steadyFront = (this.impactStats.steadyFront || 0) + 1; }
+          if (u.cls === 'cav' && melee.cls === 'inf' && melee.state !== 'routing') {
+            const steady = melee.morale > 55;
+            angF = ex === 1 ? (steady ? 0.35 : 1.0) : ex < 1.5 ? 1.6 : 2.5;
+            moraleF = ex === 1 ? (steady ? 0.7 : 1.1) : ex < 1.5 ? 2.0 : 2.7;
+            if (melee.morale < 45) { angF *= 1.5; moraleF *= 1.3; }
+            if (ex === 1 && steady && melee.formation === 'line') { this.damage(u, melee.men * 0.05 * (melee.morale / 100), melee, 1.8); this.floaters.push({ x: u.x, y: u.y - 22, txt: 'REPULSED', t: 0, side: u.side }); } // volley and bayonets at the front
+          }
+          let instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250) * this.stamina(u) * angF;
+          if (melee.cls === 'inf') instant = Math.min(instant, melee.men * 0.3); // one charge cannot annihilate a regiment; it breaks it, and the pursuit does the rest
           if (u.cls === 'cav') u.fatigue = Math.min(100, u.fatigue + 14);
-          this.damage(melee, instant, u, melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1));
+          this.damage(melee, instant, u, (melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1)) * moraleF);
           if (melee.cls === 'inf' && melee.formation === 'square' && u.cls === 'cav') this.damage(u, melee.men * 0.06, melee, 1.8);
           else if (u.cls === 'cav' && melee.cls !== 'cav' && melee.cls !== 'art') this.damage(u, melee.men * 0.015, melee, 0.8);
           this.puffs.push({ x: (u.x + melee.x) / 2, y: (u.y + melee.y) / 2, t: 0, life: 1.2, r: 18, c: 'rgba(200,180,140,' });
@@ -3957,7 +3974,7 @@ table.t { font-size: 14px; }
           if (tgt && (u.cls !== 'art' || u.calm > 0.8 || !moving)) {
             const d = Math.hypot(tgt.x - u.x, tgt.y - u.y);
             // turn to face target when idle
-            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, u.cls === 'inf' && u.formation !== 'skirmish' && u.formation !== 'square' ? this.lineFacing(u, tgt) : Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * 0.6);
+            if (!u.order || u.order.holdFire) u.facing = turnToward(u.facing, u.cls === 'inf' && u.formation !== 'skirmish' && u.formation !== 'square' ? this.lineFacing(u, tgt) : Math.atan2(tgt.y - u.y, tgt.x - u.x), bt.turn * dt * (u.cls === 'inf' && u.formation === 'line' ? 0.3 : 0.6)); // a line wheels slowly: that is the opening cavalry exploit
             const faceOk = Math.abs(angDiff(Math.atan2(tgt.y - u.y, tgt.x - u.x), u.facing)) < 0.9;
             if (faceOk) {
               const tt = this.terrainAt(tgt.x, tgt.y);
@@ -4121,6 +4138,17 @@ table.t { font-size: 14px; }
             if (!u.order || u.order.type !== 'move') u.order = { type: 'move', x: s === 0 ? 250 : 1350, y: clamp(u.y, 100, FH - 100) };
             continue;
           }
+          // flanking manoeuvre in progress: ride round the end of the line, then charge once the angle is there
+          if (u.flankTarget) {
+            const ft = u.flankTarget;
+            if (!this.alive(ft) || ft.state === 'routing' || this.t - u.flankT0 > 28) { u.flankTarget = null; if (u.order && u.order.type === 'move') u.order = null; }
+            else {
+              const ex2 = this.exposure(ft, u), dist = Math.hypot(ft.x - u.x, ft.y - u.y);
+              if (ex2 > 1 && dist < 330) { u.order = { type: 'attack', target: ft, charge: true }; u.flankTarget = null; continue; }
+              if (!u.order || u.order.type !== 'move') u.order = { type: 'move', ...this.flankPoint(ft, u), run: true };
+              continue;
+            }
+          }
           if (u.order && u.order.type === 'move' && u.fatigue > 35 && !hurt && u.morale >= 40) continue; // still recovering
           if (u.order && u.order.type === 'attack') continue;
           if (u.order && u.order.type === 'move') u.order = null;
@@ -4138,13 +4166,18 @@ table.t { font-size: 14px; }
             if (c.cls === 'cav') sc *= u.type === 'cuirass' ? 0.9 : 0.5;
             const ex = this.exposure(c, u);
             sc *= ex;
-            if (c.cls === 'inf' && ex === 1 && c.formation === 'line') sc *= 0.35;
-            if (c.cls === 'inf' && c.morale < 45) sc *= 1.8;
+            if (c.cls === 'inf' && ex === 1 && c.formation === 'line' && c.morale > 55) sc *= 0.12; // never head-on into a steady line
+            if (c.cls === 'inf' && ex > 1) sc *= 1.6;
+            if (c.cls === 'inf' && c.morale < 45) sc *= 2.2;
             if (sc > bs) { bs = sc; best = c; }
           }
           const eg = this.general(1 - s);
           if (eg && !en.some((c) => c.cls === 'inf' && c.state !== 'routing' && Math.hypot(c.x - eg.x, c.y - eg.y) < 60)) { const dd = Math.hypot(eg.x - u.x, eg.y - u.y); if (dd < 520) { const sc = 3.2 * 400 / (dd + 60); if (sc > bs) { bs = sc; best = eg; } } }
-          if (best && bs > 0.7) { u.order = { type: 'attack', target: best, charge: true }; }
+          if (best && bs > 0.7) {
+            // a steady target that is still facing us: swing round to its flank first
+            if (best.cls === 'inf' && best.state !== 'routing' && best.morale >= 45 && this.exposure(best, u) === 1 && best.formation !== 'square') { u.flankTarget = best; u.flankT0 = this.t; u.order = { type: 'move', ...this.flankPoint(best, u), run: true }; }
+            else u.order = { type: 'attack', target: best, charge: true };
+          }
         }
       }
       // general behaviour
@@ -4483,6 +4516,13 @@ table.t { font-size: 14px; }
       u.status = st;
     }
     stamina(u) { return u.cls === 'cav' ? clamp(1.25 - u.fatigue / 80, 0.1, 1) : 1; }
+    // a point just beyond the nearer end of a line, a little behind it: the cavalry's way in
+    flankPoint(t, u) {
+      const fx = Math.cos(t.facing), fy = Math.sin(t.facing), px = -fy, py = fx, off = t.w / 2 + 70;
+      const cands = [1, -1].map((sg) => ({ x: clamp(t.x + px * sg * off - fx * 40, 30, FW - 30), y: clamp(t.y + py * sg * off - fy * 40, 30, FH - 30) }));
+      cands.sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y));
+      return cands[0];
+    }
     // A line keeps its shape: infantry face the middle of the enemy in reach (not one regiment each) and keep step with idle neighbours.
     lineFacing(u, tgt) {
       let ax = 0, ay = 0, n = 0;

@@ -17,6 +17,8 @@ const MATCHUPS = [
   { name: 'mirror full', a: 'line:8 light:2 hussar:2 cuirass:1 art:3', b: 'line:8 light:2 hussar:2 cuirass:1 art:3' },
   { name: 'guard vs line', a: 'guard:3 line:5 art:2', b: 'line:8 art:2' },
   { name: 'cav vs squares', a: 'line:5 cuirass:3 hussar:2', b: 'line:8 art:2' },
+  { name: 'cav only vs lines', a: 'cuirass:3 hussar:3', b: 'line:8 art:2' },
+  { name: 'lines+cav vs lines', a: 'line:6 hussar:2 cuirass:2', b: 'line:10' },
   { name: 'guns vs none', a: 'line:6 art:4', b: 'line:8' }
 ];
 
