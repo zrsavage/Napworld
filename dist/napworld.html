@@ -3636,6 +3636,7 @@ table.t { font-size: 14px; }
         if (target.men <= 0) { target.men = 0; target.dead = true; this.onGeneralDead(target); }
         return;
       }
+      if (target.order && target.order.back && (target.disT || 0) < 3 && src && src.cls !== 'cav') cas *= 0.35; // contact broken in good order
       cas = Math.min(target.men, cas * target.takeMul * (FORM_TAKE[target.formation] || 1));
       if (cas <= 0) return;
       target.men -= cas;
@@ -3828,7 +3829,7 @@ table.t { font-size: 14px; }
       }
       const maxRange = bt.range * (tinfo.hill ? 1.08 : 1) * this.wx.range;
       // a moving regiment that has an enemy in range ahead of it halts and opens fire (Ctrl+right-click orders a move that ignores enemies)
-      if (u.order && u.order.type === 'move' && !u.order.run && !melee && bt.range > 0 && u.cls !== 'cav' && u.formation !== 'skirmish' && !u.wantForm) {
+      if (u.order && u.order.type === 'move' && !u.order.run && !u.order.back && !melee && bt.range > 0 && u.cls !== 'cav' && u.formation !== 'skirmish' && !u.wantForm) {
         const hd = Math.hypot(u.order.x - u.x, u.order.y - u.y) || 1, hx = (u.order.x - u.x) / hd, hy = (u.order.y - u.y) / hd, rr = maxRange * 0.95;
         for (const e of en) {
           if (e.state === 'routing') continue;
@@ -3839,7 +3840,18 @@ table.t { font-size: 14px; }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
-      if (u.order && !melee) {
+      // orderly fall back: keep facing the enemy, walk backward a safe distance, and break contact without a rout
+      if (u.order && u.order.back && u.state !== 'routing') {
+        const o = u.order, dx = o.x - u.x, dy = o.y - u.y, d = Math.hypot(dx, dy);
+        if (d < 6) { u.order = null; u.disT = 0; }
+        else {
+          const ne = this.nearest(u, en);
+          if (ne && Math.hypot(ne.x - u.x, ne.y - u.y) < 450) u.facing = turnToward(u.facing, Math.atan2(ne.y - u.y, ne.x - u.x), bt.turn * dt * 0.8);
+          const sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * 0.9 * (1 - u.fatigue / 220);
+          u.x += dx / d * Math.min(sp * dt, d); u.y += dy / d * Math.min(sp * dt, d); moving = true; moveSpeed = sp; u.charging = false; u.disT = (u.disT || 0) + dt;
+        }
+      }
+      if (u.order && !u.order.back && !melee) {
         let tx = null, ty = null, stopDist = 2;
         if (u.order.type === 'move') { tx = u.order.x; ty = u.order.y; }
         else if (u.order.type === 'attack') {
@@ -3908,7 +3920,7 @@ table.t { font-size: 14px; }
       // ---------------- combat
       let firing = false;
       const stationary = !moving || u.formation === 'skirmish';
-      if (melee) {
+      if (melee && !(u.order && u.order.back)) {
         // melee: face enemy
         u.facing = turnToward(u.facing, Math.atan2(melee.y - u.y, melee.x - u.x), bt.turn * dt * 1.2);
         const ex = this.exposure(melee, u);
@@ -4507,11 +4519,12 @@ table.t { font-size: 14px; }
         const da = angDiff(Math.atan2(e.y - u.y, e.x - u.x), u.facing), a = Math.abs(da);
         if (a < 1.0) sec.f = 1; else if (a > 2.15) sec.b = 1; else if (da > 0) sec.r = 1; else sec.l = 1;
       }
-      const n = sec.f + sec.l + sec.r + sec.b, fm = (u.formation === 'square' ? 0.35 : u.formation === 'skirmish' ? 0.5 : u.formation === 'column' ? 1.3 : 1) * (u.cls === 'cav' ? 0.5 : 1); // horsemen can wheel and escape
+      const n = sec.f + sec.l + sec.r + sec.b; let fm = (u.formation === 'square' ? 0.35 : u.formation === 'skirmish' ? 0.5 : u.formation === 'column' ? 1.3 : 1) * (u.cls === 'cav' ? 0.5 : 1); // horsemen can wheel and escape
       let d = 0, st = null;
       if (sec.l) d += 1.0; if (sec.r) d += 1.0; if (sec.b) d += 2.2;
       if (n >= 3) d += 3.5;
       if (n >= 3) st = 'SURROUNDED'; else if (sec.l || sec.r || sec.b) st = 'FLANKED';
+      if (u.order && u.order.back) fm *= 0.3;
       u.threat = d * fm; if (st && st !== u.status && u.side === 0 && this.t - (u.statusMsgT || -99) > 8) { u.statusMsgT = this.t; this.msg(`${u.name} is ${st.toLowerCase()}!`); }
       u.status = st;
     }
@@ -4749,7 +4762,7 @@ table.t { font-size: 14px; }
         ctx.restore();
       }
       if (u.state === 'routing') { ctx.fillStyle = u.side === 0 ? '#5fd4ff' : '#ff6a60'; ctx.font = 'bold 13px sans-serif'; ctx.textBaseline = 'middle'; ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0); }
-      { const tag = u.state === 'routing' ? 'ROUTING' : u.status; // status tags above the bars, coloured by side
+      { const tag = u.state === 'routing' ? 'ROUTING' : (u.order && u.order.back) ? 'FALLING BACK' : u.status; // status tags above the bars, coloured by side
         if (tag && sk > 0.45) { ctx.save(); ctx.translate(0, -(Math.max(w, d) / 2) - 17 * us); ctx.scale(us, us); ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.fillStyle = u.state === 'routing' ? (u.side === 0 ? '#7fe0ff' : '#ff8a80') : '#ffd84a'; ctx.strokeText(tag, 0, 0); ctx.fillText(tag, 0, 0); ctx.restore(); } }
       if (u.wantForm) { ctx.fillStyle = '#fc6'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('↻', 0, 0); }
       ctx.restore();
@@ -4771,7 +4784,7 @@ table.t { font-size: 14px; }
           <div class="b-roster" id="b-roster"></div>
           <canvas class="b-mini" id="b-mini" width="220" height="124" title="Click or drag to move the view"></canvas>
           <div class="b-tip" id="b-tip" hidden></div>
-          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; R: rally &middot; Tab: next regiment &middot; Q: roster &middot; Right-click an enemy general to target him &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
+          <div class="b-help" id="b-help">Left-click/drag: select &middot; Right-click: move/attack (units halt to fire when an enemy comes in range; Ctrl+right-click moves without stopping) &middot; Right-drag: form a line &middot; Wheel / PgUp / PgDn: zoom &middot; Home: fit &middot; F: focus &middot; WASD / arrows / middle-drag: pan &middot; F1-F4 / Shift+1-4: formations &middot; Ctrl+1-9: save group, 1-9: recall &middot; C: charge &middot; B: fall back &middot; R: rally &middot; Tab: next regiment &middot; Q: roster &middot; Right-click an enemy general to target him &middot; Space: pause &middot; V: range cones &middot; +/-: speed</div>
         </div>
         <div class="b-bottom">
           <div class="b-info" id="b-info">Select units</div>
@@ -4781,7 +4794,7 @@ table.t { font-size: 14px; }
             <button data-f="square" data-tip="<b>Square</b> (key F3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>F3</kbd></button>
             <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
-            <button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
+            <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
             <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
@@ -4871,6 +4884,7 @@ table.t { font-size: 14px; }
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
         else if (k === 'v') { this.showRange = this.showRange === false; }
+        else if (k === 'b' && !e.ctrlKey) this.fallBack();
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -4897,6 +4911,7 @@ table.t { font-size: 14px; }
         else if (b.dataset.a === 'pause') this.togglePause();
         else if (b.dataset.a === 'charge') this.doCharge();
         else if (b.dataset.a === 'halt') this.halt();
+        else if (b.dataset.a === 'fallback') this.fallBack();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
         else if (b.dataset.a === 'roster') this.root.querySelector('#b-roster').classList.toggle('hide');
@@ -4976,6 +4991,26 @@ table.t { font-size: 14px; }
       const us = this.units.filter((u) => u.side === 0 && u.cls !== 'gen' && this.alive(u));
       const pick = kind === 'inf' ? us.filter((u) => u.cls === 'inf') : kind === 'cav' ? us.filter((u) => u.cls === 'cav') : kind === 'art' ? us.filter((u) => u.cls === 'art') : kind === 'rout' ? us.filter((u) => u.state === 'routing') : us;
       this.sel.clear(); pick.forEach((u) => this.sel.add(u)); this.updateInfo();
+    }
+    // FALL BACK: step back a safe distance, away from the nearest enemy, facing them, instead of turning and running
+    fallBack() {
+      if (this.deployPhase) return;
+      const out = [];
+      for (const u of this.selectedUnits()) {
+        if (u.cls === 'gen' || !this.alive(u) || u.state === 'routing') continue;
+        const en = this.enemies(u.side).filter((e) => e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 520);
+        let ax = 0, ay = 0, wsum = 0;
+        for (const e of en) { const d = Math.hypot(e.x - u.x, e.y - u.y) || 1, w = 1 / (d + 40); ax += (u.x - e.x) / d * w; ay += (u.y - e.y) / d * w; wsum += w; }
+        let ux = wsum ? ax / wsum : (u.side === 0 ? -1 : 1), uy = wsum ? ay / wsum : 0; const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+        const dist = 240, tx = clamp(u.x + ux * dist, 40, FW - 40), ty = clamp(u.y + uy * dist, 40, FH - 40);
+        const melee = en.find((e) => this.gap(u, e) < 6);
+        if (melee && u.cls !== 'cav') { this.damage(u, u.men * 0.025, melee, 0.4); u.morale -= 2; } // a few men are lost breaking contact
+        u.disT = 0; u.target = null;
+        u.order = u.cls === 'cav' ? { type: 'move', x: tx, y: ty, run: true } : { type: 'move', x: tx, y: ty, back: true };
+        if (u.wantForm === undefined) u.wantForm = null;
+        out.push(u);
+      }
+      if (out.length) this.msg(`${out.length} regiment${out.length > 1 ? 's' : ''} falling back`);
     }
     halt() { this.selectedUnits().forEach((u) => { u.order = null; u.target = null; }); }
     rally() { if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
@@ -5108,7 +5143,7 @@ table.t { font-size: 14px; }
       const el = this.root.querySelector('#b-roster'); if (!el || el.classList.contains('hide')) return;
       const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || a.cls.localeCompare(b.cls) || a.id - b.id);
       const rows = mine.map((u) => {
-        const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
+        const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : (u.order && u.order.back) ? '<b class="rm2">falling back</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
         const nm = gen ? '\u2605 ' + esc2(u.name) : `${NAP.UNITS[u.type].short} ${Math.round(u.men)}`;
         const bar = gen ? clamp(u.men / u.max, 0, 1) : mp;
         const stam = u.cls === 'cav' ? `<i class="rst" style="width:${Math.round(clamp(1 - u.fatigue / 100, 0, 1) * 100)}%"></i>` : '';
