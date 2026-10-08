@@ -212,6 +212,29 @@
     if (fs.gold < st.cost) return 'Not enough gold';
     fs.gold -= st.cost; army.staff = id; return null;
   };
+  // ---- reinforcement: refill a damaged army at once for gold and manpower (resting at home also heals it for free, slowly)
+  C.reinforceNeed = (a) => a.units.reduce((n, u) => n + Math.max(0, u.max - u.men), 0);
+  C.reinforceCost = (a) => ({ men: C.reinforceNeed(a), gold: Math.round(a.units.reduce((n, u) => n + Math.max(0, u.max - u.men) / u.max * U[u.type].cost * 0.6, 0)) });
+  C.reinforceCheck = function (a) {
+    const ps = S.provinces[a.prov];
+    if (!(ps.owner === a.owner || allied(a.owner, ps.owner))) return 'Only in friendly territory';
+    if (ps.siege) return 'The province is besieged';
+    if (S.armies.some((x) => x.prov === a.prov && atWar(x.owner, a.owner))) return 'Enemy army present';
+    if (!C.reinforceNeed(a)) return 'Already at full strength';
+    return null;
+  };
+  C.reinforce = function (a) {
+    const err = C.reinforceCheck(a); if (err) return { err };
+    const fs = S.factions[a.owner]; let men = 0, gold = 0;
+    for (const u of a.units) {
+      const miss = u.max - u.men; if (miss <= 0) continue;
+      const g = miss / u.max * U[u.type].cost * 0.6, k = Math.min(1, fs.manpower / miss, g > 0 ? Math.max(0, fs.gold) / g : 1);
+      if (k <= 0) break;
+      const add = Math.floor(miss * k); u.men += add; fs.manpower -= add; fs.gold -= g * k; men += add; gold += g * k;
+    }
+    if (!men) return { err: 'Not enough gold or manpower' };
+    return { men, gold: Math.round(gold) };
+  };
   C.manpowerGain = function (f) {
     let v = 0;
     for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
@@ -911,6 +934,7 @@
       if (ps.siege) out.push({ kind: 'siege', sev: 3, prov: p.id, text: `${p.name} is under siege` });
       if ((ps.unrest || 0) >= 60) out.push({ kind: 'unrest', sev: 3, prov: p.id, text: `Unrest in ${p.name} is ${Math.round(ps.unrest)}%` });
     }
+    for (const a of C.armiesOf(f)) { const full = a.units.reduce((n, u) => n + u.max, 0) || 1, cur = a.units.reduce((n, u) => n + u.men, 0); if (cur < full * 0.7 && !C.reinforceCheck(a) && !a.path.length) out.push({ kind: 'reinforce', sev: 1, army: a.id, prov: a.prov, text: `Army in ${C.def(a.prov).name} is at ${Math.round(cur / full * 100)}% strength: reinforce it` }); }
     for (const p of C.provincesOf(f)) if (S.provinces[p.id].blockade) out.push({ kind: 'blockade', sev: 2, prov: p.id, text: `${p.name} is blockaded by an enemy fleet` });
     if (fs.gold > 1000) out.push({ kind: 'gold', sev: 1, prov: fs.cap, text: `${Math.round(fs.gold).toLocaleString('en-US')} gold unspent` });
     if (warNow && fs.gold > 500 && fs.manpower > 1000) {

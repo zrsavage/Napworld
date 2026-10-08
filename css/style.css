@@ -269,3 +269,16 @@ button.on { border-color: #6c6; }
 @keyframes impossible { from { box-shadow: 0 0 6px rgba(255,70,50,.4); } to { box-shadow: 0 0 18px rgba(255,70,50,.9); } }
 .termopt { display: flex; align-items: flex-start; }
 .termopt small { font-size: 11.5px; line-height: 1.35; margin-top: 2px; }
+
+/* interface typography: a bookish serif for text, Cinzel capitals for buttons and headings */
+html, body { font: 15px/1.4 'Crimson Pro', 'EB Garamond', Georgia, serif; }
+button, select, input { font-family: 'Cinzel', 'Crimson Pro', Georgia, serif; }
+button { font-size: 12.5px; font-weight: 600; letter-spacing: .4px; }
+.ubtn, #side .ubtn, #side .row button, .armychip, .termopt, #loglist, .dlg .body, table.t { font-family: 'Crimson Pro', Georgia, serif; }
+.ubtn, #side .ubtn { font-size: 14px; font-weight: 600; letter-spacing: 0; }
+#side { font-size: 14px; } #side .kv { font-size: 14px; } .unit { font-size: 13.5px; } .armychip { font-size: 13.5px; }
+#side .sec h4, #logbar b, .subh { font-family: 'Cinzel', Georgia, serif; letter-spacing: 1.6px; }
+#topbar .stat { font-size: 15.5px; font-weight: 600; } #topbar .stat small { font-weight: 400; }
+#loglist { font-size: 13.5px; } #tip, #tt { font-size: 13.5px; }
+table.t { font-size: 14px; }
+.reinf { margin: 6px 0; padding: 6px 8px; background: rgba(216,180,90,.09); border: 1px solid rgba(216,180,90,.3); border-radius: 4px; font-size: 13px; }

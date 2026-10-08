@@ -16,7 +16,7 @@
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   let vw = 0, vh = 0, dpr = 1, dirty = true;
   ui.folds = {}; ui.playback = lsGet('napworld-playback') || 'normal';
-  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "700 16px Cinzel Decorative"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { dirty = true; });
+  if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "700 16px Cinzel Decorative", "16px Crimson Pro", "600 16px Crimson Pro"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { if (NAP.clearSprites) NAP.clearSprites(); dirty = true; });
 
   // ------------------------------------------------------------------ utilities
   function modal(html, cls) {
@@ -448,6 +448,10 @@
     const dpt = C.supplyDepth(a);
     html += `<div class="kv"><span>Fatigue</span><b class="${(a.fatigue || 0) > 50 ? 'bad' : (a.fatigue || 0) > 20 ? 'warn' : ''}">${Math.round(a.fatigue || 0)}%</b></div><div class="kv"><span>Supply</span><b class="${dpt >= 2 ? 'bad' : dpt === 1 ? 'warn' : 'good'}">${dpt === 0 ? 'At home' : dpt === 1 ? 'Foraging' : dpt === 2 ? 'Strained' : 'Cut off'}</b></div>`;
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;
+    if (mine && a.units.some((u) => u.men < u.max)) {
+        const rc = C.reinforceCost(a), rerr = C.reinforceCheck(a), full = a.units.reduce((n, u) => n + u.max, 0), cur = a.units.reduce((n, u) => n + u.men, 0);
+        html += `<div class="reinf"><b>Losses:</b> ${fmt(rc.men)} men missing (${Math.round(cur / full * 100)}% strength).<br><span class="muted">Recover them by <b>reinforcing</b> (instant, costs gold and manpower) or by <b>resting</b> in friendly territory without moving (about 15% of each regiment per turn, costs manpower only).</span><div class="row"><button data-act="reinforce" ${rerr ? 'disabled' : ''} data-tip="${esc(rerr || `Refills every regiment now: about ${rc.gold} gold and ${rc.men} manpower. Partial if you cannot afford it all.`)}">Reinforce now (${rc.gold}g, ${fmt(rc.men)} men)</button></div></div>`;
+      }
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
       html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.canUpgrade(u) ? ' <span class="good" title="Ready to upgrade to Line Infantry">\u25B2</span>' : ''}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;
@@ -475,6 +479,7 @@
       const act = b.dataset.act;
       if (act === 'forced') { a.forced = b.checked; return; }
       if (act === 'forage') { a.forage = b.checked; return; }
+      if (act === 'reinforce') { const r = C.reinforce(a); toast(r.err || `Reinforced: +${fmt(r.men)} men for ${r.gold} gold`); refresh(); return; }
       if (act === 'upmil') { let n = 0; a.units.forEach((u, i) => { if (C.upgradeMilitia(a, i)) n++; }); toast(`${n} militia upgraded to Line Infantry`); }
       if (act === 'split') { const idx = checked(); if (!idx.length || idx.length >= a.units.length) return toast('Select some (not all) regiments'); const na = C.splitArmy(a, idx); if (na) ui.sel.army = na.id; }
       else if (act === 'merge') { const others = S().armies.filter((x) => x !== a && x.prov === a.prov && x.owner === a.owner); let n = 0; others.forEach((o) => { if (C.mergeArmies(a, o)) n++; }); toast(n ? `Merged ${n} army` : 'Nothing to merge (stack limit?)'); }
@@ -499,6 +504,7 @@
       <p><b>Economy:</b> provinces produce gold and manpower. Recruit regiments and build Markets, Barracks and Fortifications from the province panel. Regiments cost gold to raise and upkeep every month &mdash; go bankrupt and they desert. Stacks hold up to 20 regiments; split and merge them in the army panel. Appoint a general to boost an army.</p>
       <p><b>Conquest costs:</b> conquered provinces are restless. Unrest climbs unless you garrison them (above 60% income halves; at 100% they revolt). Set each province's <i>policy</i> &mdash; taxation, conscription or martial order &mdash; to trade gold, manpower and order. Armies far from friendly soil lose men to supply shortages and tire when marching; <i>forced marches</i> trade men and fatigue for speed. Fortified towns can be starved out or <i>stormed</i> at a cost.</p>
       <p><b>Diplomacy:</b> declare war, propose alliances, and negotiate peace on your terms. Your <i>war score</i> (battles won, provinces taken) decides how much gold or territory the enemy will give up. Allies of a defender may join the war. Britain subsidises its allies with gold. Watch for historical events.</p>
+      <p><b>Recovering losses:</b> select a damaged army in your own territory and press <i>Reinforce now</i> to refill it at once for gold and manpower. Or just leave it resting (no move orders) in friendly territory: each regiment regains up to 15% of its strength per turn for manpower only. Veterans keep their stars.</p>
       <p><b>Navy (optional, chosen on the start screen; harder):</b> build a <i>Shipyard</i> in a port, then Ships of the Line and Frigates. Select a fleet (its little ship icon) and pick a destination from the list, or right-click a sea zone ring or a friendly port. There are five seas (Atlantic &amp; North Sea, Western and Eastern Mediterranean, Black Sea, Baltic); neighbouring seas connect through shared ports. Hostile fleets in the same sea fight an automatic battle. A fleet at sea alone <b>blockades</b> enemy ports in that sea (income halved, no shipbuilding) and enemy armies cannot sail through it unless they have a fleet of their own there.</p>
       <p><b>Sound:</b> procedural effects and music &mdash; toggle with the speaker button. The game autosaves every turn (Continue on the start screen).</p>
       <p><b>Battles:</b> when armies meet you may <i>auto-resolve</i> or <i>fight</i> the tactical battle. In battle: select regiments (click / drag-box), right-click to move or attack, right-drag to draw a battle line, F1-F4 for Line/Column/Square/Skirmish, Ctrl+1-9 to save a control group (press the digit to recall it, twice to centre), C to charge, H to halt, R to rally with your general, Space to pause (you can still give orders while paused). Hold the flagged objectives for victory points: hold them all for 75 seconds or lead by 25 VP at the time limit to win. Hover or select a regiment to see its flank arcs (green front, yellow flanks, red rear). Battles start at half speed; use the speed buttons to slow down or speed up. Fire from the front, flank and rear them, keep infantry in square against cavalry, and keep your general close to break-prone units.</p>
@@ -684,8 +690,8 @@
       const id = pr ? pr.id : null;
       if (id !== ui.hover) { ui.hover = id; dirty = true; }
       const tip = $('#tip');
-      if (pr && S()) { tip.hidden = false; tip.innerHTML = provTip(pr); tip.style.left = p.x + 14 + 'px'; tip.style.top = p.y + 14 + 'px'; }
-      else tip.hidden = true;
+      if (pr && S()) { tip.hidden = false; if (tip.dataset.pid !== pr.id) { tip.dataset.pid = pr.id; tip.innerHTML = provTip(pr); } tip.style.left = p.x + 14 + 'px'; tip.style.top = p.y + 14 + 'px'; }
+      else { tip.hidden = true; tip.dataset.pid = ''; }
       // preview path for selected army
       const a = selArmy();
       if (a && a.owner === S().player && pr && pr.id !== a.prov) {
@@ -738,7 +744,7 @@
     ui.zAnchor = { px: p.x, py: p.y, wx: w0.x, wy: w0.y }; dirty = true;
   }, { passive: false });
   function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
-  function toggleSide() { const hid = $('#side').classList.toggle('hide'); $('#sidetoggle').innerHTML = hid ? '&#9666; Details' : 'Details &#9656;'; }
+  function toggleSide() { const hid = $('#side').classList.toggle('hide'); $('#sidetoggle').innerHTML = hid ? '&#9666; Country Overview' : 'Country Overview &#9656;'; }
   $('#sidetoggle').onclick = toggleSide;
   function selFleet() { const s = S(); return s && ui.sel.fleet ? (s.fleets || []).find((x) => x.id === ui.sel.fleet) : null; }
   function selArmy() { const s = S(); return s && ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null; }

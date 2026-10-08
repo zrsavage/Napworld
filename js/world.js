@@ -252,6 +252,24 @@
   // ---------- Rendering ----------
   const TERRAIN_TINT = { p: [0, 0, 0], h: [-10, -10, -12], f: [-18, -8, -18], m: [-26, -24, -24] };
 
+  // Text and symbol sprites: drawing text (especially symbol glyphs that need a fallback font) every frame is very slow,
+  // so each label is rendered once to a small canvas and then blitted.
+  const SPR_SC = 4; let sprites = {};
+  NAP.clearSprites = () => { sprites = {}; };
+  function textSprite(key, text, font, fill, stroke, lw, spacing) {
+    let sp = sprites[key]; if (sp) return sp;
+    const m = document.createElement('canvas').getContext('2d');
+    m.font = font.replace(/(\d+(\.\d+)?)px/, (_, n) => (n * SPR_SC) + 'px'); if (spacing && 'letterSpacing' in m) m.letterSpacing = spacing * SPR_SC + 'px';
+    const tw = Math.ceil(m.measureText(text).width) + 8 * SPR_SC, th = Math.ceil(parseFloat(font.match(/(\d+(\.\d+)?)px/)[1]) * SPR_SC * 1.5) + 8 * SPR_SC;
+    const c = document.createElement('canvas'); c.width = tw; c.height = th;
+    const x = c.getContext('2d'); x.font = m.font; x.textAlign = 'center'; x.textBaseline = 'middle';
+    if (spacing && 'letterSpacing' in x) x.letterSpacing = spacing * SPR_SC + 'px';
+    if (stroke) { x.lineWidth = lw * SPR_SC; x.strokeStyle = stroke; x.lineJoin = 'round'; x.strokeText(text, tw / 2, th / 2); }
+    x.fillStyle = fill; x.fillText(text, tw / 2, th / 2);
+    return (sprites[key] = { c, w: tw / SPR_SC, h: th / SPR_SC });
+  }
+  const blit = (ctx, sp, x, y) => ctx.drawImage(sp.c, x - sp.w / 2, y - sp.h / 2, sp.w, sp.h);
+
   // Recolour provinces by owner (call whenever ownership changes)
   NAP.recolor = function (state) {
     const w = NAP.world; if (!w) return;
@@ -335,15 +353,16 @@
     // ocean texture
     ctx.fillStyle = ocean(ctx);
     ctx.fillRect(-200, -200, W + 400, H + 400);
-    // pale shallows hugging the coast, like an engraved chart
-    ctx.save(); ctx.lineJoin = 'round';
-    for (const [lw, al] of [[11, 0.10], [7, 0.12], [3.5, 0.16]]) { ctx.strokeStyle = `rgba(235,246,250,${al})`; ctx.lineWidth = lw; for (const n in NAP.LAND) { polyPath(ctx, NAP.LAND[n], 1); ctx.stroke(); } }
-    ctx.restore();
-    // coast shadow
-    ctx.save();
-    ctx.shadowColor = 'rgba(30,60,80,0.55)'; ctx.shadowBlur = 10 * cam.z; ctx.fillStyle = '#d9cfb0';
-    for (const n in NAP.LAND) { polyPath(ctx, NAP.LAND[n], 1); ctx.fill(); }
-    ctx.restore();
+    // pale shallows and the soft coast shadow are expensive (blur), so they are painted once into a cached layer
+    if (!w.seaLayer) {
+      const SC = 2, PAD = 40, c = document.createElement('canvas'); c.width = (W + PAD * 2) * SC; c.height = (H + PAD * 2) * SC;
+      const x = c.getContext('2d'); x.scale(SC, SC); x.translate(PAD, PAD); x.lineJoin = 'round';
+      for (const [lw, al] of [[11, 0.10], [7, 0.12], [3.5, 0.16]]) { x.strokeStyle = `rgba(235,246,250,${al})`; x.lineWidth = lw; for (const n in NAP.LAND) { polyPath(x, NAP.LAND[n], 1); x.stroke(); } }
+      x.shadowColor = 'rgba(30,60,80,0.55)'; x.shadowBlur = 10 * SC; x.fillStyle = '#d9cfb0';
+      for (const n in NAP.LAND) { polyPath(x, NAP.LAND[n], 1); x.fill(); }
+      w.seaLayer = { c, PAD };
+    }
+    ctx.drawImage(w.seaLayer.c, -w.seaLayer.PAD, -w.seaLayer.PAD, W + w.seaLayer.PAD * 2, H + w.seaLayer.PAD * 2);
     // province colours clipped to land
     ctx.save();
     ctx.beginPath();
@@ -408,8 +427,7 @@
       ctx.fill(); ctx.stroke();
     }
     // sea labels
-    ctx.font = 'italic 12px "IM Fell English", Georgia, serif'; ctx.fillStyle = 'rgba(30,60,90,0.55)'; ctx.textAlign = 'center';
-    for (const [t, lo, la] of NAP.SEA_LABELS) { const [x, y] = NAP.proj(lo, la); ctx.save(); ctx.translate(x, y); if ('letterSpacing' in ctx) ctx.letterSpacing = '3px'; ctx.fillText(t, 0, 0); ctx.restore(); }
+    for (const [t, lo, la] of NAP.SEA_LABELS) { const [x, y] = NAP.proj(lo, la); blit(ctx, textSprite('sea|' + t, t, 'italic 12px "IM Fell English", Georgia, serif', 'rgba(30,60,90,0.55)', null, 0, 3), x, y); }
     // sea links from the selected army's port
     if (opts.seaFrom) {
       const p = w.byId[opts.seaFrom];
@@ -423,24 +441,20 @@
       for (const p of w.provs) {
         const fs = Math.max(7, Math.min(13, 4 + Math.sqrt(p.area) / 5));
         if (fs * cam.z < 7.5) continue;
-        ctx.font = `${fs}px "IM Fell English", Georgia, serif`;
-        ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(240,232,205,0.8)';
-        ctx.strokeText(p.name, p.cx, p.cy - 10);
-        ctx.fillStyle = '#2a2118'; ctx.fillText(p.name, p.cx, p.cy - 10);
+        blit(ctx, textSprite('p|' + p.id + '|' + fs.toFixed(1), p.name, `${fs}px "IM Fell English", Georgia, serif`, '#2a2118', 'rgba(240,232,205,0.8)', 2.5), p.cx, p.cy - 10);
       }
     }
     // province icons
     for (const p of w.provs) {
       const ps = state.provinces[p.id];
       let ix = p.cx - 9, iy = p.cy + 4;
-      ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (p.capital) { ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8; ctx.strokeText('★', p.cx, p.cy - 1); ctx.fillText('★', p.cx, p.cy - 1); }
+      if (p.capital) blit(ctx, textSprite('star', '★', '11px sans-serif', '#ffd700', '#000', 0.8), p.cx, p.cy - 1);
       if (cam.z > 0.8) {
         let x = p.cx - 8;
-        if (p.port) { ctx.fillStyle = '#123'; ctx.fillText('⚓', x, p.cy + 13); x += 11; }
-        if (ps.fort > 0) { ctx.fillStyle = '#322'; ctx.fillText('♖'.repeat(Math.min(3, ps.fort)), x + 4, p.cy + 13); }
+        if (p.port) { blit(ctx, textSprite('anchor', '⚓', '11px sans-serif', '#123', null, 0), x, p.cy + 13); x += 11; }
+        if (ps.fort > 0) { const n = Math.min(3, ps.fort); blit(ctx, textSprite('fort' + n, '♖'.repeat(n), '11px sans-serif', '#322', null, 0), x + 4, p.cy + 13); }
       }
-      if (ps.siege) { ctx.fillStyle = '#c00'; ctx.fillText('⚔', p.cx + 14, p.cy - 1); }
+      if (ps.siege) blit(ctx, textSprite('siege', '⚔', '11px sans-serif', '#c00', null, 0), p.cx + 14, p.cy - 1);
     }
     // path of selected army
     if (opts.pathProvs && opts.pathProvs.length > 1) {
