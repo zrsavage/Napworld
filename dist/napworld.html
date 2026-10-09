@@ -306,6 +306,19 @@ table.t { font-size: 14px; }
 .b-roster .rb { display: block; height: 3px; background: rgba(0,0,0,.6); margin-top: 2px; } .b-roster .rb i { display: block; height: 100%; }
 .b-roster .rb.st i { background: #4af; }
 
+/* battle roster: a slim strip along the bottom of the field */
+.b-roster { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; height: 58px; overflow-x: auto; overflow-y: hidden; display: flex; align-items: stretch; gap: 4px; padding: 3px 4px; white-space: nowrap; }
+.b-roster .rsel { display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-start; gap: 2px; margin: 0 4px 0 0; flex: none; height: 100%; width: 118px; }
+.b-roster .rsel button { font-size: 10px; padding: 0 5px; line-height: 17px; }
+.b-roster .rc { flex: none; width: 112px; margin: 0; padding: 2px 5px 4px; border-left: 4px solid #4cf; overflow: hidden; }
+.b-roster .rn { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.b-roster .rs { min-height: 13px; font-size: 10.5px; }
+.b-help { bottom: 72px; }
+.b-tip { bottom: 72px; }
+.b-mini { bottom: 74px; }
+.b-roster.hide ~ .b-mini { bottom: 10px; }
+.b-stage .b-feed { top: 10px; }
+
 </style>
 </head>
 <body>
