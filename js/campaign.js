@@ -1177,6 +1177,20 @@
       }
     }
     if (rnd() < 0.008) for (const x of alliesOf(f)) if (x !== S.player && x !== 'minor' && C.rel(f, x) >= 40 && !C.hasTreaty('marriage', f, x)) { C.makeTreaty('marriage', f, x); break; }
+    // reclaim: take back lost home provinces, declaring war on whoever holds them if we are clearly stronger (neutral lands need no excuse)
+    if (S.turn >= 2 && f !== 'minor') {
+      const lost = C.provincesOf('minor').concat(Object.keys(S.factions).filter((x) => x !== f && x !== 'minor' && S.factions[x].alive).flatMap((x) => C.provincesOf(x))).filter((p) => p.owner === f && S.provinces[p.id].owner !== f);
+      const held = {}; for (const p of lost) { const h = S.provinces[p.id].owner; (held[h] = held[h] || []).push(p); }
+      const myArmy = C.armiesOf(f).reduce((n, a) => n + a.units.length, 0);
+      for (const h of Object.keys(held)) {
+        if (atWar(f, h) || allied(f, h) || myArmy < 6) continue;
+        if (S.truce && S.truce[pkey(f, h)] > S.turn) continue;
+        if (h === 'minor') { declareWar(f, h, 0, { by: f, type: 'province', id: held[h][0].id }); continue; }
+        const ratio = (factionPower(f) + 1) / (factionPower(h) + alliesOf(h).reduce((q, x) => q + factionPower(x) * 0.5, 0) + 1);
+        if (wars(f).filter((x) => x !== 'minor').length >= 1 || ratio < 1.3 || C.rel(f, h) > 30) continue;
+        if (rnd() < 0.04 + 0.1 * aggr) { declareWar(f, h, 0, { by: f, type: 'province', id: held[h][0].id }); break; }
+      }
+    }
     // declare war
     if (S.turn < 4) return;
     const engaged = wars(f).filter((x) => x !== 'minor').length;
@@ -1233,7 +1247,17 @@
       return;
     }
     const mainPower = list.length ? C.armyPower(list[0]) : 0;
-    list.forEach((a, idx) => {
+    const extras = [], claimed = new Set();
+    // a doomstack is split: surplus regiments become a detachment that plans its own target, so several fronts open at once
+    const underAttack = enemyArmies.some((e) => S.provinces[e.prov].owner === f); // enemy troops on our soil: keep the army together
+    for (const a of list) {
+      const openLand = !underAttack && nbrs(f, a.prov).some((id) => !isSea(a.prov, id) && en.includes(S.provinces[id].owner) && !enemyArmies.some((e) => e.prov === id));
+      if (openLand && a.units.length >= 12 && list.length + extras.length < 8) {
+        const idxs = []; for (let i = a.units.length - 1; i >= 0 && idxs.length < Math.floor(a.units.length / 3); i--) if (a.units[i].type !== 'art') idxs.push(i);
+        if (idxs.length >= 3) { const na = C.splitArmy(a, idxs); if (na) extras.push(na); }
+      }
+    }
+    const planArmy = (a, idx) => {
       if (!S.armies.includes(a)) return;
       a.path = []; a.forage = (a.supply || 0) >= 2;
       const ps = S.provinces[a.prov];
@@ -1258,6 +1282,9 @@
           val = 2 + qd.income / 2 + (qd.capital ? 5 : 0) + (S.factions[q.owner].cap === id ? 3 : 0);
           val -= q.fort * (a.units.filter((u) => u.type === 'art').length >= 2 ? 0.8 : 1.6);
           if (q.siege && q.siege.by === f) val += 1;
+          if (qd.owner === f) val += 4; // our own land: retake it
+          if (!enemiesThere.length && q.fort === 0) val += 2; // unguarded
+          if (claimed.has(id) && !enemiesThere.length) val *= 0.25; // another army is already going there
         } else if (q.owner === f) {
           const near = enemyArmies.filter((e) => e.prov === id || nbrs(e.owner, e.prov).includes(id));
           if (near.length) val = 4 + (qd.capital ? 4 : 0) + qd.income / 3;
@@ -1282,9 +1309,15 @@
         const score = val / (d + 0.6);
         if (score > bscore) { bscore = score; best = id; }
       }
+      if (!best && a.units.length >= 5) { // nothing attractive nearby: march on the closest enemy province rather than sit still
+        const far = C.bfsAll(f, a.prov, 14); let bd = 1e9;
+        for (const id in far.dist) { if (id === a.prov || !en.includes(S.provinces[id].owner) || !canEnter(f, id)) continue; const foe = enemyArmies.filter((e) => e.prov === id).reduce((q, e) => q + C.armyPower(e), 0); if (foe > myPow * 0.85) continue; if (far.dist[id] < bd) { bd = far.dist[id]; best = id; } }
+        if (best) { const path = []; let c = best; while (c !== a.prov && far.prev[c]) { path.unshift(c); c = far.prev[c]; } let seaBad = false, pv = a.prov; for (const q of path) { if (isSea(pv, q) && (a.units.length > SEA_CAP || S.turn < 6)) seaBad = true; pv = q; }
+        if (c === a.prov && !seaBad) { a.path = path; claimed.add(best); return; } best = null; }
+      }
       if (best) {
         const path = []; let c = best; while (c !== a.prov) { path.unshift(c); c = prev[c]; }
-        a.path = path;
+        a.path = path; claimed.add(best);
       } else {
         // retreat toward capital if outnumbered nearby
         const threat = enemyArmies.filter((e) => e.prov === a.prov || nbrs(e.owner, e.prov).includes(a.prov)).reduce((s, e) => s + C.armyPower(e), 0);
@@ -1293,7 +1326,9 @@
           if (cap) C.orderMove(a, cap);
         }
       }
-    });
+    };
+    list.forEach(planArmy);
+    for (const a of extras) planArmy(a, 99);
   }
 
   C.aiPlan = function (f) {
