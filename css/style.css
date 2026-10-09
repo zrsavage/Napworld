@@ -310,3 +310,16 @@ table.t { font-size: 14px; }
 .b-mini { bottom: 74px; }
 .b-roster.hide ~ .b-mini { bottom: 10px; }
 .b-stage .b-feed { top: 10px; }
+
+/* map details panel: closable, only shown for a selection */
+#side .ph { position: relative; }
+.xclose { position: absolute; top: 4px; right: 6px; padding: 0 8px; font-size: 18px; line-height: 20px; background: transparent; border: none; color: var(--muted); cursor: pointer; }
+.xclose:hover { color: #fff; }
+/* country overview */
+.dlg.wide { max-width: 980px; }
+.cov .covgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cov .covbox { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.cov h4 { margin: 0 0 6px; font: 600 12px 'Cinzel', Georgia, serif; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+.cov .covh { margin: 14px 0 4px; }
+.cov .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 1px 0; }
+.cov tr.go { cursor: pointer; } .cov tr.go:hover td { background: rgba(255,255,255,.07); }
