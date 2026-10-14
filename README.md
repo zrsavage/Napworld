@@ -160,7 +160,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Battle handling pass
 - Moving regiments march through friendly ones (at ~55% speed) instead of shoving them aside; idle regiments no longer bounce around.
-- Idle regiments engage on their own: infantry step up to range of an enemy within ~1.35x range, cavalry react to anything within ~75 px. Guns hold position. After Fall Back they hold for 7 s.
+- Idle regiments engage on their own: infantry only take a short step up when an enemy is just outside range (~1.12x), and stop and fire the moment anything is in range (they never chase), cavalry react to anything within ~75 px. Guns hold position. After Fall Back they hold for 7 s.
 - Each regiment has a thick front edge and arrow in its team colour so facing is obvious.
 - Pre-battle banner is a slim strip at the top; the deployment tip box is gone. The battle minimap hides once the battle ends.
 - Diplomacy window is wider and tighter so it fits on screen.

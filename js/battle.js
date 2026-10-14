@@ -470,13 +470,15 @@
       u.passing = false;
       if (u.order && u.cls !== 'gen') for (const f of this.units) { if (f !== u && f.side === s && f.cls !== 'gen' && f.state !== 'routing' && !f.dead && f.men > 0 && this.gap(u, f) < 0) { u.passing = true; break; } }
       const passK = u.passing ? 0.55 : 1;
+      // an automatic advance ends the moment anything is in range: stand and fire, never chase
+      if (u.order && u.order.auto && bt.range > 0) { for (const e of en) if (e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) <= maxRange * 0.95) { u.order = null; break; } }
       // idle regiments engage on their own: step up to range of a nearby enemy (guns hold their ground, horse charge anything that closes in)
       if (u.engT > 0) u.engT -= dt;
       if (!u.order && !this.deployPhase && !u.wantForm && !(u.engT > 0) && u.cls !== 'art' && !melee) {
         let bestE = null, bdE = 1e9;
-        const reach = bt.range > 0 ? maxRange * 1.35 : 75;
+        const reach = bt.range > 0 ? maxRange * 1.12 : 75;
         for (const e of en) { if (e.state === 'routing') continue; const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < reach && dd < bdE) { bdE = dd; bestE = e; } }
-        if (bestE && (bt.range === 0 || bdE > maxRange * 0.9)) u.order = { type: 'attack', target: bestE, auto: true };
+        if (bestE && (bt.range === 0 || bdE > maxRange * 0.95)) u.order = { type: 'attack', target: bestE, auto: true };
       }
       // order handling (movement)
       let moving = false;
