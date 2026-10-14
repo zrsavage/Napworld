@@ -124,6 +124,11 @@
       T.objs = [];
       if (T.villages.length) T.objs.push({ x: T.villages[0].x, y: T.villages[0].y, r: 75, name: 'Village' });
       if (T.hills.length) { const h = [...T.hills].sort((a, b) => b.r - a.r)[0]; T.objs.push({ x: h.x, y: h.y, r: Math.min(95, h.r), name: 'Hill' }); }
+      if (T.works.length) {
+        // fortified defender: every objective sits at the walls, so the attacker has to storm them
+        const side = this.spec.fortSide, bx = T.works[0].x, ox = bx + (side === 0 ? -45 : 45);
+        T.objs = [{ x: ox, y: FH * 0.32, r: 95, name: 'Fort' }, { x: ox, y: FH * 0.68, r: 95, name: 'Fort' }];
+      }
       while (T.objs.length < 2) T.objs.push({ x: 800 + (T.objs.length ? (r() - 0.5) * 240 : 0), y: 160 + r() * 580, r: 80, name: 'Crossroads' });
       T.noise = Array.from({ length: 180 }, () => [r() * FW, r() * FH, 20 + r() * 50, r()]);
       this.terrain = T;
@@ -299,7 +304,7 @@
       }
       this.vpT += dt;
       if (this.vpT >= 1) { this.vpT -= 1; for (const o of this.objs) if (o.owner >= 0) this.vp[o.owner]++; }
-      for (const sd of [0, 1]) this.holdT[sd] = this.objs.length && this.objs.every((o) => o.owner === sd) ? this.holdT[sd] + dt : 0;
+      for (const sd of [0, 1]) this.holdT[sd] = this.objs.length && !(this.terrain.works.length && sd === this.spec.fortSide) && this.objs.every((o) => o.owner === sd) ? this.holdT[sd] + dt : 0;
     }
 
     // positional sound: pan and loudness follow the camera

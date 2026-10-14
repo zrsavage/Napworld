@@ -150,3 +150,7 @@ js/ui.js          start screen, panels, dialogs, input
 Difficulty (Easy / Normal / Hard) shifts player vs AI income, AI aggression and willingness to make peace. War exhaustion, 12-month truces and a last-stand bonus for tiny states keep the AI from snowballing.
 Tuning knobs live at the top of `js/campaign.js` (`INCOME_K`, `MP_K`, `WIN_SHARE`, …) and the stat tables
 in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
+
+### Forts and Portugal
+- In a siege battle every victory point sits at the fortress walls (two "Fort" objectives), so the attacker cannot score by holding open ground. The defender holding them does not end the battle early; the attacker must storm the walls.
+- Portugal now has three provinces (Porto & Minho, Lisbon, Alentejo & Algarve).

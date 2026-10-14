@@ -141,7 +141,8 @@
     ['madrid','Madrid',-3.7,40.1,'spain','p',7,4,'C'], ['extremadura','Extremadura',-6.2,39.2,'spain','h',2,3,''],
     ['andalusia','Andalusia',-5.0,37.5,'spain','p',6,4,'PF'],
     // Portugal
-    ['lisbon','Lisbon',-8.9,39.0,'portugal','p',5,3,'CPF'], ['porto','Porto & Minho',-8.0,41.3,'portugal','h',3,3,'P'],
+    ['lisbon','Lisbon',-8.9,39.1,'portugal','p',5,3,'CPF'], ['porto','Porto & Minho',-8.0,41.3,'portugal','h',3,3,'P'],
+    ['alentejo','Alentejo & Algarve',-7.8,38.2,'portugal','p',3,3,'F'],
     // Sweden
     ['stockholm','Stockholm',17.6,59.7,'sweden','p',5,3,'CPF'], ['gothenburg','West Sweden',13.0,57.3,'sweden','h',4,3,'PF'],
     ['norrland','Norrland',17.5,63.7,'sweden','f',2,3,''], ['finland','Finland',24.6,62.4,'sweden','f',3,3,'PF'],
@@ -350,7 +351,7 @@
     sweden:   { tier:'Hard', rank:8, war:false, why:'A fading power with Finland exposed to Russia.', tips:['Hold Finland and Stockholm.'] },
     denmark:  { tier:'Hard', rank:9, war:false, why:'Small, neutral and tempting to both sides.', tips:['Stay out of wars as long as you can.'] },
     naples:   { tier:'Hard', rank:10, war:false, why:'A small kingdom between French ambition and British gold.', tips:['Defend the mainland passes.'] },
-    portugal: { tier:'Expert', rank:11, war:false, why:'Only two provinces and squeezed between Spain and the sea.', tips:['Rely on British help.'] },
+    portugal: { tier:'Expert', rank:11, war:false, why:'Just three provinces, squeezed between Spain and the sea.', tips:['Rely on British help.'] },
     bavaria:  { tier:'Impossible', label:'Impossible!', rank:12, war:false, why:'Small and sandwiched between Austria and France, but you start with a head start: extra gold, manpower and troops, and a market and barracks in every province.', tips:['Stay close to your French ally.'] }
   };
 
@@ -454,7 +455,7 @@
       ['catalonia','Joaquin Blake','line:3 light:1 art:1'],
       ['galicia','', 'line:2']
     ],
-    portugal: [['lisbon','Gomes Freire','line:4 hussar:1 art:1'], ['porto','', 'line:2']],
+    portugal: [['lisbon','Gomes Freire','line:4 hussar:1 art:1'], ['porto','', 'line:2'], ['alentejo','', 'line:2']],
     austria: [
       ['venetia','Archduke Charles','line:8 light:2 cuirass:2 hussar:1 art:2'],
       ['tyrol','Karl Mack','line:7 light:2 cuirass:1 hussar:2 art:2'],
