@@ -466,17 +466,29 @@
           if (dd <= rr && (dx * hx + dy * hy) / (dd || 1) > 0.25) { u.order = null; u.target = e; break; }
         }
       }
+      // marching through friendly regiments is slow going
+      u.passing = false;
+      if (u.order && u.cls !== 'gen') for (const f of this.units) { if (f !== u && f.side === s && f.cls !== 'gen' && f.state !== 'routing' && !f.dead && f.men > 0 && this.gap(u, f) < 0) { u.passing = true; break; } }
+      const passK = u.passing ? 0.55 : 1;
+      // idle regiments engage on their own: step up to range of a nearby enemy (guns hold their ground, horse charge anything that closes in)
+      if (u.engT > 0) u.engT -= dt;
+      if (!u.order && !this.deployPhase && !u.wantForm && !(u.engT > 0) && u.cls !== 'art' && !melee) {
+        let bestE = null, bdE = 1e9;
+        const reach = bt.range > 0 ? maxRange * 1.35 : 75;
+        for (const e of en) { if (e.state === 'routing') continue; const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < reach && dd < bdE) { bdE = dd; bestE = e; } }
+        if (bestE && (bt.range === 0 || bdE > maxRange * 0.9)) u.order = { type: 'attack', target: bestE, auto: true };
+      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
       // orderly fall back: keep facing the enemy, walk backward a safe distance, and break contact without a rout
       if (u.order && u.order.back && u.state !== 'routing') {
         const o = u.order, dx = o.x - u.x, dy = o.y - u.y, d = Math.hypot(dx, dy);
-        if (d < 6) { u.order = null; u.disT = 0; }
+        if (d < 6) { u.order = null; u.disT = 0; u.engT = 7; }
         else {
           const ne = this.nearest(u, en);
           if (ne && Math.hypot(ne.x - u.x, ne.y - u.y) < 450) u.facing = turnToward(u.facing, Math.atan2(ne.y - u.y, ne.x - u.x), bt.turn * dt * 0.8);
-          const sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * 0.9 * (1 - u.fatigue / 220);
+          const sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * 0.9 * (1 - u.fatigue / 220) * passK;
           u.x += dx / d * Math.min(sp * dt, d); u.y += dy / d * Math.min(sp * dt, d); moving = true; moveSpeed = sp; u.charging = false; u.disT = (u.disT || 0) + dt;
         }
       }
@@ -504,7 +516,7 @@
             u.facing = turnToward(u.facing, want, bt.turn * dt);
             if (da < 1.0 || u.cls === 'cav') {
               moving = true;
-              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220);
+              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220) * passK;
               u.charging = false;
               const chargeNow = (u.cls === 'cav' && u.order.type === 'attack' && d < 260 && u.fatigue < 75) || (u.order.charge && d < 170 && (u.cls !== 'cav' || u.fatigue < 75));
               if (u.order.type === 'move' && u.order.run) sp *= 1.35;
@@ -537,12 +549,13 @@
       // cavalry tire fast: galloping and fighting burn stamina, and a spent squadron fights badly
       if (u.cls === 'cav') u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 3.2 : 0.9) * this.wx.fat : melee ? 2.8 : -0.9) * dt, 0, 100);
       else u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
-      // friendly separation
-      for (const f of this.units) {
-        if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
-        const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
-        const gp = this.gap(u, f);
-        if (gp < 0 && d < 130) { const push = Math.min(-gp * 0.5, 22 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
+      // friendly units never shove each other: a moving regiment simply marches through (slowly, see u.passing); only two idle regiments sharing the same spot drift apart
+      if (!moving && !melee && !u.order) {
+        for (const f of this.units) {
+          if (f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing' || f.mv || f.order) continue;
+          const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
+          if (d < Math.min(u.w, f.w) * 0.25 && this.gap(u, f) < -Math.min(u.d, f.d) * 0.5) { const push = 6 * dt * (u.id < f.id ? 1 : -1); u.x += (dx / d) * push; u.y += (dy / d) * push; }
+        }
       }
       u.x = clamp(u.x, 5, FW - 5); u.y = clamp(u.y, 5, FH - 5);
 
@@ -1370,6 +1383,12 @@
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
         { const fa = this.t - (u.volleyT === undefined ? -9 : u.volleyT); if (fa >= 0 && fa < 0.3) { ctx.fillStyle = `rgba(255,236,160,${0.9 * (1 - fa / 0.3)})`; ctx.fillRect(d / 2, -w * boost / 2, 3 / Math.max(0.5, sk), w * boost); } }
       } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
+      { // front edge + arrow: which way the regiment faces
+        const team = u.side === 0 ? '60,200,255' : '255,80,70', lw = Math.max(2.4, 4 / Math.max(0.5, sk)), ah = Math.max(9, 14 / Math.max(0.6, sk));
+        ctx.strokeStyle = `rgba(${team},1)`; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(d / 2 + 4, -w / 2 - 4); ctx.lineTo(d / 2 + 4, w / 2 + 4); ctx.stroke();
+        ctx.fillStyle = `rgba(${team},1)`; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 1 / Math.max(0.5, sk);
+        ctx.beginPath(); ctx.moveTo(d / 2 + 4 + ah, 0); ctx.lineTo(d / 2 + 4, -ah * 0.6); ctx.lineTo(d / 2 + 4, ah * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
       if (hitF > 0) { ctx.fillStyle = `rgba(255,40,40,${0.35 * hitF})`; ctx.fillRect(-d / 2, -w / 2, d, w); }
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
@@ -1444,7 +1463,7 @@
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with <b>F1-F4</b>, then press <b>Space</b> to begin. Flagged circles are <b>objectives</b>: hold them to earn victory points.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<b>${this.spec.provName}</b> \u00B7 ${this.spec.playerIsAttacker ? 'attacking' : 'defending'} \u00B7 Deploy in the shaded zone (right-click / right-drag), <b>Space</b> to begin`;
     }
 
     bind() {
@@ -1725,7 +1744,7 @@
 
     updateTip() {
       const tips = NAP.guide && NAP.guide.BATTLE_TIPS; if (!tips) return;
-      const order = ['cav', 'rout', 'deploy', 'advance', 'range', 'win'];
+      const order = ['cav', 'rout', 'advance', 'range', 'win'];
       const now = performance.now();
       const el = this.root.querySelector('#b-tip');
       if (this.tipOff || this.over || this.replay) { el.hidden = true; return; }
@@ -1783,7 +1802,7 @@
     }
     hud() {
       const r = this.root;
-      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 ? 'block' : 'none'; }
+      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 && !this.over ? 'block' : 'none'; }
       this.drawMini();
       if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {

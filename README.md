@@ -157,3 +157,11 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Exchange and Conscription Office
 - **Exchange** (needs Market): a further +50% province income. **Conscription Office** (needs Barracks): a further +50% manpower growth. The AI builds them in rich/populous provinces once it has spare gold.
+
+### Battle handling pass
+- Moving regiments march through friendly ones (at ~55% speed) instead of shoving them aside; idle regiments no longer bounce around.
+- Idle regiments engage on their own: infantry step up to range of an enemy within ~1.35x range, cavalry react to anything within ~75 px. Guns hold position. After Fall Back they hold for 7 s.
+- Each regiment has a thick front edge and arrow in its team colour so facing is obvious.
+- Pre-battle banner is a slim strip at the top; the deployment tip box is gone. The battle minimap hides once the battle ends.
+- Diplomacy window is wider and tighter so it fits on screen.
+- Campaign: a player army that is about to be attacked can **Withdraw** to a neighbouring province for 5-10% losses (once per army every 6 turns).

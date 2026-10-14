@@ -138,7 +138,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 #minimap { position: absolute; left: 8px; bottom: 28px; width: 118px; height: 124px; opacity: .92; border: 2px solid var(--gold); border-radius: 4px; background: #7fa6b8; box-shadow: 0 4px 16px rgba(0,0,0,.5); z-index: 3; cursor: pointer; }
 @media (max-height: 640px) { #minimap { width: 92px; height: 97px; } }
 
-.b-banner.deploy { top: 70px; transform: translateX(-50%); pointer-events: none; padding: 10px 22px; background: rgba(10,12,16,.78); }
+.b-banner.deploy { top: 8px; transform: translateX(-50%); pointer-events: none; padding: 5px 16px; font-size: 13px; border-width: 1px; border-radius: 6px; background: rgba(10,12,16,.7); white-space: nowrap; }
 .b-banner.deploy h2 { font-size: 20px; margin-bottom: 4px; }
 
 .b-banner.report { max-width: 900px; width: 92%; max-height: 86%; overflow: auto; text-align: left; }
@@ -326,6 +326,11 @@ table.t { font-size: 14px; }
 .cov .covh { margin: 14px 0 4px; }
 .cov .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 1px 0; }
 .cov tr.go { cursor: pointer; } .cov tr.go:hover td { background: rgba(255,255,255,.07); }
+
+/* compact diplomacy table so it fits without scrolling */
+.dlg.dipl { max-height: 96vh; } .dlg.dipl h2 { padding: 8px 14px; font-size: 20px; } .dlg.dipl .body { padding: 6px 12px; }
+.dlg.dipl table.t td, .dlg.dipl table.t th { padding: 2px 6px; } .dlg.dipl .btns button { padding: 2px 7px; font-size: 12px; margin: 1px 2px; }
+.dlg.dipl .foot { padding: 6px 12px; } .dlg.dipl .body p { margin: 4px 0; }
 
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
@@ -2223,7 +2228,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const here = S.armies.filter((x) => x.prov === prov && x !== attacker);
     const defs = here.filter((x) => atWar(x.owner, attacker.owner));
     const friends = here.filter((x) => x.owner === attacker.owner || allied(x.owner, attacker.owner));
-    const sideA = [attacker, ...friends], sideD = defs;
+    const sideA = [attacker, ...friends]; let sideD = defs;
     const facsA = [...new Set(sideA.map((a) => a.owner))], facsD = [...new Set(sideD.map((a) => a.owner))];
     const playerA = facsA.includes(S.player), playerD = facsD.includes(S.player);
     // Fort/terrain bonuses
@@ -2234,9 +2239,27 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     let result = null;
     const involved = playerA || playerD;
     let choice = 'auto';
+    // a defending army that is about to be attacked may slip away once (cooldown 6 turns) to a neighbouring province for 5-10% losses
+    let retreatTo = null;
+    const mine = playerD && !playerA ? sideD.filter((x) => x.owner === S.player && !(x.retreatedAt >= S.turn - 6)) : [];
+    if (mine.length) {
+      const badP = (q) => S.armies.some((x) => x.prov === q && atWar(x.owner, S.player)) || q === from;
+      const cands = nbrs(S.player, prov).filter((q) => !isSea(prov, q) && !badP(q));
+      retreatTo = cands.find((q) => S.provinces[q].owner === S.player) || cands.find((q) => allied(S.provinces[q].owner, S.player)) || cands[0] || null;
+    }
     if (involved && H().runBattle) {
       S.pendingWeather = pickWeather(); S.pendingTod = pickTod();
-      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+    }
+    if (choice === 'retreat' && retreatTo && mine.length) {
+      for (const a of mine) {
+        applyCasualties([a], 0.05 + rnd() * 0.05);
+        a.prov = retreatTo; a.from = retreatTo; a.path = []; a.retreatedAt = S.turn;
+      }
+      plog(`${F(S.player).name} withdraws from ${C.def(prov).name} to ${C.def(retreatTo).name}, avoiding battle at a small cost.`, 'info', [S.player]);
+      sideD = sideD.filter((x) => !mine.includes(x));
+      if (!sideD.length) { attacker.prov = prov; attacker.path = attacker.path.filter((x) => x !== prov); return 'A'; }
+      choice = 'auto';
     }
     let winner; // 'A' | 'D'
     let fieldCasualtiesApplied = false;
@@ -2295,6 +2318,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (winner === 'D' && S.armies.includes(attacker)) { /* already retreated */ }
     return winner;
   }
+  C._resolveBattle = (a, p, f) => resolveBattle(a, p, f);
   function mkSide(armies) {
     const units = [];
     armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, vet: C.vetOf(u), fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
@@ -3902,17 +3926,29 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           if (dd <= rr && (dx * hx + dy * hy) / (dd || 1) > 0.25) { u.order = null; u.target = e; break; }
         }
       }
+      // marching through friendly regiments is slow going
+      u.passing = false;
+      if (u.order && u.cls !== 'gen') for (const f of this.units) { if (f !== u && f.side === s && f.cls !== 'gen' && f.state !== 'routing' && !f.dead && f.men > 0 && this.gap(u, f) < 0) { u.passing = true; break; } }
+      const passK = u.passing ? 0.55 : 1;
+      // idle regiments engage on their own: step up to range of a nearby enemy (guns hold their ground, horse charge anything that closes in)
+      if (u.engT > 0) u.engT -= dt;
+      if (!u.order && !this.deployPhase && !u.wantForm && !(u.engT > 0) && u.cls !== 'art' && !melee) {
+        let bestE = null, bdE = 1e9;
+        const reach = bt.range > 0 ? maxRange * 1.35 : 75;
+        for (const e of en) { if (e.state === 'routing') continue; const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < reach && dd < bdE) { bdE = dd; bestE = e; } }
+        if (bestE && (bt.range === 0 || bdE > maxRange * 0.9)) u.order = { type: 'attack', target: bestE, auto: true };
+      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
       // orderly fall back: keep facing the enemy, walk backward a safe distance, and break contact without a rout
       if (u.order && u.order.back && u.state !== 'routing') {
         const o = u.order, dx = o.x - u.x, dy = o.y - u.y, d = Math.hypot(dx, dy);
-        if (d < 6) { u.order = null; u.disT = 0; }
+        if (d < 6) { u.order = null; u.disT = 0; u.engT = 7; }
         else {
           const ne = this.nearest(u, en);
           if (ne && Math.hypot(ne.x - u.x, ne.y - u.y) < 450) u.facing = turnToward(u.facing, Math.atan2(ne.y - u.y, ne.x - u.x), bt.turn * dt * 0.8);
-          const sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * 0.9 * (1 - u.fatigue / 220);
+          const sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * 0.9 * (1 - u.fatigue / 220) * passK;
           u.x += dx / d * Math.min(sp * dt, d); u.y += dy / d * Math.min(sp * dt, d); moving = true; moveSpeed = sp; u.charging = false; u.disT = (u.disT || 0) + dt;
         }
       }
@@ -3940,7 +3976,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
             u.facing = turnToward(u.facing, want, bt.turn * dt);
             if (da < 1.0 || u.cls === 'cav') {
               moving = true;
-              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220);
+              let sp = bt.speed * (FORM_SPEED[u.formation] || 1) * tinfo.speed * this.wx.speed * (1 - u.fatigue / 220) * passK;
               u.charging = false;
               const chargeNow = (u.cls === 'cav' && u.order.type === 'attack' && d < 260 && u.fatigue < 75) || (u.order.charge && d < 170 && (u.cls !== 'cav' || u.fatigue < 75));
               if (u.order.type === 'move' && u.order.run) sp *= 1.35;
@@ -3973,12 +4009,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // cavalry tire fast: galloping and fighting burn stamina, and a spent squadron fights badly
       if (u.cls === 'cav') u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 3.2 : 0.9) * this.wx.fat : melee ? 2.8 : -0.9) * dt, 0, 100);
       else u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
-      // friendly separation
-      for (const f of this.units) {
-        if (melee || f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing') continue;
-        const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
-        const gp = this.gap(u, f);
-        if (gp < 0 && d < 130) { const push = Math.min(-gp * 0.5, 22 * dt); u.x += (dx / d) * push * 0.5; u.y += (dy / d) * push * 0.5; }
+      // friendly units never shove each other: a moving regiment simply marches through (slowly, see u.passing); only two idle regiments sharing the same spot drift apart
+      if (!moving && !melee && !u.order) {
+        for (const f of this.units) {
+          if (f === u || f.side !== s || f.cls === 'gen' || !this.alive(f) || f.state === 'routing' || f.mv || f.order) continue;
+          const dx = u.x - f.x, dy = u.y - f.y, d = Math.hypot(dx, dy) || 0.1;
+          if (d < Math.min(u.w, f.w) * 0.25 && this.gap(u, f) < -Math.min(u.d, f.d) * 0.5) { const push = 6 * dt * (u.id < f.id ? 1 : -1); u.x += (dx / d) * push; u.y += (dy / d) * push; }
+        }
       }
       u.x = clamp(u.x, 5, FW - 5); u.y = clamp(u.y, 5, FH - 5);
 
@@ -4806,6 +4843,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(d / 2 - 1.6, -w * boost / 2, 1.6, w * boost * Math.max(0.3, r));
         { const fa = this.t - (u.volleyT === undefined ? -9 : u.volleyT); if (fa >= 0 && fa < 0.3) { ctx.fillStyle = `rgba(255,236,160,${0.9 * (1 - fa / 0.3)})`; ctx.fillRect(d / 2, -w * boost / 2, 3 / Math.max(0.5, sk), w * boost); } }
       } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
+      { // front edge + arrow: which way the regiment faces
+        const team = u.side === 0 ? '60,200,255' : '255,80,70', lw = Math.max(2.4, 4 / Math.max(0.5, sk)), ah = Math.max(9, 14 / Math.max(0.6, sk));
+        ctx.strokeStyle = `rgba(${team},1)`; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(d / 2 + 4, -w / 2 - 4); ctx.lineTo(d / 2 + 4, w / 2 + 4); ctx.stroke();
+        ctx.fillStyle = `rgba(${team},1)`; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 1 / Math.max(0.5, sk);
+        ctx.beginPath(); ctx.moveTo(d / 2 + 4 + ah, 0); ctx.lineTo(d / 2 + 4, -ah * 0.6); ctx.lineTo(d / 2 + 4, ah * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
       if (hitF > 0) { ctx.fillStyle = `rgba(255,40,40,${0.35 * hitF})`; ctx.fillRect(-d / 2, -w / 2, d, w); }
       ctx.globalAlpha = 1;
       ctx.rotate(-u.facing);
@@ -4880,7 +4923,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       r.querySelector('.b-s1').style.setProperty('--c', NAP.FACTIONS[sd[1].faction].color);
       r.querySelector('#b-terr').textContent = `${this.spec.provName} · ${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[this.spec.terrain]}${this.spec.fort ? ' · Fort ' + this.spec.fort : ''} · ${this.weatherName}`;
       r.querySelector('#b-banner').classList.add('deploy');
-      r.querySelector('#b-banner').innerHTML = `<h2>Battle of ${this.spec.provName}</h2><p>${this.spec.playerIsAttacker ? 'You are attacking.' : 'You are defending.'} <b>Deploy:</b> select units and right-click (or right-drag a line) to place them in the shaded zone, change formations with <b>F1-F4</b>, then press <b>Space</b> to begin. Flagged circles are <b>objectives</b>: hold them to earn victory points.</p>`;
+      r.querySelector('#b-banner').innerHTML = `<b>${this.spec.provName}</b> \u00B7 ${this.spec.playerIsAttacker ? 'attacking' : 'defending'} \u00B7 Deploy in the shaded zone (right-click / right-drag), <b>Space</b> to begin`;
     }
 
     bind() {
@@ -5161,7 +5204,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
     updateTip() {
       const tips = NAP.guide && NAP.guide.BATTLE_TIPS; if (!tips) return;
-      const order = ['cav', 'rout', 'deploy', 'advance', 'range', 'win'];
+      const order = ['cav', 'rout', 'advance', 'range', 'win'];
       const now = performance.now();
       const el = this.root.querySelector('#b-tip');
       if (this.tipOff || this.over || this.replay) { el.hidden = true; return; }
@@ -5219,7 +5262,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     hud() {
       const r = this.root;
-      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 ? 'block' : 'none'; }
+      { const mini = r.querySelector('#b-mini'); if (mini) mini.style.display = this.cam.z > 1.15 && !this.over ? 'block' : 'none'; }
       this.drawMini();
       if (this.spec.tutorial) this.updateTip();
       for (const s of [0, 1]) {
@@ -5936,7 +5979,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         const btns = war ? `<button data-d="peace:${f}">Negotiate peace</button>` : (al ? `<button data-d="break:${f}">Break alliance</button>` : `${f !== 'minor' ? `<button data-d="ally:${f}">Propose alliance</button>` : ''}<button class="danger" data-d="war:${f}">Declare war</button>`) + treat;
         return `<tr><td>${flag(f)}${esc(F(f).name)}</td><td>${status}</td><td>${relBar(rel)}</td><td>${C.provincesOf(f).length}</td><td class="btns">${btns}</td></tr>`;
       }).join('');
-      m.innerHTML = `<div class="dlg"><h2>Diplomacy</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Status</th><th>Opinion</th><th>Prov</th><th>Actions</th></tr>${rows}</table><p class="muted" id="dipmsg" style="min-height:20px">${esc(msg || '')}</p></div><div class="foot"><button id="dipclose">Close</button></div></div>`;
+      m.innerHTML = `<div class="dlg wide dipl"><h2>Diplomacy</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Status</th><th>Opinion</th><th>Prov</th><th>Actions</th></tr>${rows}</table><p class="muted" id="dipmsg" style="min-height:20px">${esc(msg || '')}</p></div><div class="foot"><button id="dipclose">Close</button></div></div>`;
       m.hidden = false;
       $('#dipclose').onclick = close;
       m.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => {
@@ -6092,7 +6135,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const p = NAP.world.byId[info.prov];
     const html = `<h2>Battle at ${esc(p.name)}</h2><div class="body"><p>${info.playerIsAttacker ? 'Your army attacks!' : 'Your army is attacked!'} Terrain: <b>${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[info.terrain]}</b> · Weather: <b>${{ clear: 'Clear', rain: 'Rain (muskets weaker)', fog: 'Fog (short sight)', snow: 'Snow (slow, tiring)' }[info.weather || 'clear']}</b>${info.tod === 'dusk' ? ' · <b>Dusk</b> (battle ends at nightfall)' : info.tod === 'dawn' ? ' · Dawn' : ''}${info.fort ? ` · Fortification level ${info.fort}` : ''}.</p>
       <div class="sides">${side(info.sideA)}${side(info.sideD)}</div></div>
-      <div class="foot"><button data-r="auto">Auto-resolve</button><button class="primary" data-r="fight">Fight the battle</button></div>`;
+      <div class="foot">${info.canRetreat ? `<button data-r="retreat" data-tip="<b>Withdraw</b><br>Slip away to ${esc(info.canRetreat)} before the enemy closes. Costs 5-10% of the army; each army can do this once every 6 turns.">Withdraw to ${esc(info.canRetreat)} (-5-10%)</button>` : ''}<button data-r="auto">Auto-resolve</button><button class="primary" data-r="fight">Fight the battle</button></div>`;
     return modal(html, 'event');
   };
   C.hooks.runBattle = async (spec) => {

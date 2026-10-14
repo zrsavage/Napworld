@@ -703,7 +703,7 @@
     const here = S.armies.filter((x) => x.prov === prov && x !== attacker);
     const defs = here.filter((x) => atWar(x.owner, attacker.owner));
     const friends = here.filter((x) => x.owner === attacker.owner || allied(x.owner, attacker.owner));
-    const sideA = [attacker, ...friends], sideD = defs;
+    const sideA = [attacker, ...friends]; let sideD = defs;
     const facsA = [...new Set(sideA.map((a) => a.owner))], facsD = [...new Set(sideD.map((a) => a.owner))];
     const playerA = facsA.includes(S.player), playerD = facsD.includes(S.player);
     // Fort/terrain bonuses
@@ -714,9 +714,27 @@
     let result = null;
     const involved = playerA || playerD;
     let choice = 'auto';
+    // a defending army that is about to be attacked may slip away once (cooldown 6 turns) to a neighbouring province for 5-10% losses
+    let retreatTo = null;
+    const mine = playerD && !playerA ? sideD.filter((x) => x.owner === S.player && !(x.retreatedAt >= S.turn - 6)) : [];
+    if (mine.length) {
+      const badP = (q) => S.armies.some((x) => x.prov === q && atWar(x.owner, S.player)) || q === from;
+      const cands = nbrs(S.player, prov).filter((q) => !isSea(prov, q) && !badP(q));
+      retreatTo = cands.find((q) => S.provinces[q].owner === S.player) || cands.find((q) => allied(S.provinces[q].owner, S.player)) || cands[0] || null;
+    }
     if (involved && H().runBattle) {
       S.pendingWeather = pickWeather(); S.pendingTod = pickTod();
-      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+    }
+    if (choice === 'retreat' && retreatTo && mine.length) {
+      for (const a of mine) {
+        applyCasualties([a], 0.05 + rnd() * 0.05);
+        a.prov = retreatTo; a.from = retreatTo; a.path = []; a.retreatedAt = S.turn;
+      }
+      plog(`${F(S.player).name} withdraws from ${C.def(prov).name} to ${C.def(retreatTo).name}, avoiding battle at a small cost.`, 'info', [S.player]);
+      sideD = sideD.filter((x) => !mine.includes(x));
+      if (!sideD.length) { attacker.prov = prov; attacker.path = attacker.path.filter((x) => x !== prov); return 'A'; }
+      choice = 'auto';
     }
     let winner; // 'A' | 'D'
     let fieldCasualtiesApplied = false;
@@ -775,6 +793,7 @@
     if (winner === 'D' && S.armies.includes(attacker)) { /* already retreated */ }
     return winner;
   }
+  C._resolveBattle = (a, p, f) => resolveBattle(a, p, f);
   function mkSide(armies) {
     const units = [];
     armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, vet: C.vetOf(u), fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
