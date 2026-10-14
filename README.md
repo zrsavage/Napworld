@@ -165,3 +165,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - Pre-battle banner is a slim strip at the top; the deployment tip box is gone. The battle minimap hides once the battle ends.
 - Diplomacy window is wider and tighter so it fits on screen.
 - Campaign: a player army that is about to be attacked can **Withdraw** to a neighbouring province for 5-10% losses (once per army every 6 turns).
+
+### Levies and cavalry pursuit
+- Click the manpower figure in the top bar to **raise levies**: 500 men per lot for 600 gold, +25% for every extra lot bought in the same month (resets each turn).
+- Cavalry running down routed or nearly destroyed units now spend far less stamina, and no longer lose heart from exhaustion against them.

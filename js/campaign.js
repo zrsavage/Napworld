@@ -429,6 +429,14 @@
     if (!depth || depth < 2) joinWars(a, b, depth || 0);
     return true;
   }
+  // ---- levies: turn spare gold into manpower (lots of 500 men; every lot bought this month costs 25% more)
+  C.LEVY_LOT = 500;
+  C.levyPrice = (f) => Math.round(C.LEVY_LOT * 1.2 * (1 + 0.25 * (S.levyBought && S.levyBought[f] || 0)));
+  C.buyLevy = (f, lots) => {
+    let paid = 0;
+    for (let i = 0; i < lots; i++) { const pr = C.levyPrice(f); if (S.factions[f].gold < pr) break; S.factions[f].gold -= pr; S.factions[f].manpower += C.LEVY_LOT; (S.levyBought = S.levyBought || {})[f] = (S.levyBought[f] || 0) + 1; paid += pr; }
+    return paid;
+  };
   C.declareWar = (a, b, why, goal) => declareWar(a, b, 0, why, goal);
   function makePeace(a, b) {
     if (!atWar(a, b)) return;
@@ -1859,7 +1867,7 @@
     arrivals();
     relationDrift();
     // date
-    S.turn++;
+    S.turn++; S.levyBought = {};
     S.month++; if (S.month > 12) { S.month = 1; S.year++; }
     await runEvents();
     NAP.recolor(S);

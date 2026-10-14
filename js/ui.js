@@ -189,7 +189,7 @@
     $('#topbar').innerHTML = `
       <span class="flag" style="background:${F(p).color}"></span><span class="fname">${esc(F(p).name)}</span>
       <span class="stat" title="Treasury / net per turn (income ${fmt(inc)} - upkeep ${fmt(up)})">&#128176; <b>${fmt(fs.gold)}</b> <small class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${fmt(net)}</small> <small>(${fmt(inc)} − ${fmt(up)})</small></span>
-      <span class="stat" title="Manpower pool / monthly growth">&#128100; <b>${fmt(fs.manpower)}</b> <small>+${fmt(C.manpowerGain(p))}</small></span>
+      <span class="stat" id="b-mp" style="cursor:pointer" data-tip="<b>Manpower</b> pool and monthly growth.<br>Click to <b>raise levies</b>: buy men with gold.">&#128100; <b>${fmt(fs.manpower)}</b> <small>+${fmt(C.manpowerGain(p))}</small></span>
       <span class="stat" title="Provinces held; win at 55%">&#9873; <b>${provs}</b><small>/${total}</small></span>
       ${s.naval ? '' : '<!--'}<span class="stat" title="Ships in your navy">&#9875; <b>${C.fleetsOf(p).reduce((a, x) => a + C.shipCount(x), 0)}</b> <small>ships</small></span>${s.naval ? '' : '-->'}
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
@@ -199,6 +199,7 @@
       <span class="date">${C.dateStr()}</span>
       <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
+    $('#b-mp').onclick = showLevy;
     $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-cty').onclick = showCountry; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = () => endTurn();
@@ -517,6 +518,20 @@
   function relBar(v) {
     const w = Math.abs(v) / 100 * 30;
     return `<span class="relbar"><i style="left:${v >= 0 ? 30 : 30 - w}px;width:${w}px;background:${v >= 0 ? '#5cb85c' : '#d9534f'}"></i></span> ${v > 0 ? '+' : ''}${Math.round(v)}`;
+  }
+  async function showLevy() {
+    const p = S().player;
+    for (;;) {
+      const fs = S().factions[p], pr = C.levyPrice(p), bought = (S().levyBought && S().levyBought[p]) || 0;
+      const opt = (n) => { let cost = 0; for (let i = 0; i < n; i++) cost += Math.round(C.LEVY_LOT * 1.2 * (1 + 0.25 * (bought + i))); return [cost, cost <= fs.gold]; };
+      const btn = (n) => { const [cost, ok] = opt(n); return `<button data-r="${n}" ${ok ? 'class="primary"' : 'disabled'}>Raise ${fmt(n * C.LEVY_LOT)} men &mdash; ${fmt(cost)} gold</button>`; };
+      const r = await modal(`<h2>Raise levies</h2><div class="body"><p>Gold buys conscripts and volunteers. Each lot of ${C.LEVY_LOT} men costs more than the last this month (price now <b>${fmt(pr)}</b> gold per lot; it resets every turn).</p>
+        <p>Treasury <b>${fmt(fs.gold)}</b> gold &middot; Manpower <b>${fmt(fs.manpower)}</b> <span class="muted">(+${fmt(C.manpowerGain(p))}/month)</span></p></div>
+        <div class="foot" style="flex-direction:column;align-items:stretch">${btn(1)}${btn(3)}${btn(6)}<button data-r="x">Done</button></div>`, 'event');
+      if (r === 'x' || r === undefined) break;
+      C.buyLevy(p, +r); NAP.audio && NAP.audio.sfx && NAP.audio.sfx('coin'); refresh();
+    }
+    refresh();
   }
   async function showDiplomacy() {
     const s = S(), me = s.player;

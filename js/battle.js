@@ -549,7 +549,9 @@
       }
       u.mv = moving;
       // cavalry tire fast: galloping and fighting burn stamina, and a spent squadron fights badly
-      if (u.cls === 'cav') u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 3.2 : 0.9) * this.wx.fat : melee ? 2.8 : -0.9) * dt, 0, 100);
+      // running down a broken or tiny enemy is what horse are for: it costs them little stamina
+      const easyPrey = u.cls === 'cav' && ((u.order && u.order.type === 'attack' && u.order.target && (u.order.target.state === 'routing' || u.order.target.men < u.men * 0.2)) || (melee && (melee.state === 'routing' || melee.men < u.men * 0.2)));
+      if (u.cls === 'cav') u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 3.2 : 0.9) * this.wx.fat : melee ? 2.8 : -0.9) * (easyPrey && (moving || melee) ? 0.3 : 1) * dt, 0, 100);
       else u.fatigue = clamp(u.fatigue + (moving ? (moveSpeed > bt.speed * 1.3 ? 2 : 0.7) * this.wx.fat : melee ? 1.2 : -1.5) * dt, 0, 100);
       // friendly units never shove each other: a moving regiment simply marches through (slowly, see u.passing); only two idle regiments sharing the same spot drift apart
       if (!moving && !melee && !u.order) {
@@ -569,7 +571,7 @@
         u.facing = turnToward(u.facing, Math.atan2(melee.y - u.y, melee.x - u.x), bt.turn * dt * 1.2);
         const ex = this.exposure(melee, u);
         let dps = u.men * bt.melee * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300) * this.stamina(u);
-        if (u.cls === 'cav' && u.fatigue > 90) u.morale -= 5 * dt; // horses blown: the squadron loses heart
+        if (u.cls === 'cav' && u.fatigue > 90 && melee.state !== 'routing' && melee.men >= u.men * 0.2) u.morale -= 3 * dt; // horses blown: the squadron loses heart
         if (u.cls === 'art') dps *= 0.5;
         const frontSteady = u.cls === 'cav' && melee.cls === 'inf' && ex === 1 && melee.morale > 55 && melee.state !== 'routing' && melee.formation !== 'column';
         if (frontSteady) dps *= 0.5; // horsemen ride onto bayonets and stall; they need an angle or a shaken enemy
@@ -593,7 +595,7 @@
           }
           let instant = u.shockMul * u.men * shock * vuln * tf * (0.6 + 0.4 * u.morale / 100) * (ex > 1 ? 1.25 : 1) * (1 - u.fatigue / 250) * this.stamina(u) * angF;
           if (melee.cls === 'inf') instant = Math.min(instant, melee.men * 0.3); // one charge cannot annihilate a regiment; it breaks it, and the pursuit does the rest
-          if (u.cls === 'cav') u.fatigue = Math.min(100, u.fatigue + 14);
+          if (u.cls === 'cav') u.fatigue = Math.min(100, u.fatigue + (melee.state === 'routing' ? 3 : 14));
           this.damage(melee, instant, u, (melee.formation === 'square' ? 0.3 : 1.7 * (ex > 1 ? 1.4 : 1) * (melee.state === 'routing' ? 0 : 1)) * moraleF);
           if (melee.cls === 'inf' && melee.formation === 'square' && u.cls === 'cav') this.damage(u, melee.men * 0.06, melee, 1.8);
           else if (u.cls === 'cav' && melee.cls !== 'cav' && melee.cls !== 'art') this.damage(u, melee.men * 0.015, melee, 0.8);
