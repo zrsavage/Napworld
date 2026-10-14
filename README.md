@@ -169,3 +169,8 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Levies and cavalry pursuit
 - Click the manpower figure in the top bar to **raise levies**: 500 men per lot for 600 gold, +25% for every extra lot bought in the same month (resets each turn).
 - Cavalry running down routed or nearly destroyed units now spend far less stamina, and no longer lose heart from exhaustion against them.
+
+### Hold the line, pursuit, player-first turns
+- Idle regiments never leave their position on their own any more: they fire at whatever comes into range from where they stand (fortifications stay manned). Only your orders (or Fall Back) move them.
+- When you win and enemy regiments are still routing on the field, you can **pursue**: the beaten army cannot rally, and you have up to 90 s to ride down what has not escaped (fleeing and destroyed regiments are tallied at the end). They must fight on, retreat in good order, or be harried by cavalry.
+- Campaign turn order: **you move first** (and your battles resolve first); each CPU nation then plans and moves against the board you have just left. CPU order still rotates.

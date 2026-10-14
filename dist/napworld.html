@@ -337,6 +337,9 @@ table.t { font-size: 14px; }
 .dlg.dipl table.t td, .dlg.dipl table.t th { padding: 2px 6px; } .dlg.dipl .btns button { padding: 2px 7px; font-size: 12px; margin: 1px 2px; }
 .dlg.dipl .foot { padding: 6px 12px; } .dlg.dipl .body p { margin: 4px 0; }
 
+.b-pursuit { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(60,12,12,.85); border: 1px solid #e06050; border-radius: 6px; padding: 5px 14px; font-size: 13px; white-space: nowrap; }
+.b-pursuit button { margin-left: 10px; padding: 2px 10px; }
+
 </style>
 </head>
 <body>
@@ -3369,14 +3372,12 @@ table.t { font-size: 14px; }
     const g0 = S.factions[S.player].gold, p0 = C.provincesOf(S.player).map((p) => p.id);
     const ids = Object.keys(S.factions).filter((f) => S.factions[f].alive && f !== 'minor');
     expelFromTerritory();
-    // AI planning
-    for (const f of ids) if (f !== S.player || S.autoplay) C.aiPlan(f);
-    // The player's own faction: no AI planning besides recruiting handled by the user
-    // Movement (rotate starting faction for fairness)
-    const order = [S.player, ...ids.filter((f) => f !== S.player)];
-    const rot = S.turn % order.length;
-    const rotated = order.slice(rot).concat(order.slice(0, rot));
+    // The player always moves first; every CPU nation then plans against the board the player has just left (their order rotates for fairness)
+    const others = ids.filter((f) => f !== S.player);
+    const rot = others.length ? S.turn % others.length : 0;
+    const rotated = (ids.includes(S.player) ? [S.player] : []).concat(others.slice(rot), others.slice(0, rot));
     for (const f of rotated) {
+      if (f !== S.player || S.autoplay) C.aiPlan(f);
       const before = new Map(S.armies.map((a) => [a.id, a.prov]));
       for (const a of C.armiesOf(f)) {
         if (!S.armies.includes(a)) continue;
@@ -3918,7 +3919,7 @@ table.t { font-size: 14px; }
         // rally
         const close = ne && Math.hypot(ne.x - u.x, ne.y - u.y);
         u.morale += (!ne || close > 220 ? 3.2 : 0.2) * dt;
-        if (u.morale > 42 && (!ne || close > 200) && u.routT > 6) { u.state = 'idle'; u.order = null; u.routT = 0; this.msg(`${u.name} rallies!`); }
+        if (u.morale > 42 && (!ne || close > 200) && u.routT > 6 && !(this.pursuit && s === 1)) { u.state = 'idle'; u.order = null; u.routT = 0; this.msg(`${u.name} rallies!`); }
         if (u.x < -40 || u.x > FW + 40 || u.y < -40 || u.y > FH + 40) { u.fled = true; this.msg(`${u.name} flees the field!`); }
         u.x = clamp(u.x, -60, FW + 60); u.y = clamp(u.y, -60, FH + 60);
         return;
@@ -3944,16 +3945,6 @@ table.t { font-size: 14px; }
       u.passing = false;
       if (u.order && u.cls !== 'gen') for (const f of this.units) { if (f !== u && f.side === s && f.cls !== 'gen' && f.state !== 'routing' && !f.dead && f.men > 0 && this.gap(u, f) < 0) { u.passing = true; break; } }
       const passK = u.passing ? 0.55 : 1;
-      // an automatic advance ends the moment anything is in range: stand and fire, never chase
-      if (u.order && u.order.auto && bt.range > 0) { for (const e of en) if (e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) <= maxRange * 0.95) { u.order = null; break; } }
-      // idle regiments engage on their own: step up to range of a nearby enemy (guns hold their ground, horse charge anything that closes in)
-      if (u.engT > 0) u.engT -= dt;
-      if (!u.order && !this.deployPhase && !u.wantForm && !(u.engT > 0) && u.cls !== 'art' && !melee) {
-        let bestE = null, bdE = 1e9;
-        const reach = bt.range > 0 ? maxRange * 1.12 : 75;
-        for (const e of en) { if (e.state === 'routing') continue; const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < reach && dd < bdE) { bdE = dd; bestE = e; } }
-        if (bestE && (bt.range === 0 || bdE > maxRange * 0.95)) u.order = { type: 'attack', target: bestE, auto: true };
-      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
@@ -4331,7 +4322,7 @@ table.t { font-size: 14px; }
 
     tryRally(s) {
       const g = this.general(s);
-      if (!g || g.dead || this.rallyCd[s] > 0) return false;
+      if (!g || g.dead || this.rallyCd[s] > 0 || (this.pursuit && s === 1)) return false;
       let n = 0;
       for (const u of this.units) {
         if (u.side === s && u.cls !== 'gen' && this.alive(u) && u.state === 'routing' && Math.hypot(u.x - g.x, u.y - g.y) < 280) {
@@ -4345,6 +4336,10 @@ table.t { font-size: 14px; }
     // ---------------------------------------------------------- end of battle
     checkEnd() {
       if (this.over) return;
+      if (this.pursuit) { // pursuit of a beaten army: ends when nothing is left running, the time is up, or the player calls it off
+        if (!this.enemies(0).some((e) => e.state === 'routing') || this.t > this.pursuitEnd || this.pursuitStop) { this.pursuit = false; this.pursued = true; this.finish(0); }
+        return;
+      }
       const s0 = this.strength(0), s1 = this.strength(1);
       const t0 = this.totalMen(0), t1 = this.totalMen(1);
       const broken = (side, str, tot, init) => str < init * 0.12 || tot <= 0 || this.friends(side).every((u) => u.state === 'routing');
@@ -4364,6 +4359,8 @@ table.t { font-size: 14px; }
     }
 
     finish(winner) {
+      if (winner === 0 && !this.pursued && !this.pursuit && !this.replay && this.enemies(0).some((e) => e.state === 'routing')) { this.offerPursuit(); return; }
+      if (this.pursuitEl) { this.pursuitEl.remove(); this.pursuitEl = null; }
       this.record();
       if (NAP.audio) NAP.audio.sfx(winner === 0 ? 'fanfare' : 'defeat');
       this.over = true; this.paused = true; this.winner = winner;
@@ -4384,6 +4381,25 @@ table.t { font-size: 14px; }
       this.result = { winner, units, deadGenerals: this.deadGen.filter((x) => x), casualties };
       // generals of the losing side may be captured/killed
       this.showEnd(winner, casualties);
+    }
+
+    // The enemy has broken but some regiments are still on the field: let the player hunt them down
+    offerPursuit() {
+      this.paused = true;
+      const n = this.enemies(0).filter((e) => e.state === 'routing').length;
+      const b = this.root.querySelector('#b-banner');
+      b.classList.remove('hide', 'deploy'); b.classList.add('report');
+      b.innerHTML = `<h2 class="good">Victory!</h2><p>The enemy army has broken, but <b>${n}</b> routed regiment${n > 1 ? 's are' : ' is'} still on the field.<br>Pursue them to destroy what cannot get away (cavalry are best), or let them go.</p>
+        <p style="margin-top:12px"><button id="b-pursue" class="primary">Pursue the routed enemy</button> <button id="b-nopursue">End the battle</button></p>`;
+      b.querySelector('#b-pursue').onclick = () => {
+        b.classList.add('hide'); b.classList.remove('report');
+        this.pursuit = true; this.pursuitEnd = this.t + 90; this.pursuitStop = false; this.paused = false;
+        const el = document.createElement('div'); el.className = 'b-pursuit'; el.innerHTML = '<b>PURSUIT</b> &mdash; hunt down the fleeing regiments <button id="b-endp">End pursuit</button>';
+        this.stage.appendChild(el); this.pursuitEl = el;
+        el.querySelector('#b-endp').onclick = () => { this.pursuitStop = true; };
+        this.msg('Pursuit! Ride down the fleeing enemy.');
+      };
+      b.querySelector('#b-nopursue').onclick = () => { this.pursued = true; this.finish(0); };
     }
 
     // ---------------------------------------------------------- orders (player)

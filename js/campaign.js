@@ -1838,14 +1838,12 @@
     const g0 = S.factions[S.player].gold, p0 = C.provincesOf(S.player).map((p) => p.id);
     const ids = Object.keys(S.factions).filter((f) => S.factions[f].alive && f !== 'minor');
     expelFromTerritory();
-    // AI planning
-    for (const f of ids) if (f !== S.player || S.autoplay) C.aiPlan(f);
-    // The player's own faction: no AI planning besides recruiting handled by the user
-    // Movement (rotate starting faction for fairness)
-    const order = [S.player, ...ids.filter((f) => f !== S.player)];
-    const rot = S.turn % order.length;
-    const rotated = order.slice(rot).concat(order.slice(0, rot));
+    // The player always moves first; every CPU nation then plans against the board the player has just left (their order rotates for fairness)
+    const others = ids.filter((f) => f !== S.player);
+    const rot = others.length ? S.turn % others.length : 0;
+    const rotated = (ids.includes(S.player) ? [S.player] : []).concat(others.slice(rot), others.slice(0, rot));
     for (const f of rotated) {
+      if (f !== S.player || S.autoplay) C.aiPlan(f);
       const before = new Map(S.armies.map((a) => [a.id, a.prov]));
       for (const a of C.armiesOf(f)) {
         if (!S.armies.includes(a)) continue;
