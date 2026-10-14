@@ -300,7 +300,7 @@
     const s = S(), ps = s.provinces[p.id], d = NAP.world.byId[p.id];
     let h = `<b>${p.capital ? '\u2605 ' : ''}${esc(p.name)}</b> \u2014 ${esc(F(ps.owner).adj)}<br><span class="ttk">${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[p.terrain]}${p.port ? ' \u00B7 Port' : ''} \u00B7 Income ${fmt(C.provIncome(ps))} \u00B7 Manpower ${C.def(p.id).manpower}</span>`;
     if ((ps.unrest || 0) > 5) h += `<br><span class="${ps.unrest >= 60 ? 'bad' : 'warn'}">Unrest ${Math.round(ps.unrest)}%</span>`;
-    const bl = ['market', 'barracks', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
+    const bl = ['market', 'bank', 'barracks', 'depot', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
     if (bl.length) h += `<br><span class="ttk">${bl.join(', ')}</span>`;
     const ar = s.armies.filter((a) => a.prov === p.id); if (ar.length) h += '<br>' + ar.map((a) => `${esc(F(a.owner).adj)} army (${a.units.length} regts)`).join('<br>');
     const fh = (s.fleets || []).filter((x) => x.port === p.id); if (fh.length) h += '<br>' + fh.map((x) => `${esc(F(x.owner).adj)} fleet (${C.shipCount(x)} ships)`).join('<br>');
@@ -325,6 +325,8 @@
     const bd = NAP.BUILDINGS[b], d = NAP.world.byId[ps.id];
     let h = `<b>${bd.name}</b><br>${bd.desc}<br><span class="ttk">Cost ${bd.cost}g \u00B7 Build time ${bd.time} turns</span>`;
     if (b === 'market') h += `<br>In this province: about <b>+${Math.round(d.income * 8 * 0.5)} gold</b> per turn.`;
+    if (b === 'bank') h += `<br>In this province: about <b>+${Math.round(d.income * 8 * 0.5)} gold</b> per turn.`;
+    if (b === 'depot') h += `<br>In this province: about <b>+${Math.round(d.manpower * 25 * 0.5)} men</b> per turn.`;
     if (b === 'barracks') h += `<br>In this province: about <b>+${Math.round(d.manpower * 25 * 0.5)} men</b> per turn.`;
     const unlocks = Object.keys(U).filter((t) => U[t].needs === b).map((t) => U[t].name);
     if (unlocks.length) h += `<br>Unlocks: <b>${unlocks.join(', ')}</b>`;
@@ -354,7 +356,7 @@
     else if (fleetsHere.length) html += `<div class="sec"><h4>Fleets here</h4>${fleetsHere.map((x) => `<div class="armychip" data-fleet="${x.id}"><i style="background:${F(x.owner).color}"></i><span>${esc(F(x.owner).adj)} fleet \u00B7 ${C.shipCount(x)} ships</span></div>`).join('')}</div>`;
     html += `<div class="sec"><h4>Province</h4>
       <div class="kv"><span>Income</span><b>${fmt(C.provIncome(ps))}/turn</b></div>
-      <div class="kv"><span>Manpower</span><b>+${fmt(p.manpower * 25 * (1 + 0.5 * ps.barracks))}/turn</b></div>
+      <div class="kv"><span>Manpower</span><b>+${fmt(p.manpower * 25 * (1 + 0.5 * ps.barracks + 0.5 * (ps.depot || 0)))}/turn</b></div>
       <div class="kv"><span>Fortification</span><b>${ps.fort ? '♖'.repeat(ps.fort) : 'None'}</b></div>
       <div class="kv"><span>Buildings</span><b style="text-align:right">${Object.keys(NAP.BUILDINGS).filter((b) => b !== 'fort' && ps[b]).map((b) => NAP.BUILDINGS[b].name).join(', ') || '—'}</b></div>
       <div class="kv"><span>Unrest</span><b class="${(ps.unrest || 0) >= 60 ? 'bad' : (ps.unrest || 0) >= 30 ? 'warn' : ''}">${Math.round(ps.unrest || 0)}%</b></div><div class="bar"><i style="width:${Math.round(ps.unrest || 0)}%"></i></div>
@@ -597,7 +599,7 @@
     const inc = C.factionIncome(me), up = C.factionUpkeep(me), shipUp = s.naval ? C.shipUpkeep(me) : 0, perk = NAP.PERKS[me];
     const provs = C.provincesOf(me).map((p) => ({ p, ps: s.provinces[p.id] })).sort((a, b) => C.provIncome(b.ps) - C.provIncome(a.ps));
     const arms = C.armiesOf(me), flts = s.naval ? C.fleetsOf(me) : [];
-    const bl = (ps) => ['market', 'barracks', 'stables', 'arsenal', 'academy', 'shipyard'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name.split(' ')[0]).concat(ps.fort ? ['Fort ' + ps.fort] : []).join(', ') || '\u2014';
+    const bl = (ps) => ['market', 'bank', 'barracks', 'depot', 'stables', 'arsenal', 'academy', 'shipyard'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name.split(' ')[0]).concat(ps.fort ? ['Fort ' + ps.fort] : []).join(', ') || '\u2014';
     const wars = C.warsOf(me).map((x) => F(x).adj), allies = Object.keys(s.factions).filter((x) => x !== me && x !== 'minor' && s.factions[x].alive && C.allied(me, x)).map((x) => F(x).adj);
     const tr = (k) => C.treatyPartners(k, me).map((x) => F(x).adj).join(', ') || '\u2014';
     const sup = (a) => { const d = C.supplyDepth(a); return d === 0 ? 'At home' : d === 1 ? 'Foraging' : d === 2 ? 'Strained' : 'Cut off'; };

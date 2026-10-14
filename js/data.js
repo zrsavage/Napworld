@@ -275,6 +275,8 @@
   NAP.BUILDINGS = {
     market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
     barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },
+    bank:     { name:'Exchange',        cost:380, time:4, max:1, req:'market', desc:'Needs a Market. A further +50% province income.' },
+    depot:    { name:'Conscription Office', cost:400, time:4, max:1, req:'barracks', desc:'Needs Barracks. A further +50% manpower growth.' },
     stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
     arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },
     academy:  { name:'Military Academy',cost:360, time:4, max:1, req:'barracks', desc:'Unlocks Guard Infantry here. New regiments raised here start as veterans (+morale, +firepower).' },

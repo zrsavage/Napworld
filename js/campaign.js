@@ -183,7 +183,7 @@
 
   C.provIncome = function (ps) {
     const d = C.def(ps.id);
-    let v = d.income * INCOME_K * (1 + 0.5 * ps.market);
+    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0));
     if (ps.siege) v *= 0.1;
     if (ps.blockade) v *= 0.5;
     if (ps.foraged) v *= 0.3;
@@ -237,7 +237,7 @@
   };
   C.manpowerGain = function (f) {
     let v = 0;
-    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
+    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks + 0.5 * (ps.depot || 0)) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
     return Math.round(v * NAP.perk(f, 'manpower'));
   };
   C.manpowerCap = (f) => 6000 + C.provincesOf(f).length * 500;
@@ -864,8 +864,9 @@
     if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
-    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy']) if (rnd() < 0.45) ps[b] = 0;
-    if (!ps.barracks) ps.academy = 0;
+    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy', 'bank', 'depot']) if (rnd() < 0.45) ps[b] = 0;
+    if (!ps.barracks) { ps.academy = 0; ps.depot = 0; }
+    if (!ps.market) ps.bank = 0;
     plog(`${F(f).name} captures ${d.name} from ${F(old).name}!`, f === S.player ? 'good' : 'bad', [f, old]);
     if (f !== S.player && old !== S.player) C.log(`${d.name} falls to ${F(f).adj} forces.`, 'capture-minor');
     if (S.factions[old].cap === pid && old !== 'minor') {
@@ -1125,6 +1126,8 @@
         if (!ps.stables && C.def(pick.id).income >= 3 && fs.gold > 500) opts.push('stables');
         if (!ps.arsenal && C.def(pick.id).income >= 4 && fs.gold > 550) opts.push('arsenal');
         if (ps.barracks && !ps.academy && fs.gold > 800) opts.push('academy');
+        if (ps.market && !ps.bank && C.def(pick.id).income >= 4 && fs.gold > 900) opts.push('bank');
+        if (ps.barracks && !ps.depot && C.def(pick.id).manpower >= 3 && fs.gold > 900) opts.push('depot');
         if (ps.fort < 2 && en.length && threatDist(f, pick.id, en) <= 2) opts.push('fort');
         if (opts.length) C.build(pick.id, opts[Math.floor(rnd() * opts.length)]);
       }
@@ -1874,7 +1877,7 @@
     const v = d.version || 1;
     if (v > C.VERSION) throw new Error('This save was made by a newer version of the game.');
     for (const ps of Object.values(d.provinces)) {
-      for (const k of ['stables', 'arsenal', 'academy']) if (ps[k] === undefined) ps[k] = 0;
+      for (const k of ['stables', 'arsenal', 'academy', 'bank', 'depot']) if (ps[k] === undefined) ps[k] = 0;
       if (ps.unrest === undefined) ps.unrest = 0;
       if (!ps.policy) ps.policy = 'balanced';
       ps.foraged = false;

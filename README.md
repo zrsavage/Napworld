@@ -154,3 +154,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Forts and Portugal
 - In a siege battle every victory point sits at the fortress walls (two "Fort" objectives), so the attacker cannot score by holding open ground. The defender holding them does not end the battle early; the attacker must storm the walls.
 - Portugal now has three provinces (Porto & Minho, Lisbon, Alentejo & Algarve).
+
+### Exchange and Conscription Office
+- **Exchange** (needs Market): a further +50% province income. **Conscription Office** (needs Barracks): a further +50% manpower growth. The AI builds them in rich/populous provinces once it has spare gold.
