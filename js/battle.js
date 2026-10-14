@@ -560,7 +560,7 @@
         // melee: face enemy
         u.facing = turnToward(u.facing, Math.atan2(melee.y - u.y, melee.x - u.x), bt.turn * dt * 1.2);
         const ex = this.exposure(melee, u);
-        let dps = u.men * bt.melee * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300) * this.stamina(u);
+        let dps = u.men * bt.melee * 2.2 * u.fireMul * (0.7 + 0.3 * u.morale / 100) * (1 - u.fatigue / 300) * this.stamina(u) * (melee.men < u.men * 0.4 ? 1.8 : 1); // melee is quick, and mopping up a spent regiment quicker still
         if (u.cls === 'cav' && u.fatigue > 90 && melee.state !== 'routing' && melee.men >= u.men * 0.2) u.morale -= 3 * dt; // horses blown: the squadron loses heart
         if (u.cls === 'art') dps *= 0.5;
         const frontSteady = u.cls === 'cav' && melee.cls === 'inf' && ex === 1 && melee.morale > 55 && melee.state !== 'routing' && melee.formation !== 'column';
@@ -664,6 +664,7 @@
       u.thrT = (u.thrT || 0) - dt;
       if (u.thrT <= 0) { u.thrT = 0.25; this.assessThreat(u); }
       if (u.threat > 0 && u.state !== 'routing') u.morale -= u.threat * dt;
+      if (u.men < u.max * 0.2 && u.state !== 'routing') u.morale -= (melee ? 6 : 2.5) * dt; // a shattered remnant cannot hold out long
       const thresh = (u.formation === 'square' ? 9 : 18) + (this.noGen[s] ? 4 : 0);
       if (u.morale <= thresh && u.state !== 'routing') {
         u.state = 'routing'; u.order = null; u.target = null; u.routT = 0; u.charging = false;

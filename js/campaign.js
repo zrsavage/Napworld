@@ -112,7 +112,8 @@
     const frac = u.men / u.max; u.type = 'line'; u.max = U.line.men; u.men = Math.round(U.line.men * frac); u.fights = 0;
     return true;
   };
-  C.vetOf = (u) => Math.max(u.vet || 0, (u.xp || 0) >= 6 ? 2 : (u.xp || 0) >= 3 ? 1 : 0);
+  C.VET_NAMES = ['Green', 'Seasoned', 'Veteran', 'Elite', 'Legendary'];
+  C.vetOf = (u) => Math.max(u.vet || 0, (u.xp || 0) >= 16 ? 4 : (u.xp || 0) >= 10 ? 3 : (u.xp || 0) >= 6 ? 2 : (u.xp || 0) >= 3 ? 1 : 0);
   C.unitCost = function (pid, type) {
     const u = U[type], ps = S.provinces[pid];
     let c = u.cost;

@@ -174,3 +174,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - Idle regiments never leave their position on their own any more: they fire at whatever comes into range from where they stand (fortifications stay manned). Only your orders (or Fall Back) move them.
 - When you win and enemy regiments are still routing on the field, you can **pursue**: the beaten army cannot rally, and you have up to 90 s to ride down what has not escaped (fleeing and destroyed regiments are tallied at the end). They must fight on, retreat in good order, or be harried by cavalry.
 - Campaign turn order: **you move first** (and your battles resolve first); each CPU nation then plans and moves against the board you have just left. CPU order still rotates.
+
+### Veteran ranks and quicker melee
+- Veteran stars now go up to **4** (Seasoned 3 wins, Veteran 6, Elite 10, Legendary 16 victories); each star is +6% morale and +5% firepower.
+- Melee is about twice as fast, with a further bonus when mopping up a spent regiment, and a regiment below 20% strength loses heart quickly. A 20-man remnant in contact with three regiments now breaks in a few seconds.
