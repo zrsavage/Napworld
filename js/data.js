@@ -196,6 +196,53 @@
     capital: r[8].includes('C'), port: r[8].includes('P'), fort: (r[8].match(/F/g) || []).length
   }));
 
+  // ---- Long game: extra regions split off existing provinces ----
+  // [id, name, lon, lat, owner, terrain, income, manpower, flags, parent, sea zone for ports]
+  // The new region's income and manpower are taken from its parent (never below 1), so a nation's total stays about the same.
+  NAP.BASE_DEFS = NAP.PROVINCE_DEFS;
+  const LONG_EXTRA = [
+    ['orleans','Orleans & Loire',1.3,47.5,'france','p',3,2,'','paris'], ['picardy','Picardy',2.6,50.0,'france','p',3,2,'P','normandy',0],
+    ['nantes','Nantes & Vendee',-1.4,47.1,'france','p',2,2,'P','brittany',0], ['gascony','Gascony',-0.3,43.3,'france','h',2,1,'','guyenne'],
+    ['auvergne','Auvergne',3.1,45.3,'france','h',2,1,'','languedoc'], ['franche','Franche-Comte',5.9,47.0,'france','h',2,1,'F','burgundy'],
+    ['savoy','Savoy',6.4,45.5,'france','m',2,1,'','dauphine'], ['genoa','Genoa & Liguria',8.8,44.4,'france','h',3,2,'P','lombardy',1],
+    ['kent','Kent & Sussex',0.6,51.0,'britain','p',3,2,'P','london',0], ['wales','Wales',-3.8,52.3,'britain','h',2,2,'P','midlands',0],
+    ['yorkshire','Yorkshire',-1.0,53.9,'britain','p',3,2,'P','northengland',0], ['highlands','Scottish Highlands',-4.8,57.5,'britain','m',1,2,'','scotland'],
+    ['ulster','Ulster',-6.8,54.6,'britain','h',2,2,'P','ireland',0],
+    ['asturias','Asturias & Leon',-5.8,43.2,'spain','m',2,2,'P','leon',0], ['granada','Granada',-3.5,37.2,'spain','m',2,1,'P','andalusia',1],
+    ['mancha','La Mancha',-3.0,38.8,'spain','p',2,2,'','madrid'],
+    ['scania','Scania',13.4,56.0,'sweden','p',2,1,'P','gothenburg',4], ['savo','Eastern Finland',28.0,61.8,'sweden','f',1,1,'','finland'],
+    ['funen','Funen & Zealand',10.5,55.3,'denmark','p',2,1,'P','jutland',4], ['bergen','West Norway',6.0,61.0,'denmark','m',2,1,'P','norway_s',0],
+    ['trondheim','Trondheim',10.5,63.4,'denmark','m',1,1,'P','norway_n',0],
+    ['tula','Tula & Ryazan',39.5,54.0,'russia','p',3,2,'','moscow'], ['kursk','Kursk & Voronezh',38.5,51.5,'russia','p',2,2,'','kharkov'],
+    ['volhynia','Volhynia',26.0,50.8,'russia','p',2,2,'','lithuania'], ['podolia','Podolia',28.2,49.0,'russia','p',2,2,'','kiev'],
+    ['vitebsk','Vitebsk',30.5,55.8,'russia','f',2,1,'','belarus'], ['yaroslavl','Yaroslavl',39.5,57.8,'russia','f',2,2,'','novgorod'],
+    ['lusatia','Lusatia',14.8,51.6,'prussia','p',3,1,'','berlin'], ['upper_silesia','Upper Silesia',18.3,50.5,'prussia','h',3,2,'F','silesia'],
+    ['lublin','Lublin',22.8,51.2,'prussia','p',2,2,'','warsaw'],
+    ['upper_austria','Upper Austria',13.9,48.1,'austria','h',4,2,'','vienna'], ['slovakia','Upper Hungary',19.0,48.7,'austria','h',3,2,'','hungary'],
+    ['bukovina','Bukovina',25.7,47.8,'austria','m',2,2,'','galicia_pl'], ['banat','Banat',21.5,45.6,'austria','p',3,2,'','transylvania'],
+    ['abruzzo','Abruzzo',14.0,42.2,'naples','h',2,1,'P','naples',2],
+    ['romagna','Romagna',11.3,44.5,'minor','p',2,1,'','papal'],
+    ['smyrna','Smyrna',27.4,38.5,'ottoman','p',3,2,'P','anatolia_w',2], ['armenia','Armenia',42.5,40.0,'ottoman','m',2,2,'','anatolia_e'],
+    ['palestine','Palestine',35.2,32.0,'ottoman','h',2,1,'P','syria',2], ['bosnia','Bosnia',17.7,44.2,'ottoman','m',2,2,'','serbia'],
+    ['oran','Oran',-0.4,35.6,'minor','h',1,1,'P','algiers',1]
+  ];
+  const LONG_MOVE = { scotland: { name: 'Lowland Scotland', lon: -3.7, lat: 55.9 }, northengland: { lon: -2.7, lat: 54.5 }, andalusia: { lon: -5.9, lat: 37.4 },
+    anatolia_w: { lon: 31.0, lat: 39.2 }, serbia: { name: 'Serbia', lon: 20.7, lat: 44.2 }, norway_s: { name: 'Oslo & Telemark', lon: 9.8, lat: 59.8 }, paris: { name: 'Paris' } };
+  NAP.lengthMode = 'short';
+  NAP.defsFor = function (mode) {
+    if (mode !== 'long') return NAP.BASE_DEFS;
+    const defs = NAP.BASE_DEFS.map((d) => Object.assign({}, d, LONG_MOVE[d.id] || {}));
+    const by = {}; defs.forEach((d) => (by[d.id] = d));
+    for (const r of LONG_EXTRA) {
+      const par = by[r[9]];
+      defs.push({ id: r[0], name: r[1], lon: r[2], lat: r[3], owner: r[4], terrain: r[5], income: r[6], manpower: r[7], capital: false, port: r[8].includes('P'), fort: (r[8].match(/F/g) || []).length });
+      if (par) { par.income = Math.max(1, par.income - Math.floor(r[6] * 0.7)); par.manpower = Math.max(1, par.manpower - Math.floor(r[7] * 0.5)); }
+    }
+    return defs;
+  };
+  NAP.longZonePorts = LONG_EXTRA.filter((r) => r[10] !== undefined).map((r) => [r[10], r[0]]);
+
+  // Sea zones: ports in a zone can sail to each other
   // Sea zones: ports in a zone can sail to each other when within `range` map pixels.
   NAP.SEA_ZONES = [
     { name: 'Atlantic & North Sea', c: [-7, 49.5], range: 470, ports: ['london','southwest','ireland','scotland','normandy','brittany','belgium','holland','hanover','jutland','norway_s','guyenne','galicia','porto','lisbon','andalusia','morocco','gothenburg'] },
@@ -204,6 +251,17 @@
     { name: 'Black Sea', c: [34, 43], range: 330, ports: ['constantinople','kherson','crimea','caucasus'] },
     { name: 'Baltic Sea', c: [19.5, 57.5], range: 360, ports: ['copenhagen','stockholm','gothenburg','pomerania','eastprussia','livonia','estonia','petersburg','finland','jutland'] }
   ];
+  NAP.BASE_ZONE_PORTS = NAP.SEA_ZONES.map((z) => z.ports.slice());
+  // switch between the short (standard) map and the long map with extra regions; rebuilds the world only when the mode changes
+  NAP.setLength = function (mode) {
+    mode = mode === 'long' ? 'long' : 'short';
+    if (NAP.lengthMode === mode && NAP.world) return;
+    NAP.lengthMode = mode;
+    NAP.PROVINCE_DEFS = NAP.defsFor(mode);
+    NAP.SEA_ZONES.forEach((z, i) => { z.ports = NAP.BASE_ZONE_PORTS[i].slice(); });
+    if (mode === 'long') for (const [zi, id] of NAP.longZonePorts) NAP.SEA_ZONES[zi].ports.push(id);
+    if (NAP.buildWorld && NAP.world) NAP.buildWorld();
+  };
 
   // ---- Factions ----
   NAP.FACTIONS = {

@@ -35,11 +35,12 @@
 
   // -------------------------------------------------------------------- state
   C.newGame = function (player, difficulty, opts) {
+    NAP.setLength(opts && opts.long ? 'long' : 'short');
     const w = W();
     S = {
       version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
-      naval: !!(opts && opts.naval), fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
+      naval: !!(opts && opts.naval), len: NAP.lengthMode, fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced', shipyard: 0, shipQueue: [], blockade: false };
@@ -1960,12 +1961,13 @@
     if (d.naval === undefined) d.naval = d.fleets.length > 0;
     for (const ps of Object.values(d.provinces)) { if (ps.shipyard === undefined) ps.shipyard = 0; if (!ps.shipQueue) ps.shipQueue = []; ps.blockade = false; }
     if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
+    if (!d.len) d.len = 'short';
     if (!d.truce) d.truce = {};
     if (!d.turnLog) d.turnLog = [];
     if (!d.msgs) d.msgs = [];
     d.version = C.VERSION;
     return d;
   };
-  C.deserialize = (txt) => { const d = C.migrate(JSON.parse(txt)); S = d; NAP.recolor(S); return S; };
+  C.deserialize = (txt) => { const d = C.migrate(JSON.parse(txt)); NAP.setLength(d.len); S = d; NAP.recolor(S); return S; };
 
 })();

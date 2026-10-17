@@ -183,3 +183,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - **Battle:** Hold/Free toggle (key G; default Hold, changeable in Settings) with a FREE tag; dashed move-preview lines from selected regiments to the cursor (red ATTACK over an enemy), and a marker per regiment while right-dragging a line; **wavering** warning (roster, unit tag and a message) before a regiment breaks.
 - **Campaign:** construction queue of up to 3 buildings per province (cost paid up front, queued items can be cancelled for a refund); **Armies** list (key A) with sorting, jump-to, *Reinforce all* and *Merge all*; **Wars** overview (key W); end-of-turn report and autosave (both switchable).
 - **Settings** (title screen or the gear in the top bar): 13 interface fonts, volume, starting battle speed, hold-by-default, tooltips, colour-blind battle colours, autosave, turn reports. Stored in the browser.
+
+### Short and long games
+- At **Begin the Campaign** you now choose **Short** (the standard 107-province map) or **Long** (about 148 provinces). The long map splits 41 regions in two (e.g. Paris / Orleans, London / Kent, Serbia / Bosnia, Moscow / Tula); each nation's total income and manpower stay about the same, just spread over more pieces. Saves remember their length. The tutorial always uses the short map.

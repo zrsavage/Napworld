@@ -103,6 +103,9 @@
     // naval warfare is asked at the moment you begin
     const begin = async () => {
       if (!picked) return;
+      const lr = await modal(`<h2>Length of game</h2><div class="body"><p><b>Short</b> (standard): the map as you see it, about ${NAP.BASE_DEFS.length} provinces. Quicker to play and the best way to learn.</p><p><b>Long</b>: about ${NAP.defsFor('long').length} provinces. Many regions are split in two (Paris and Orleans, Kent and London, Bosnia and Serbia and so on), so there is more to conquer, garrison and defend, and wars take far longer. Each nation's total wealth is about the same; it is simply cut into more pieces.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="short" ${ui.long ? '' : 'class="primary"'}>Short game</button><button data-r="long" ${ui.long ? 'class="primary"' : ''}>Long game</button></div>`, 'event');
+      if (lr !== 'short' && lr !== 'long') return;
+      ui.long = lr === 'long';
       const r = await modal(`<h2>Naval warfare?</h2><div class="body"><p><b>Off</b> (standard): the seas are a simple transport network. Armies cross between ports and nothing can stop them.</p><p><b>On</b> (<span class="bad">harder</span>): every nation has a fleet, you build ships at Shipyards, and enemy fleets can <b>blockade</b> your ports (income halved, no shipbuilding) and cut your armies' sea crossings. You need your own navy to keep the sea lanes open. It is more to manage and a real extra threat, so it is best once you know the basics.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="off" ${ui.naval ? '' : 'class="primary"'}>Naval warfare off</button><button data-r="on" ${ui.naval ? 'class="primary"' : ''}>Naval warfare on (harder)</button></div>`);
       if (r === 'off' || r === 'on') { ui.naval = r === 'on'; beginGame(picked); }
     };
@@ -193,7 +196,7 @@
   function beginGame(f, noNaval) {
     ui.tut = { on: false, step: 0 }; ui.dipOpened = false;
     if (NAP.audio) { NAP.audio.init(); NAP.audio.music('map'); }
-    C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval });
+    C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval, long: !!ui.long && !noNaval });
     enterGame();
     const cap = NAP.world.byId[S().factions[f].cap];
     ui.cam = { x: cap.cx, y: cap.cy, z: 1.15 }; ui.zt = null;
