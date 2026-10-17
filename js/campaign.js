@@ -236,6 +236,27 @@
     if (!men) return { err: 'Not enough gold or manpower' };
     return { men, gold: Math.round(gold) };
   };
+  // top up every damaged army that can be reinforced (cheapest need first); returns what was spent
+  C.reinforceAll = function (f) {
+    let men = 0, gold = 0, n = 0;
+    for (const a of C.armiesOf(f).slice().sort((x, y) => C.reinforceCost(x).gold - C.reinforceCost(y).gold)) {
+      if (C.reinforceCheck(a)) continue;
+      const r = C.reinforce(a); if (r.err) continue; men += r.men; gold += r.gold; n++;
+    }
+    return { men, gold, n };
+  };
+  // fold every pair of own armies standing in the same province together (up to the stack limit); returns merges made
+  C.mergeAll = function (f) {
+    let n = 0;
+    const by = {};
+    for (const a of C.armiesOf(f)) (by[a.prov] = by[a.prov] || []).push(a);
+    for (const list of Object.values(by)) {
+      list.sort((x, y) => y.units.length - x.units.length);
+      const base = list[0];
+      for (const b of list.slice(1)) { if (base.units.length + b.units.length <= MAX_STACK && !(b.path && b.path.length) && !(base.path && base.path.length) && C.mergeArmies(base, b)) n++; }
+    }
+    return n;
+  };
   C.manpowerGain = function (f) {
     let v = 0;
     for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks + 0.5 * (ps.depot || 0)) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
@@ -349,14 +370,18 @@
     ps.queue.push({ type, left: u.time, vet: ps.academy ? 1 : 0 });
     return null;
   };
+  C.BUILD_QUEUE = 3; // buildings under construction + waiting, per province
   C.buildCheck = function (pid, b) {
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
     if (bd.port && !S.naval) return 'Naval warfare is switched off in this game';
     if (bd.port && !W().byId[pid].port) return 'Needs a port';
-    if (ps.build) return 'Already constructing';
+    const q = ps.bq || (ps.bq = []);
+    if ((ps.build ? 1 : 0) + q.length >= C.BUILD_QUEUE) return 'Construction queue is full (' + C.BUILD_QUEUE + ')';
     if (ps.siege) return 'Province is besieged';
-    if (b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1) return 'Already built';
-    if (bd.req && !ps[bd.req]) return 'Requires ' + NAP.BUILDINGS[bd.req].name + ' first';
+    const pending = [ps.build && ps.build.type, ...q].filter(Boolean), nPend = pending.filter((t) => t === b).length;
+    if (b === 'fort' ? ps.fort + nPend >= bd.max : ps[b] >= 1) return 'Already built';
+    if (nPend && b !== 'fort') return 'Already queued';
+    if (bd.req && !ps[bd.req] && !pending.includes(bd.req)) return 'Requires ' + NAP.BUILDINGS[bd.req].name + ' first';
     if (fs.gold < bd.cost) return 'Not enough gold';
     return null;
   };
@@ -364,8 +389,13 @@
     const err = C.buildCheck(pid, b); if (err) return err;
     const ps = S.provinces[pid], bd = NAP.BUILDINGS[b];
     S.factions[ps.owner].gold -= bd.cost;
-    ps.build = { type: b, left: bd.time };
+    if (!ps.build) ps.build = { type: b, left: bd.time }; else (ps.bq || (ps.bq = [])).push(b);
     return null;
+  };
+  // drop a waiting building from the queue (full refund); the one being built cannot be cancelled
+  C.cancelBuild = function (pid, i) {
+    const ps = S.provinces[pid], b = ps.bq && ps.bq[i]; if (!b) return false;
+    ps.bq.splice(i, 1); S.factions[ps.owner].gold += NAP.BUILDINGS[b].cost; return true;
   };
   C.availableGenerals = (f) => S.pool[f].map((id) => S.generals[id]).filter((g) => g.alive);
 
@@ -561,7 +591,7 @@
     if (!opt) return [false, 'That term is no longer available.'];
     if (opt.goal) score += 12; else if (kind === 'province' && wg && wg.type === 'province') score -= 8; // demands outside your war goal look illegitimate
     if (kind === 'gold') { score -= opt.gold / 25; apply = () => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }; }
-    else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
+    else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.bq = []; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
     else if (kind === 'tribute') { score += opt.gold / 20; apply = () => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }; }
     else if (kind === 'release') { score += provValue(arg) * 0.9; apply = () => { const ps = S.provinces[arg]; ps.owner = to; ps.siege = null; ps.unrest = 10; NAP.recolor(S); }; }
     if (S.turn - w.since < 2) return [false, 'The war has only just begun.'];
@@ -591,7 +621,7 @@
   }
   function revolt(p, ps) {
     const was = ps.owner, back = !core(p, ps) && S.factions[p.owner] && p.owner !== 'minor' ? p.owner : 'minor';
-    ps.owner = back; ps.unrest = 30; ps.siege = null; ps.queue = []; ps.build = null; ps.policy = 'balanced';
+    ps.owner = back; ps.unrest = 30; ps.siege = null; ps.queue = []; ps.build = null; ps.bq = []; ps.policy = 'balanced';
     if (back !== 'minor' && !S.factions[back].alive) { S.factions[back].alive = true; if (!S.factions[back].cap) S.factions[back].cap = p.id; }
     for (const a of S.armies.filter((x) => x.prov === p.id && x.owner === was && !canEnter(x.owner, p.id))) { a.path = []; }
     const a = C.makeArmy(back, p.id, parseSpec('line:2 hussar:1'));
@@ -888,7 +918,7 @@
 
   function captureProvince(pid, f) {
     const ps = S.provinces[pid], old = ps.owner, d = C.def(pid);
-    ps.owner = f; ps.siege = null; ps.queue = []; ps.shipQueue = []; ps.build = null; ps.policy = 'balanced';
+    ps.owner = f; ps.siege = null; ps.queue = []; ps.shipQueue = []; ps.build = null; ps.bq = []; ps.policy = 'balanced';
     if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
@@ -1072,6 +1102,7 @@
           if (ps.build.type === 'fort') ps.fort++; else ps[ps.build.type] = 1;
           plog(`${NAP.BUILDINGS[ps.build.type].name} completed in ${p.name}.`, 'good', [ps.owner]);
           ps.build = null;
+          const nx = (ps.bq || []).shift(); if (nx) ps.build = { type: nx, left: NAP.BUILDINGS[nx].time };
         }
       }
       if (ps.queue.length) {

@@ -178,3 +178,8 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Veteran ranks and quicker melee
 - Veteran stars now go up to **4** (Seasoned 3 wins, Veteran 6, Elite 10, Legendary 16 victories); each star is +6% morale and +5% firepower.
 - Melee is about twice as fast, with a further bonus when mopping up a spent regiment, and a regiment below 20% strength loses heart quickly. A 20-man remnant in contact with three regiments now breaks in a few seconds.
+
+### Quality-of-life pass
+- **Battle:** Hold/Free toggle (key G; default Hold, changeable in Settings) with a FREE tag; dashed move-preview lines from selected regiments to the cursor (red ATTACK over an enemy), and a marker per regiment while right-dragging a line; **wavering** warning (roster, unit tag and a message) before a regiment breaks.
+- **Campaign:** construction queue of up to 3 buildings per province (cost paid up front, queued items can be cancelled for a refund); **Armies** list (key A) with sorting, jump-to, *Reinforce all* and *Merge all*; **Wars** overview (key W); end-of-turn report and autosave (both switchable).
+- **Settings** (title screen or the gear in the top bar): 13 interface fonts, volume, starting battle speed, hold-by-default, tooltips, colour-blind battle colours, autosave, turn reports. Stored in the browser.

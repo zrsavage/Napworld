@@ -10,7 +10,7 @@
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     A.ctx = new AC();
-    A.master = A.ctx.createGain(); A.master.gain.value = A.muted ? 0 : 0.8; A.master.connect(A.ctx.destination);
+    A.master = A.ctx.createGain(); A.master.gain.value = A.muted ? 0 : 0.8 * (A.vol === undefined ? 1 : A.vol); A.master.connect(A.ctx.destination);
     A.sfxBus = A.ctx.createGain(); A.sfxBus.gain.value = 0.7; A.sfxBus.connect(A.master);
     A.musBus = A.ctx.createGain(); A.musBus.gain.value = 0.28; A.musBus.connect(A.master);
     // shared noise buffer
@@ -22,8 +22,9 @@
   A.setMuted = function (m) {
     A.muted = m;
     try { localStorage.setItem(KEY, JSON.stringify({ muted: m })); } catch (e) {}
-    if (A.master) A.master.gain.value = m ? 0 : 0.8;
+    if (A.master) A.master.gain.value = m ? 0 : 0.8 * (A.vol === undefined ? 1 : A.vol);
   };
+  A.setVolume = function (v) { A.vol = Math.max(0, Math.min(1, v)); if (A.master && !A.muted) A.master.gain.value = 0.8 * A.vol; };
   // throttle: only play if `gap` seconds have passed since last time for this key
   function ok(key, gap) {
     const t = performance.now() / 1000;

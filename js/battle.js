@@ -56,7 +56,7 @@
   class Battle {
     constructor(spec, root, done) {
       this.spec = spec; this.root = root; this.done = done;
-      this.t = 0; this.deployPhase = true; this.speed = 0.5; this.paused = true; this.over = false; this.acc = 0;
+      this.t = 0; this.deployPhase = true; this.speed = (NAP.settings && NAP.settings.battleSpeed) || 0.5; this.paused = true; this.over = false; this.acc = 0;
       this.units = []; this.proj = []; this.sparks = []; this.floaters = []; this.groups = {}; this.hoverUnit = null; this.puffs = []; this.shots = []; this.dead = []; this.msgs = [];
       this.sel = new Set();
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
@@ -155,7 +155,7 @@
         x, y, facing: side === 0 ? 0 : Math.PI, men: src.men, max: src.max,
         baseMorale: clamp((base.morale * fac.morale + (g ? (g.lead - 3) * 2.2 : 0)) * (1 + 0.06 * (src.vet || 0)), 30, 115), vet: src.vet || 0,
         morale: 0, fatigue: src.fatigue || 0, formation: bt.forms[0], wantForm: null, formT: 0,
-        state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
+        free: side === 0 && !!NAP.settings && NAP.settings.holdDefault === false, state: 'idle', order: null, target: null, reload: rnd() * 4, routT: 0, calm: 0,
         kills: 0, start: src.men, impacted: false, charging: false, cooldown: 0, sinceHit: 99, role: 0, name: base.short,
         fireMul: fac.fire * (g ? 1 + (g.atk - 3) * 0.03 : 1) * (1 + 0.05 * (src.vet || 0)),
         takeMul: g ? 1 - (g.def - 3) * 0.025 : 1,
@@ -470,6 +470,15 @@
       u.passing = false;
       if (u.order && u.cls !== 'gen') for (const f of this.units) { if (f !== u && f.side === s && f.cls !== 'gen' && f.state !== 'routing' && !f.dead && f.men > 0 && this.gap(u, f) < 0) { u.passing = true; break; } }
       const passK = u.passing ? 0.55 : 1;
+      // regiments set to FREE (not hold position) step up to an enemy just beyond range, but stop and fire the moment anything is in range
+      if (u.order && u.order.auto && bt.range > 0) { for (const e of en) if (e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) <= maxRange * 0.95) { u.order = null; break; } }
+      if (u.engT > 0) u.engT -= dt;
+      if (u.free && !u.order && !this.deployPhase && !u.wantForm && !(u.engT > 0) && u.cls !== 'art' && !melee) {
+        let bestE = null, bdE = 1e9;
+        const reach = bt.range > 0 ? maxRange * 1.12 : 75;
+        for (const e of en) { if (e.state === 'routing') continue; const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < reach && dd < bdE) { bdE = dd; bestE = e; } }
+        if (bestE && (bt.range === 0 || bdE > maxRange * 0.95)) u.order = { type: 'attack', target: bestE, auto: true };
+      }
       // order handling (movement)
       let moving = false;
       let moveSpeed = 0;
@@ -664,6 +673,7 @@
       u.thrT = (u.thrT || 0) - dt;
       if (u.thrT <= 0) { u.thrT = 0.25; this.assessThreat(u); }
       if (u.threat > 0 && u.state !== 'routing') u.morale -= u.threat * dt;
+      if (u.side === 0 && !this.spec.aiBothSides) { const wv = this.wavering(u); if (wv && !u._wav) { u._wav = true; this.msg(`${u.name} is wavering! Fall Back (B) before it breaks.`); } else if (!wv && u._wav && u.morale > u.baseMorale * 0.5) u._wav = false; }
       if (u.men < u.max * 0.2 && u.state !== 'routing') u.morale -= (melee ? 6 : 2.5) * dt; // a shattered remnant cannot hold out long
       const thresh = (u.formation === 'square' ? 9 : 18) + (this.noGen[s] ? 4 : 0);
       if (u.morale <= thresh && u.state !== 'routing') {
@@ -674,6 +684,8 @@
       }
     }
 
+    // about to break: low on morale (or a spent remnant) but still in the fight
+    wavering(u) { return u.cls !== 'gen' && u.state !== 'routing' && this.alive(u) && (u.morale <= (u.formation === 'square' ? 9 : 18) + 12 + (this.noGen[u.side] ? 4 : 0) || u.men < u.max * 0.25); }
     nearest(u, list) {
       let b = null, bd = 1e9;
       for (const e of list) { const d = (e.x - u.x) ** 2 + (e.y - u.y) ** 2; if (d < bd) { bd = d; b = e; } }
@@ -1093,6 +1105,24 @@
         ctx.strokeStyle = 'rgba(120,200,255,0.95)'; ctx.lineWidth = 3 / k;
         ctx.beginPath(); ctx.moveTo(this.lineDrag.p0.x, this.lineDrag.p0.y); ctx.lineTo(this.lineDrag.p1.x, this.lineDrag.p1.y); ctx.stroke();
       }
+      // order preview: where the selected regiments would go
+      if (!this.over && !this.replay) {
+        const sel = this.selectedUnits().filter((u) => u.cls !== 'gen' && this.alive(u) && u.state !== 'routing');
+        const team = (NAP.teamRGB || ['60,200,255'])[0];
+        if (sel.length && this.lineDrag) { // right-drag: the battle line with a marker per regiment and the way it will face
+          const l = this.lineDrag, dx = l.p1.x - l.p0.x, dy = l.p1.y - l.p0.y, len = Math.hypot(dx, dy) || 1;
+          let nx = -dy / len, ny = dx / len; const ex = this.enemies(0), ec = ex.length ? { x: ex.reduce((a, u) => a + u.x, 0) / ex.length, y: ex.reduce((a, u) => a + u.y, 0) / ex.length } : { x: FW, y: FH / 2 };
+          if ((ec.x - (l.p0.x + dx / 2)) * nx + (ec.y - (l.p0.y + dy / 2)) * ny < 0) { nx = -nx; ny = -ny; }
+          ctx.fillStyle = `rgba(${team},0.55)`; ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = 1.6 / k;
+          sel.forEach((u, i) => { const t = sel.length === 1 ? 0.5 : i / (sel.length - 1), x = l.p0.x + dx * t, y = l.p0.y + dy * t; ctx.fillRect(x - 8, y - 5, 16, 10); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + nx * 24, y + ny * 24); ctx.stroke(); });
+        } else if (sel.length && this.mouseW && !this.box && !this.deployPhase) {
+          const m = this.mouseW, hv = this.hoverUnit && this.hoverUnit.side === 1 ? this.hoverUnit : null, tx = hv ? hv.x : m.x, ty = hv ? hv.y : m.y;
+          ctx.setLineDash([8 / k, 6 / k]); ctx.lineWidth = 1.6 / k; ctx.strokeStyle = hv ? 'rgba(255,90,80,0.8)' : `rgba(${team},0.7)`;
+          ctx.beginPath(); for (const u of sel.slice(0, 14)) { ctx.moveTo(u.x, u.y); ctx.lineTo(tx, ty); } ctx.stroke(); ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(tx, ty, 9 / k * 0.9 + 4, 0, TAU); ctx.stroke();
+          if (hv) { ctx.fillStyle = 'rgba(255,90,80,0.9)'; ctx.font = `bold ${12 / k}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText('ATTACK', tx, ty - 22 / k - Math.max(hv.w, hv.d) / 2); }
+        }
+      }
       // field border
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, FW, FH);
       this.drawWeather(ctx);
@@ -1361,7 +1391,7 @@
       ctx.save();
       ctx.translate(u.x, u.y);
       if (u.cls === 'gen') {
-        { const team = u.side === 0 ? '60,200,255' : '255,80,70'; ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke(); }
+        { const team = (NAP.teamRGB || ['60,200,255', '255,80,70'])[u.side]; ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, 0, 12, 0, TAU); ctx.stroke(); }
         ctx.fillStyle = fc.color; ctx.strokeStyle = this.sel.has(u) ? '#fff' : '#111'; ctx.lineWidth = this.sel.has(u) ? 3 : 1.5;
         ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill(); ctx.stroke();
         if (u.men < u.max) { ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(-12, -19, 24, 3.4); ctx.fillStyle = u.men / u.max > 0.5 ? '#6d6' : '#e55'; ctx.fillRect(-12, -19, 24 * clamp(u.men / u.max, 0, 1), 3.4); }
@@ -1381,7 +1411,7 @@
       ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
       // team marker: cyan = yours, red = enemy, whatever the nation's uniform colour
       {
-        const team = u.side === 0 ? '60,200,255' : '255,80,70', rt = u.state === 'routing';
+        const team = (NAP.teamRGB || ['60,200,255', '255,80,70'])[u.side], rt = u.state === 'routing';
         ctx.fillStyle = `rgba(${team},${rt ? 0.28 : 0.15})`; ctx.fillRect(-d / 2 - 4, -w / 2 - 4, d + 8, w + 8);
         ctx.strokeStyle = `rgba(${team},0.95)`; ctx.lineWidth = Math.max(rt ? 2.2 : 1.2, (rt ? 3.4 : 2.2) / Math.max(0.5, sk));
         if (rt) ctx.setLineDash([6, 4]);
@@ -1404,7 +1434,7 @@
         { const fa = this.t - (u.volleyT === undefined ? -9 : u.volleyT); if (fa >= 0 && fa < 0.3) { ctx.fillStyle = `rgba(255,236,160,${0.9 * (1 - fa / 0.3)})`; ctx.fillRect(d / 2, -w * boost / 2, 3 / Math.max(0.5, sk), w * boost); } }
       } else this.drawFigures(ctx, u, w, d, fc, sk, r, sel, wh);
       { // front edge + arrow: which way the regiment faces
-        const team = u.side === 0 ? '60,200,255' : '255,80,70', lw = Math.max(2.4, 4 / Math.max(0.5, sk)), ah = Math.max(9, 14 / Math.max(0.6, sk));
+        const team = (NAP.teamRGB || ['60,200,255', '255,80,70'])[u.side], lw = Math.max(2.4, 4 / Math.max(0.5, sk)), ah = Math.max(9, 14 / Math.max(0.6, sk));
         ctx.strokeStyle = `rgba(${team},1)`; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(d / 2 + 4, -w / 2 - 4); ctx.lineTo(d / 2 + 4, w / 2 + 4); ctx.stroke();
         ctx.fillStyle = `rgba(${team},1)`; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.lineWidth = 1 / Math.max(0.5, sk);
         ctx.beginPath(); ctx.moveTo(d / 2 + 4 + ah, 0); ctx.lineTo(d / 2 + 4, -ah * 0.6); ctx.lineTo(d / 2 + 4, ah * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -1430,7 +1460,7 @@
         ctx.restore();
       }
       if (u.state === 'routing') { ctx.fillStyle = u.side === 0 ? '#5fd4ff' : '#ff6a60'; ctx.font = 'bold 13px sans-serif'; ctx.textBaseline = 'middle'; ctx.strokeText('!', 0, 0); ctx.fillText('!', 0, 0); }
-      { const tag = u.state === 'routing' ? 'ROUTING' : (u.order && u.order.back) ? 'FALLING BACK' : u.status; // status tags above the bars, coloured by side
+      { const tag = u.state === 'routing' ? 'ROUTING' : (u.order && u.order.back) ? 'FALLING BACK' : this.wavering(u) ? 'WAVERING' : u.status || (u.free && u.side === 0 ? 'FREE' : ''); // status tags above the bars, coloured by side
         if (tag && sk > 0.45) { ctx.save(); ctx.translate(0, -(Math.max(w, d) / 2) - 17 * us); ctx.scale(us, us); ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(0,0,0,0.9)'; ctx.fillStyle = u.state === 'routing' ? (u.side === 0 ? '#7fe0ff' : '#ff8a80') : '#ffd84a'; ctx.strokeText(tag, 0, 0); ctx.fillText(tag, 0, 0); ctx.restore(); } }
       if (u.wantForm) { ctx.fillStyle = '#fc6'; ctx.font = '8px sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('↻', 0, 0); }
       ctx.restore();
@@ -1462,11 +1492,11 @@
             <button data-f="square" data-tip="<b>Square</b> (key F3)<br>Near-immune to cavalry, no weak flank. Very slow, weak fire, hurt badly by artillery.">Square <kbd>F3</kbd></button>
             <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
-            <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
+            <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="hold" data-tip="<b>Hold / Free</b> (key G)<br><b>Hold</b> (default): a regiment stays on its spot and only fires at what comes into range. <b>Free</b>: it may step forward to engage an enemy just out of range. Toggles the selected regiments; FREE shows above them.">Hold/Free <kbd>G</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
             <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
-            <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp on" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
+            <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
             <span class="b-sep"></span><button data-z="out" title="Zoom out (PageDown)">&minus;</button><span id="b-zoom" class="b-zoomlbl">100%</span><button data-z="in" title="Zoom in (PageUp)">+</button><button data-z="fit" title="Fit whole field (Home)">Fit</button><button data-z="focus" title="Focus selection (F)">Focus</button>
             <button data-a="roster" data-tip="<b>Roster</b> (key Q)<br>Show or hide the list of your regiments on the left: click one to select it, double-click to jump to it. Buttons at the top select by type.">Roster <kbd>Q</kbd></button><button data-a="mute" data-nosound="1" id="b-mute" title="Sound on/off">&#128266;</button>
@@ -1503,6 +1533,7 @@
         if (!this.canvas.isConnected) return;
         const p = pos(e);
         if (this.box) { this.box.x1 = p.x; this.box.y1 = p.y; }
+        this.mouseW = this.toWorld(p.x, p.y);
         { const w0 = this.toWorld(p.x, p.y); let hv = null, bd = 6; const inside = p.x >= 0 && p.y >= 0 && p.x <= this.canvas.getBoundingClientRect().width && p.y <= this.canvas.getBoundingClientRect().height;
           if (inside) for (const u of this.units) { if (u.cls === 'gen' || u.dead || u.fled || !this.alive(u)) continue; const g = this.pointGap(u, w0); if (g < bd) { bd = g; hv = u; } }
           this.hoverUnit = hv; }
@@ -1552,7 +1583,7 @@
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
         else if (k === 'v') { this.showRange = this.showRange === false; }
-        else if (k === 'b' && !e.ctrlKey) this.fallBack();
+        else if (k === 'b' && !e.ctrlKey) this.fallBack(); else if (k === 'g' && !e.ctrlKey) this.toggleHold();
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -1578,7 +1609,7 @@
         else if (b.dataset.z) { const z = b.dataset.z; if (z === 'in') this.zoomBy(1.4); else if (z === 'out') this.zoomBy(1 / 1.4); else if (z === 'fit') this.zoomFit(); else this.focusSelection(); }
         else if (b.dataset.a === 'pause') this.togglePause();
         else if (b.dataset.a === 'charge') this.doCharge();
-        else if (b.dataset.a === 'halt') this.halt();
+        else if (b.dataset.a === 'halt') this.halt(); else if (b.dataset.a === 'hold') this.toggleHold();
         else if (b.dataset.a === 'fallback') this.fallBack();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
@@ -1679,6 +1710,13 @@
         out.push(u);
       }
       if (out.length) this.msg(`${out.length} regiment${out.length > 1 ? 's' : ''} falling back`);
+    }
+    toggleHold() {
+      const us = this.selectedUnits().filter((u) => u.cls !== 'gen' && u.cls !== 'art');
+      if (!us.length) { this.msg('Select regiments first'); return; }
+      const toFree = us.some((u) => !u.free);
+      us.forEach((u) => { u.free = toFree; if (!toFree && u.order && u.order.auto) u.order = null; });
+      this.msg(toFree ? 'Free: regiments may step up to engage' : 'Hold position: regiments stand and fire');
     }
     halt() { this.selectedUnits().forEach((u) => { u.order = null; u.target = null; }); }
     rally() { if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
@@ -1811,7 +1849,7 @@
       const el = this.root.querySelector('#b-roster'); if (!el || el.classList.contains('hide')) return;
       const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || a.cls.localeCompare(b.cls) || a.id - b.id);
       const rows = mine.map((u) => {
-        const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : (u.order && u.order.back) ? '<b class="rm2">falling back</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
+        const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : this.wavering(u) ? '<b class="rr">wavering!</b>' : (u.order && u.order.back) ? '<b class="rm2">falling back</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
         const nm = gen ? '\u2605 ' + esc2(u.name) : `${NAP.UNITS[u.type].short} ${Math.round(u.men)}`;
         const bar = gen ? clamp(u.men / u.max, 0, 1) : mp;
         const stam = u.cls === 'cav' ? `<i class="rst" style="width:${Math.round(clamp(1 - u.fatigue / 100, 0, 1) * 100)}%"></i>` : '';

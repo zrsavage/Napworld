@@ -10,6 +10,37 @@
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const SAVE_KEY = 'napworld-save-v1', AUTOSAVE_KEY = 'napworld-autosave-v1', SUMMARY_KEY = 'napworld-summary-off';
 
+  // ---- player settings (persisted)
+  const SET_KEY = 'napworld-settings';
+  const FONTS = [
+    { id: 'default', name: 'Classic (Cinzel + Crimson Pro)' },
+    { id: 'fell', name: 'IM Fell English (old print)', f: "'IM Fell English'" },
+    { id: 'garamond', name: 'EB Garamond', f: "'EB Garamond'" },
+    { id: 'cormorant', name: 'Cormorant Garamond', f: "'Cormorant Garamond'" },
+    { id: 'baskerville', name: 'Libre Baskerville', f: "'Libre Baskerville'" },
+    { id: 'playfair', name: 'Playfair Display', f: "'Playfair Display'" },
+    { id: 'lora', name: 'Lora', f: "'Lora'" },
+    { id: 'merri', name: 'Merriweather', f: "'Merriweather'" },
+    { id: 'spectral', name: 'Spectral', f: "'Spectral'" },
+    { id: 'slab', name: 'Roboto Slab', f: "'Roboto Slab'" },
+    { id: 'typewriter', name: 'Special Elite (typewriter)', f: "'Special Elite'" },
+    { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
+    { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
+  ];
+  const SETDEF = { font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  NAP.settings = Object.assign({}, SETDEF);
+  try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
+  if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
+  NAP.teamRGB = ['60,200,255', '255,80,70'];
+  function applySettings() {
+    const st = NAP.settings, f = FONTS.find((x) => x.id === st.font) || FONTS[0], root = document.documentElement.style;
+    if (f.f) { const stack = f.f + ', Georgia, serif'; root.setProperty('--f-body', stack); root.setProperty('--f-head', stack); root.setProperty('--f-title', stack); }
+    else { root.removeProperty('--f-body'); root.removeProperty('--f-head'); root.removeProperty('--f-title'); }
+    NAP.teamRGB = st.cb ? ['86,180,233', '230,159,0'] : ['60,200,255', '255,80,70'];
+    if (NAP.audio && NAP.audio.setVolume) NAP.audio.setVolume(st.volume / 100);
+  }
+  function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(NAP.settings)); localStorage.setItem('napworld-summary-off', NAP.settings.summary ? '0' : '1'); } catch (e) { /* ignore */ } }
+
   const ui = (NAP.ui = {
     sel: { prov: null, army: null }, cam: { x: 525, y: 555, z: 0.8 }, hover: null, opts: {}, picked: 'russia', difficulty: 'normal', minor: false
   });
@@ -141,11 +172,13 @@
         <button id="tutbtn">Tutorial</button>
         <button id="practbtn">Practice battle</button>
         <button id="helpbtn">How to play</button>
+        <button id="setbtn">Settings</button>
       </div></div>`;
     $('#start').hidden = false;
     startMarch();
     $('#newbtn').onclick = showNations;
     $('#helpbtn').onclick = showHelp;
+    $('#setbtn').onclick = showSettings;
     $('#tutbtn').onclick = startTutorial;
     $('#practbtn').onclick = startPractice;
     if (has) $('#loadbtn').onclick = () => loadGame(SAVE_KEY);
@@ -195,11 +228,12 @@
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-cty" data-tip="<b>Country Overview</b> (key O)<br>Your nation at a glance: finances, manpower, strengths and weaknesses, provinces, armies, fleets and diplomacy.">Country Overview</button><button id="b-ov" data-tip="All nations compared">Europe</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-cty" data-tip="<b>Country Overview</b> (key O)<br>Your nation at a glance: finances, manpower, strengths and weaknesses, provinces, armies, fleets and diplomacy.">Country Overview</button><button id="b-ov" data-tip="All nations compared">Europe</button><button id="b-arm" data-tip="<b>Army list</b> (key A)<br>Every army you own: sort, jump to it, reinforce or merge them all.">Armies</button><button id="b-wars" data-tip="<b>War overview</b> (key W)<br>Each war you are in: score, goals, enemy forces and threatened borders.">Wars</button><button id="b-set" data-tip="<b>Settings</b><br>Fonts, volume, autosave, colours and more.">&#9881;</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
       <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
     $('#b-mp').onclick = showLevy;
+    $('#b-arm').onclick = showArmies; $('#b-wars').onclick = showWars; $('#b-set').onclick = showSettings;
     $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-cty').onclick = showCountry; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = () => endTurn();
@@ -245,7 +279,7 @@
     ui.sel.army = ui.sel.army && s.armies.find((a) => a.id === ui.sel.army) ? ui.sel.army : null;
     if (NAP.audio) NAP.audio.sfx('roll');
     try { await C.endTurn(); } catch (e) { console.error(e); toast('Error: ' + e.message); s.busy = false; }
-    try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ }
+    if (NAP.settings.autosave) { try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ } }
     refresh();
   }
   // end turns until something needs the player
@@ -283,7 +317,7 @@
       <div class="sumlist">${entries.map((e) => `<div class="k-${e.kind}">${esc(e.text)}</div>`).join('') || '<div class="muted">A quiet month.</div>'}</div>
       </div><div class="foot"><label class="muted" style="margin-right:auto"><input type="checkbox" id="sumoff"> Don't show reports</label><button class="primary" data-r="ok">Continue</button></div>`;
     const p = modal(html);
-    $('#sumoff').onchange = (e) => { try { localStorage.setItem(SUMMARY_KEY, e.target.checked ? '1' : '0'); } catch (x) {} };
+    $('#sumoff').onchange = (e) => { NAP.settings.summary = !e.target.checked; saveSettings(); };
     await p;
   }
 
@@ -383,7 +417,7 @@
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
         html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
       }
-      if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)</div>`;
+      if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)${(ps.bq || []).map((q, i) => `<br>Next ${i + 1}: ${NAP.BUILDINGS[q].name} <a href="#" data-bqx="${i}" data-tip="Cancel and refund ${NAP.BUILDINGS[q].cost} gold">cancel</a>`).join('')}<br><span class="muted">Queue ${1 + (ps.bq || []).length}/${C.BUILD_QUEUE}</span></div>`;
       html += `</div>`;
       if (p.port && s.naval) {
         html += `<div class="sec" data-fold="navy"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
@@ -408,6 +442,7 @@
     el.querySelectorAll('[data-ship]').forEach((b) => (b.onclick = () => { const e = C.buildShip(pid, b.dataset.ship); if (e) toast(e); refresh(); }));
     if (fleet) bindFleetPanel(fleet);
     el.querySelectorAll('[data-rec]').forEach((b) => (b.onclick = () => { const e = C.recruit(pid, b.dataset.rec); if (e) toast(e); refresh(); }));
+    el.querySelectorAll('[data-bqx]').forEach((x) => (x.onclick = (e) => { e.preventDefault(); C.cancelBuild(pid, +x.dataset.bqx); refresh(); }));
     el.querySelectorAll('[data-bld]').forEach((b) => (b.onclick = () => { const e = C.build(pid, b.dataset.bld); if (e) toast(e); refresh(); }));
     el.querySelectorAll('[data-war]').forEach((b) => (b.onclick = async () => {
       const f = b.dataset.war;
@@ -655,6 +690,92 @@
     if (k === 'p') { const pp = NAP.world.byId[id]; ui.sel = { prov: id, army: null, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.3); clampCam(); refresh(); }
     else if (k === 'a') { const a = s.armies.find((x) => x.id === +id); if (a) { const pp = NAP.world.byId[a.prov]; ui.sel = { prov: a.prov, army: a.id, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.5); clampCam(); refresh(); } }
   }
+  // ---- settings
+  async function showSettings() {
+    const st = NAP.settings;
+    const html = `<h2>Settings</h2><div class="body setgrid">
+      <label>Interface font<select id="set-font">${FONTS.map((f) => `<option value="${f.id}" ${f.id === st.font ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>
+      <div class="setprev" id="set-prev">The Grande Armée crosses the Rhine at dawn. <b>Gold 1,240</b> &middot; Manpower 9,800</div>
+      <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
+      <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
+      <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
+      <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
+      <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
+      <label class="chk"><input type="checkbox" id="set-auto" ${st.autosave ? 'checked' : ''}> Autosave after every turn</label>
+      <label class="chk"><input type="checkbox" id="set-sum" ${st.summary ? 'checked' : ''}> Show the end-of-turn report</label>
+      </div><div class="foot"><button id="set-reset">Reset to defaults</button><button class="primary" data-r="x">Done</button></div>`;
+    const p = modal(html, 'settings');
+    const $$ = (id) => document.getElementById(id);
+    const commit = () => { saveSettings(); applySettings(); };
+    $$('set-font').onchange = (e) => { st.font = e.target.value; commit(); };
+    $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
+    $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
+    $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
+    $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
+    $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };
+    $$('set-auto').onchange = (e) => { st.autosave = e.target.checked; commit(); };
+    $$('set-sum').onchange = (e) => { st.summary = e.target.checked; commit(); };
+    $$('set-reset').onclick = () => { Object.assign(st, SETDEF); commit(); const m = $('#modal'); m._resolve('x'); showSettings(); };
+    await p;
+    if (S()) refresh();
+  }
+
+  // ---- army list
+  async function showArmies() {
+    const s = S(), me = s.player;
+    if (!s || !me) return;
+    let key = ui.armSort || 'prov', dir = ui.armDir || 1;
+    for (;;) {
+      const rows = C.armiesOf(me).map((a) => {
+        const full = a.units.reduce((n, u) => n + u.max, 0) || 1, men = C.armyMen(a), g = a.general ? s.generals[a.general] : null;
+        const st = a.siegeing || (s.provinces[a.prov].siege && s.provinces[a.prov].owner !== me) ? 'Besieging' : (a.supply || 0) >= 2 ? 'No supply' : a.path && a.path.length ? 'Marching' : 'Idle';
+        return { a, prov: NAP.world.byId[a.prov].name, regts: a.units.length, men, pct: Math.round(men / full * 100), gen: g ? g.name : '', st };
+      }).sort((x, y) => (typeof x[key] === 'number' ? x[key] - y[key] : String(x[key]).localeCompare(String(y[key]))) * dir);
+      const th = (k, l) => `<th class="sortable" data-r="sort:${k}">${l}${key === k ? (dir > 0 ? ' \u25B2' : ' \u25BC') : ''}</th>`;
+      const rc = C.armiesOf(me).filter((a) => !C.reinforceCheck(a)), cost = rc.reduce((n, a) => n + C.reinforceCost(a).gold, 0);
+      const html = `<h2>Armies <span class="muted" style="font-size:14px">(${rows.length})</span></h2><div class="body">
+        <div class="armtools"><button data-r="reinf" ${rc.length ? '' : 'disabled'} data-tip="Reinforce every damaged army that is in friendly territory and not besieged. About ${fmt(cost)} gold.">Reinforce all${rc.length ? ' (' + rc.length + ' \u00B7 ~' + fmt(cost) + 'g)' : ''}</button><button data-r="merge" data-tip="Combine armies standing in the same province into one stack (up to 20 regiments).">Merge all in provinces</button></div>
+        <table class="t armtab"><tr>${th('prov', 'Province')}${th('regts', 'Regts')}${th('men', 'Men')}${th('pct', 'Strength')}${th('gen', 'General')}${th('st', 'Status')}</tr>
+        ${rows.map((r) => `<tr class="clickrow" data-r="go:${r.a.id}"><td>${esc(r.prov)}</td><td>${r.regts}</td><td>${fmt(r.men)}</td><td class="${r.pct < 60 ? 'bad' : r.pct < 90 ? '' : 'good'}">${r.pct}%</td><td>${esc(r.gen) || '\u2014'}</td><td class="${r.st === 'Idle' ? 'muted' : r.st === 'No supply' ? 'bad' : ''}">${r.st}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">You have no armies.</td></tr>'}
+        </table><p class="muted">Click a row to jump to that army.</p></div><div class="foot"><button data-r="x">Close</button></div>`;
+      const r = await modal(html, 'wide');
+      if (!r || r === 'x') break;
+      if (r.startsWith('sort:')) { const k = r.slice(5); if (k === key) dir = -dir; else { key = k; dir = 1; } ui.armSort = key; ui.armDir = dir; continue; }
+      if (r === 'reinf') { const res = C.reinforceAll(me); toast(res.n ? `Reinforced ${res.n} armies: +${fmt(res.men)} men for ${fmt(res.gold)} gold` : 'Nothing could be reinforced'); refresh(); continue; }
+      if (r === 'merge') { const n = C.mergeAll(me); toast(n ? `Merged ${n} armies` : 'No armies to merge'); refresh(); continue; }
+      if (r.startsWith('go:')) { const a = s.armies.find((x) => x.id === +r.slice(3)); if (a) focusAttention({ prov: a.prov, army: a.id }); break; }
+    }
+    refresh();
+  }
+
+  // ---- war overview
+  async function showWars() {
+    const s = S(), me = s.player;
+    const goalText = (w, a, b) => { const g = w.goal; if (!g || g.type === 'none') return 'No fixed goal'; const by = g.by === me ? 'Your goal' : F(g.by).adj + ' goal'; return g.type === 'province' ? `${by}: take ${esc(NAP.world.byId[g.id] ? NAP.world.byId[g.id].name : g.id)}` : `${by}: indemnity`; };
+    const warCard = (en) => {
+      const w = s.wars[[me, en].sort().join('|')]; if (!w) return '';
+      const sc = C.warScore(me, en), mine = C.armiesOf(me), theirs = C.armiesOf(en);
+      const mm = mine.reduce((n, a) => n + C.armyMen(a), 0), tm = theirs.reduce((n, a) => n + C.armyMen(a), 0);
+      const myProvs = C.provincesOf(me), threatened = myProvs.filter((p) => p.adj.some((i) => { const q = NAP.world.provs[i].id; return theirs.some((a) => a.prov === q) || theirs.some((a) => a.prov === p.id); })).map((p) => p.name);
+      const target = C.provincesOf(en).filter((p) => p.adj.some((i) => s.provinces[NAP.world.provs[i].id].owner === me)).length;
+      const months = s.turn - (w.since || 0);
+      return `<div class="warcard"><h3>${flag(en)}${esc(F(en).name)} <small class="${sc >= 0 ? 'good' : 'bad'}">war score ${sc >= 0 ? '+' : ''}${Math.round(sc)}</small></h3>
+        <div class="kv"><span>At war for</span><b>${months} month${months === 1 ? '' : 's'}</b></div>
+        <div class="kv"><span>${goalText(w)}</span><b></b></div>
+        <div class="kv"><span>Your field armies</span><b>${mine.length} (${fmt(mm)} men)</b></div>
+        <div class="kv"><span>Their field armies</span><b>${theirs.length} (${fmt(tm)} men)</b></div>
+        <div class="kv"><span>Their provinces on your border</span><b>${target}</b></div>
+        <div class="kv"><span>Your threatened provinces</span><b class="${threatened.length ? 'bad' : 'good'}">${threatened.length ? esc(threatened.slice(0, 6).join(', ')) + (threatened.length > 6 ? '\u2026' : '') : 'none'}</b></div>
+        <div class="armtools"><button data-r="peace:${en}">Peace talks</button></div></div>`;
+    };
+    const mine = C.warsOf(me).filter((f) => f !== 'minor');
+    const others = Object.keys(s.wars).map((k) => k.split('|')).filter((p) => !p.includes(me) && !p.includes('minor'));
+    const html = `<h2>War overview</h2><div class="body">${mine.length ? mine.map(warCard).join('') : '<p class="good">Your nation is at peace.</p>'}
+      ${others.length ? `<h4 style="margin:10px 0 4px">Other wars in Europe</h4><div class="muted">${others.map((p) => `${esc(F(p[0]).name)} vs ${esc(F(p[1]).name)}`).join(' &middot; ')}</div>` : ''}</div><div class="foot"><button data-r="x">Close</button></div>`;
+    const r = await modal(html, 'wide');
+    if (r && r.startsWith('peace:')) showDiplomacy();
+  }
+
   async function showOverview() {
     const s = S();
     const rows = Object.keys(s.factions).filter((f) => f !== 'minor').map((f) => ({ f, alive: s.factions[f].alive, n: C.provincesOf(f).length, inc: C.factionIncome(f), arm: C.armiesOf(f).reduce((a, x) => a + x.units.length, 0), ships: C.fleetsOf(f).reduce((a, x) => a + C.shipCount(x), 0), pow: C.factionPower(f), gold: s.factions[f].gold, war: C.warsOf(f).map((x) => F(x).adj).join(', ') }))
@@ -834,6 +955,8 @@
     else if (e.key === 'o' || e.key === 'O') showCountry();
     else if (e.key === 'Escape') { ui.sel = { prov: null, army: null }; refresh(); }
     else if (e.key === 'd' || e.key === 'D') showDiplomacy();
+    else if (e.key === 'a' || e.key === 'A') showArmies();
+    else if (e.key === 'w' || e.key === 'W') showWars();
     const step = 40 / ui.cam.z;
     if (e.key === 'ArrowLeft') ui.cam.x -= step; if (e.key === 'ArrowRight') ui.cam.x += step;
     if (e.key === 'ArrowUp') ui.cam.y -= step; if (e.key === 'ArrowDown') ui.cam.y += step;
@@ -961,7 +1084,7 @@
   };
   document.addEventListener('mouseover', (e) => {
     const el = e.target.closest && e.target.closest('[data-tip],[title]');
-    if (!el) { tt.hidden = true; return; }
+    if (!el || NAP.settings.tips === false) { tt.hidden = true; return; }
     if (el.hasAttribute('title')) { if (!el.dataset.tip) el.dataset.tip = el.getAttribute('title').replace(/&/g, '&amp;').replace(/</g, '&lt;'); el.removeAttribute('title'); }
     tt.innerHTML = el.dataset.tip; tt.hidden = false; posTip(e);
   });
@@ -972,6 +1095,7 @@
   // ------------------------------------------------------------------ boot
   NAP.buildWorld();
   if (NAP.audio) NAP.audio.music('map');
+  applySettings();
   window.NAP_UI_READY = true;
   showStart();
   requestAnimationFrame(frame);

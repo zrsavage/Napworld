@@ -1,3 +1,4 @@
+:root { --f-body: 'Crimson Pro', Georgia, serif; --f-head: 'Cinzel', Georgia, serif; --f-title: 'IM Fell English', Georgia, serif; }
 :root { color-scheme: dark; }
 :root {
   --bg: #14181f; --panel: #1d232d; --panel2: #262e3b; --ink: #e8e2d0; --muted: #9aa3b2; --gold: #d8b45a; --gold2: #f1d487;
@@ -27,7 +28,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 .card { background: var(--panel); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 6px; padding: 10px 12px; cursor: pointer; transition: transform .1s; }
 .card:hover { transform: translateY(-2px); border-color: var(--gold); border-left-color: var(--c); }
 .card.sel { outline: 2px solid var(--gold); background: var(--panel2); }
-.card h3 { margin: 0 0 2px; font: 700 17px 'IM Fell English', Georgia, serif; }
+.card h3 { margin: 0 0 2px; font: 700 17px var(--f-title); }
 .card .leader { color: var(--gold); font-size: 12px; }
 .card p { margin: 6px 0; color: #c9c3b0; font-size: 12.5px; }
 .card .stats { display: flex; gap: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
@@ -38,11 +39,11 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 #game { position: absolute; inset: 0; display: flex; flex-direction: column; }
 #topbar { display: flex; align-items: center; gap: 14px; padding: 6px 12px; background: linear-gradient(#242c3a, #181d27); border-bottom: 2px solid var(--gold); flex-wrap: wrap; z-index: 5; }
 #topbar .flag { width: 22px; height: 22px; border-radius: 4px; border: 2px solid #000; }
-#topbar .fname { font: 700 16px 'IM Fell English', Georgia, serif; color: var(--gold2); }
+#topbar .fname { font: 700 16px var(--f-title); color: var(--gold2); }
 #topbar .stat { padding: 2px 10px; background: rgba(0,0,0,.28); border-radius: 4px; white-space: nowrap; }
 #topbar .stat small { color: var(--muted); }
 #topbar .spacer { flex: 1; }
-#topbar .date { font: 700 15px 'IM Fell English', Georgia, serif; }
+#topbar .date { font: 700 15px var(--f-title); }
 #endturn { padding: 8px 20px; font-size: 15px; }
 #mapwrap { position: relative; flex: 1; min-height: 0; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
@@ -52,7 +53,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 
 #side { position: absolute; top: 44px; right: 8px; max-height: calc(100% - 52px); width: 272px; max-width: 40vw; overflow-y: auto; font-size: 12.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); padding: 0; z-index: 3; }
 #side .ph { padding: 10px 12px; border-bottom: 3px solid var(--c, var(--gold)); background: linear-gradient(var(--panel2), var(--panel)); }
-#side .ph h2 { margin: 0; font: 700 19px 'IM Fell English', Georgia, serif; }
+#side .ph h2 { margin: 0; font: 700 19px var(--f-title); }
 #side .ph .own { font-size: 12px; color: var(--muted); }
 #side .sec { padding: 8px 12px; border-bottom: 1px solid var(--line); }
 #side .sec h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
@@ -85,7 +86,7 @@ select, input[type=text] { background: var(--panel2); color: var(--ink); border:
 /* ---------- modals ---------- */
 #modal { position: absolute; inset: 0; background: rgba(5,8,12,.62); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
 .dlg { background: var(--panel); border: 2px solid var(--gold); border-radius: 10px; max-width: 760px; width: 100%; max-height: 90vh; overflow: auto; box-shadow: 0 12px 50px #000; }
-.dlg h2 { margin: 0; padding: 12px 16px; font: 700 22px 'IM Fell English', Georgia, serif; color: var(--gold2); background: linear-gradient(var(--panel2), var(--panel)); border-bottom: 1px solid var(--line); }
+.dlg h2 { margin: 0; padding: 12px 16px; font: 700 22px var(--f-title); color: var(--gold2); background: linear-gradient(var(--panel2), var(--panel)); border-bottom: 1px solid var(--line); }
 .dlg .body { padding: 14px 16px; }
 .dlg .foot { padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .dlg.event { border-color: #f1d487; background: linear-gradient(#2a2418, #1b1710); }
@@ -116,7 +117,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 #b-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
 .b-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(10,12,16,.88); border: 2px solid var(--gold); border-radius: 10px; padding: 18px 30px; text-align: center; max-width: 520px; }
 .b-banner.hide { display: none; }
-.b-banner h2 { margin: 0 0 8px; font: 700 28px 'IM Fell English', Georgia, serif; }
+.b-banner h2 { margin: 0 0 8px; font: 700 28px var(--f-title); }
 .b-feed { position: absolute; left: 10px; top: 10px; font-size: 12px; text-shadow: 0 1px 3px #000; pointer-events: none; max-width: 340px; }
 .b-feed div { background: rgba(0,0,0,.55); padding: 2px 8px; margin-bottom: 2px; border-radius: 3px; }
 .b-help { position: absolute; left: 10px; bottom: 8px; font-size: 11px; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
@@ -155,7 +156,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .tut-hl { outline: 2px solid #ffd54a !important; box-shadow: 0 0 12px #ffd54a; animation: tutpulse 1.2s infinite; }
 @keyframes tutpulse { 50% { box-shadow: 0 0 22px #ffe58a; } }
 #coach { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(560px, 92vw); background: linear-gradient(#2a2418, #1b1710); border: 2px solid #f1d487; border-radius: 10px; padding: 12px 16px 10px; z-index: 12; box-shadow: 0 10px 40px #000c; }
-#coach h3 { margin: 0 0 4px; font: 700 17px 'IM Fell English', Georgia, serif; color: var(--gold2); }
+#coach h3 { margin: 0 0 4px; font: 700 17px var(--f-title); color: var(--gold2); }
 #coach .ct { font-size: 13.5px; line-height: 1.5; }
 #coach .cf { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 #coach .dots { flex: 1; display: flex; gap: 4px; flex-wrap: wrap; } #coach .dots i { width: 8px; height: 8px; border-radius: 50%; background: #ffffff25; } #coach .dots i.on { background: var(--gold); } #coach .dots i.done { background: #8a7a3c; }
@@ -222,14 +223,14 @@ button.on { border-color: #6c6; }
 #side [data-fold] > h4::before { content: "\25BE "; }
 #side [data-fold].folded > h4::before { content: "\25B8 "; }
 #side [data-fold].folded > :not(h4) { display: none; }
-#phasebanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 6px 18px; background: rgba(15,18,24,.92); border: 2px solid var(--c, var(--gold)); border-radius: 6px; font: 700 16px 'IM Fell English', Georgia, serif; color: #fff; pointer-events: none; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+#phasebanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; padding: 6px 18px; background: rgba(15,18,24,.92); border: 2px solid var(--c, var(--gold)); border-radius: 6px; font: 700 16px var(--f-title); color: #fff; pointer-events: none; box-shadow: 0 4px 18px rgba(0,0,0,.5); }
 #phasebanner[hidden] { display: none; }
 #playsel { font-size: 12px; padding: 3px 4px; }
 
 /* title screen and nation selection */
 #start.title { display: flex; align-items: center; justify-content: center; padding: 0; background: radial-gradient(ellipse at 50% 30%, #2d3a52 0%, #14181f 72%); }
 #start .titlebox { text-align: center; }
-#start.title h1 { font: 900 54px/1.18 'Cinzel Decorative', 'Cinzel', Georgia, serif; letter-spacing: 3px; color: #f6dc9c; text-shadow: 0 2px 0 #5a3a10, 0 4px 18px #000, 0 0 40px rgba(0,0,0,.8); margin: 0; }
+#start.title h1 { font: 900 54px/1.18 'Cinzel Decorative', var(--f-head); letter-spacing: 3px; color: #f6dc9c; text-shadow: 0 2px 0 #5a3a10, 0 4px 18px #000, 0 0 40px rgba(0,0,0,.8); margin: 0; }
 #start.title .sub { font-size: 16px; margin: 10px 0 36px; }
 #start .menu { display: flex; flex-direction: column; gap: 10px; width: 280px; margin: 0 auto; }
 #start .menu button { padding: 11px 16px; font-size: 16px; }
@@ -271,20 +272,20 @@ button.on { border-color: #6c6; }
 .termopt small { font-size: 11.5px; line-height: 1.35; margin-top: 2px; }
 
 /* interface typography: a bookish serif for text, Cinzel capitals for buttons and headings */
-html, body { font: 15px/1.4 'Crimson Pro', 'EB Garamond', Georgia, serif; }
-button, select, input { font-family: 'Cinzel', 'Crimson Pro', Georgia, serif; }
+html, body { font: 15px/1.4 var(--f-body); }
+button, select, input { font-family: 'Cinzel', var(--f-body); }
 button { font-size: 12.5px; font-weight: 600; letter-spacing: .4px; }
-.ubtn, #side .ubtn, #side .row button, .armychip, .termopt, #loglist, .dlg .body, table.t { font-family: 'Crimson Pro', Georgia, serif; }
+.ubtn, #side .ubtn, #side .row button, .armychip, .termopt, #loglist, .dlg .body, table.t { font-family: var(--f-body); }
 .ubtn, #side .ubtn { font-size: 14px; font-weight: 600; letter-spacing: 0; }
 #side { font-size: 14px; } #side .kv { font-size: 14px; } .unit { font-size: 13.5px; } .armychip { font-size: 13.5px; }
-#side .sec h4, #logbar b, .subh { font-family: 'Cinzel', Georgia, serif; letter-spacing: 1.6px; }
+#side .sec h4, #logbar b, .subh { font-family: var(--f-head); letter-spacing: 1.6px; }
 #topbar .stat { font-size: 15.5px; font-weight: 600; } #topbar .stat small { font-weight: 400; }
 #loglist { font-size: 13.5px; } #tip, #tt { font-size: 13.5px; }
 table.t { font-size: 14px; }
 .reinf { margin: 6px 0; padding: 6px 8px; background: rgba(216,180,90,.09); border: 1px solid rgba(216,180,90,.3); border-radius: 4px; font-size: 13px; }
 
 /* battle roster */
-.b-roster { position: absolute; left: 8px; top: 120px; bottom: 150px; width: 168px; overflow-y: auto; background: rgba(15,18,24,.82); border: 1px solid var(--line); border-radius: 6px; padding: 4px; z-index: 3; font-family: 'Crimson Pro', Georgia, serif; font-size: 13px; }
+.b-roster { position: absolute; left: 8px; top: 120px; bottom: 150px; width: 168px; overflow-y: auto; background: rgba(15,18,24,.82); border: 1px solid var(--line); border-radius: 6px; padding: 4px; z-index: 3; font-family: var(--f-body); font-size: 13px; }
 .b-roster.hide { display: none; }
 .b-roster .rsel { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
 .b-roster .rsel button { font-size: 10.5px; padding: 1px 6px; }
@@ -319,7 +320,7 @@ table.t { font-size: 14px; }
 .dlg.wide { max-width: 980px; }
 .cov .covgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .cov .covbox { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
-.cov h4 { margin: 0 0 6px; font: 600 12px 'Cinzel', Georgia, serif; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
+.cov h4 { margin: 0 0 6px; font: 600 12px var(--f-head); letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); }
 .cov .covh { margin: 14px 0 4px; }
 .cov .kv { display: flex; justify-content: space-between; font-size: 14px; padding: 1px 0; }
 .cov tr.go { cursor: pointer; } .cov tr.go:hover td { background: rgba(255,255,255,.07); }
@@ -331,3 +332,11 @@ table.t { font-size: 14px; }
 
 .b-pursuit { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; background: rgba(60,12,12,.85); border: 1px solid #e06050; border-radius: 6px; padding: 5px 14px; font-size: 13px; white-space: nowrap; }
 .b-pursuit button { margin-left: 10px; padding: 2px 10px; }
+
+.setgrid { display: flex; flex-direction: column; gap: 10px; } .setgrid label { display: flex; flex-direction: column; gap: 4px; } .setgrid label.chk { flex-direction: row; align-items: center; gap: 8px; }
+.setgrid select, .setgrid input[type=range] { width: 100%; padding: 4px; } .setprev { padding: 8px 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; font-size: 16px; }
+.dlg.settings { max-width: 520px; }
+.armtools { display: flex; gap: 8px; margin: 4px 0 8px; } th.sortable { cursor: pointer; } tr.clickrow { cursor: pointer; } tr.clickrow:hover td { background: rgba(255,255,255,.07); }
+.warcard { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; background: var(--panel2); } .warcard h3 { margin: 0 0 4px; font: 700 18px var(--f-title); } .warcard .kv { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+
+.b-roster .rc.rout, .b-roster .rr { }
