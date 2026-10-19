@@ -27,7 +27,7 @@
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -78,7 +78,7 @@
   function showNations() {
     $('#start').className = '';
     let picked = null;
-    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label class="learnchk" data-tip="<b>Learning mode</b><br>An advisor panel with suggested next steps, first-time hint cards, a battle odds preview and plain-language results. It does not make the game easier or harder: it just teaches as you play."><input type="checkbox" id="learnchk"> Learning mode</label></div></div>
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label class="learnchk" data-tip="<b>Easy mode</b><br>Simple rules to learn on: you can only recruit <b>line infantry, cavalry and artillery</b>, and only build a <b>Market</b> (money) and <b>Barracks</b> (recruiting). Also switches on the advisor, hint cards and battle odds. The AI plays normally, so it is not an easy game, just a simple one."><input type="checkbox" id="learnchk"> Easy mode (simple rules)</label></div></div>
       <div class="beginrow"><button class="primary bigbegin" id="beginbtn" hidden>Begin the Campaign</button></div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
@@ -95,7 +95,7 @@
     $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
-    $('#learnchk').checked = !!NAP.settings.learn; $('#learnchk').onchange = (e) => { NAP.settings.learn = e.target.checked; saveSettings(); };
+    $('#learnchk').checked = !!NAP.settings.easy; $('#learnchk').onchange = (e) => { NAP.settings.easy = e.target.checked; NAP.settings.learn = e.target.checked; saveSettings(); };
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => {
       picked = c.dataset.f; ui.picked = picked;
       $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
@@ -104,6 +104,7 @@
     // naval warfare is asked at the moment you begin
     const begin = async () => {
       if (!picked) return;
+      if (NAP.settings.easy) { ui.long = false; ui.naval = false; beginGame(picked); return; }
       const lr = await modal(`<h2>Length of game</h2><div class="body"><p><b>Short</b> (standard): the map as you see it, about ${NAP.BASE_DEFS.length} provinces. Quicker to play and the best way to learn.</p><p><b>Long</b>: about ${NAP.defsFor('long').length} provinces. Many regions are split in two (Paris and Orleans, Kent and London, Bosnia and Serbia and so on), so there is more to conquer, garrison and defend, and wars take far longer. Each nation's total wealth is about the same; it is simply cut into more pieces.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="short" ${ui.long ? '' : 'class="primary"'}>Short game</button><button data-r="long" ${ui.long ? 'class="primary"' : ''}>Long game</button></div>`, 'event');
       if (lr !== 'short' && lr !== 'long') return;
       ui.long = lr === 'long';
@@ -197,7 +198,7 @@
   function beginGame(f, noNaval) {
     ui.tut = { on: false, step: 0 }; ui.dipOpened = false;
     if (NAP.audio) { NAP.audio.init(); NAP.audio.music('map'); }
-    C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval, long: !!ui.long && !noNaval });
+    C.newGame(f, ui.difficulty, { naval: !!ui.naval && !noNaval, long: !!ui.long && !noNaval, simple: !!NAP.settings.easy && !noNaval });
     enterGame();
     const cap = NAP.world.byId[S().factions[f].cap];
     ui.cam = { x: cap.cx, y: cap.cy, z: 1.15 }; ui.zt = null;
@@ -415,7 +416,8 @@
       };
       const avail = (t) => !U[t].nation || U[t].nation === owner;
       const grp = (title, list) => (list.length ? `<div class="subh">${title}</div>` + list.map(unitRow).join('') : '');
-      const kt = Object.keys(U).filter(avail);
+      const simple = s.simple && owner === s.player;
+      const kt = Object.keys(U).filter(avail).filter((t) => !simple || C.SIMPLE_UNITS.includes(t));
       let recruitHTML = grp('Infantry', kt.filter((t) => U[t].cls === 'inf' && !U[t].nation)) + grp('Cavalry', kt.filter((t) => U[t].cls === 'cav' && !U[t].nation)) + grp('Artillery', kt.filter((t) => U[t].cls === 'art' && !U[t].nation)) + grp(esc(F(owner).adj) + ' regiments', kt.filter((t) => U[t].nation));
       recruitHTML += `<div class="muted hint">Greyed: a building is missing (padlock) or you cannot afford it (red). Hover for stats.</div>`;
       if (ps.queue.length) recruitHTML += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
@@ -423,9 +425,9 @@
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b), reqMiss = err && /^Requires/.test(err), poor = err && !reqMiss && err !== 'Already built' && !built;
         return `<button class="ubtn${built ? ' done' : reqMiss ? ' locked' : err ? ' poor' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '✔ ' : reqMiss ? '\u{1F512} ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : `<span class="${poor ? 'bad' : ''}">${bd.cost}g</span> · ${bd.time}t`}</span></button>`;
       };
-      const bAll = Object.keys(NAP.BUILDINGS).filter((b) => !(NAP.BUILDINGS[b].port && (!p.port || !s.naval)));
+      const bAll = Object.keys(NAP.BUILDINGS).filter((b) => !(NAP.BUILDINGS[b].port && (!p.port || !s.naval)) && (!simple || C.SIMPLE_BUILDS.includes(b)));
       const bgrp = (title, ids) => { const l = ids.filter((b) => bAll.includes(b)); return l.length ? `<div class="subh">${title}</div>` + l.map(bRow).join('') : ''; };
-      let buildHTML = bgrp('Economy', ['market', 'bank']) + bgrp('Military', ['barracks', 'depot', 'stables', 'arsenal', 'academy']) + bgrp('Defence', ['fort']) + bgrp('Naval', ['shipyard']);
+      let buildHTML = simple ? bgrp('Money', ['market']) + bgrp('Recruiting', ['barracks']) : bgrp('Economy', ['market', 'bank']) + bgrp('Military', ['barracks', 'depot', 'stables', 'arsenal', 'academy']) + bgrp('Defence', ['fort']) + bgrp('Naval', ['shipyard']);
       if (ps.build) buildHTML += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)${(ps.bq || []).map((q, i) => `<br>Next ${i + 1}: ${NAP.BUILDINGS[q].name} <a href="#" data-bqx="${i}" data-tip="Cancel and refund ${NAP.BUILDINGS[q].cost} gold">cancel</a>`).join('')}<br><span class="muted">Queue ${1 + (ps.bq || []).length}/${C.BUILD_QUEUE}</span></div>`;
       let navyHTML = '';
       if (p.port && s.naval) {
@@ -759,7 +761,8 @@
       <div class="setprev" id="set-prev">The Grande Armée crosses the Rhine at dawn. <b>Gold 1,240</b> &middot; Manpower 9,800</div>
       <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
       <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
-      <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning mode</b>: advisor, hint cards, battle odds, extra warnings</label>
+      <label class="chk" data-tip="Applies to new games. Simple rules: only line infantry, cavalry and artillery to recruit, and only Market and Barracks to build. Also switches on the learning aids."><input type="checkbox" id="set-easy" ${st.easy ? 'checked' : ''}> <b>Easy mode for new games</b>: simple rules (infantry, cavalry, artillery; Market and Barracks only)</label>
+      <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning aids</b>: advisor, hint cards, battle odds, extra warnings</label>
       <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
@@ -772,6 +775,7 @@
     $$('set-font').onchange = (e) => { st.font = e.target.value; commit(); };
     $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
     $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
+    $$('set-easy').onchange = (e) => { st.easy = e.target.checked; if (e.target.checked) { st.learn = true; $$('set-learn').checked = true; } commit(); };
     $$('set-learn').onchange = (e) => { st.learn = e.target.checked; commit(); if (S()) refresh(); };
     $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };

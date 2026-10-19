@@ -216,3 +216,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
   - **first-time hint cards** (supply, sieges, unrest, low gold, blockades, first battle, generals) shown once each;
   - a **battle odds** line in the battle prompt ("Roughly even", "Hopeless: avoid this fight") and a plain-language reason after auto-resolved battles;
   - extra warnings before ending a turn (unspent gold, nothing recruiting) and a simpler top bar for the first four turns (Armies list, War overview and playback appear on turn 5).
+
+### Easy mode (simple rules)
+- Tick **Easy mode (simple rules)** on the nation-select screen (it remembers your choice; also in Settings, for new games). Your choices shrink to the basics: you can recruit only **line infantry, cavalry and artillery**, and build only a **Market** (money) and **Barracks** (recruiting). Naval warfare and the long map are switched off, and it turns on the learning aids (advisor, hint cards, battle odds). The AI plays normally, so this is a *simple* game, not a weak enemy. It applies to the player only and is stored with the save.

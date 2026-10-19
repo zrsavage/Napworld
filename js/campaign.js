@@ -40,7 +40,7 @@
     S = {
       version: C.VERSION, player, difficulty: difficulty || 'normal', turn: 0, year: 1805, month: 1,
       provinces: {}, factions: {}, armies: [], generals: {}, pool: {}, wars: {}, allies: {}, rel: {},
-      naval: !!(opts && opts.naval), len: NAP.lengthMode, fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
+      naval: !!(opts && opts.naval), len: NAP.lengthMode, simple: !!(opts && opts.simple), fleets: [], nextFleet: 1, log: [], fired: {}, nextArmy: 1, nextGen: 1, winner: null, msgs: [], report: {}
     };
     for (const p of w.provs) {
       S.provinces[p.id] = { id: p.id, owner: p.owner, fort: p.fort, market: 0, barracks: 0, build: null, queue: [], siege: null, unrest: 0, policy: 'balanced', shipyard: 0, shipQueue: [], blockade: false };
@@ -378,8 +378,13 @@
   C.stackLimit = MAX_STACK; C.seaCap = SEA_CAP;
 
   // -------------------------------------------------------------------- recruiting & building
+  // Easy mode (simple rules): the player's choices shrink to line infantry, cavalry and artillery, and the buildings to Market (money) and Barracks (recruiting)
+  C.SIMPLE_UNITS = ['line', 'hussar', 'art'];
+  C.SIMPLE_BUILDS = ['market', 'barracks'];
+  C.isSimple = (f) => !!S.simple && f === S.player;
   C.recruitCheck = function (pid, type) {
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
+    if (C.isSimple(f) && !C.SIMPLE_UNITS.includes(type)) return 'Not used in Easy mode';
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
     if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';
@@ -400,6 +405,7 @@
   C.BUILD_QUEUE = 3; // buildings under construction + waiting, per province
   C.buildCheck = function (pid, b) {
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
+    if (C.isSimple(ps.owner) && !C.SIMPLE_BUILDS.includes(b)) return 'Not used in Easy mode';
     if (bd.port && !S.naval) return 'Naval warfare is switched off in this game';
     if (bd.port && !W().byId[pid].port) return 'Needs a port';
     const q = ps.bq || (ps.bq = []);
@@ -2058,6 +2064,7 @@
     for (const ps of Object.values(d.provinces)) { if (ps.shipyard === undefined) ps.shipyard = 0; if (!ps.shipQueue) ps.shipQueue = []; ps.blockade = false; }
     if (!d.treaties) d.treaties = { trade: {}, access: {}, marriage: {} };
     if (!d.len) d.len = 'short';
+    if (d.simple === undefined) d.simple = false;
     if (!d.truce) d.truce = {};
     if (!d.turnLog) d.turnLog = [];
     if (!d.msgs) d.msgs = [];
