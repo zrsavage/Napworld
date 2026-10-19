@@ -209,3 +209,10 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - The guided tutorial is now a *focused* lesson: the world beyond France and her neighbours is dimmed and the camera is kept on that region, most of the top bar and the dispatch log / minimap are hidden, and the instructions live in a docked panel (top-left) instead of an overlay on the map. Turn playback is switched off while it runs.
 - Each lesson has an **animated mock play-through** at the top of the panel: a miniature campaign screen with a ghost cursor that shows exactly what to click (select a province, recruit, build, select an army, right-click to march, end the turn, open Diplomacy...). The non-click lessons (supply, sea routes, battles, sieges) have their own small animations.
 - **Back / Next** navigation, and a **Lessons** button in the top bar (during a normal game) to replay any lesson in the same panel with its demo and button highlights, without leaving your campaign.
+
+### Learning mode
+- A checkbox on the nation-select screen (and in Settings). It does **not** change difficulty; it only teaches as you play:
+  - an **Advisor** panel (bottom-left) with the three most useful things to do right now ("You are at war and nothing is being recruited", "Your army in X can attack Y", "Build a Market in Z"), each with a *Show* button;
+  - **first-time hint cards** (supply, sieges, unrest, low gold, blockades, first battle, generals) shown once each;
+  - a **battle odds** line in the battle prompt ("Roughly even", "Hopeless: avoid this fight") and a plain-language reason after auto-resolved battles;
+  - extra warnings before ending a turn (unspent gold, nothing recruiting) and a simpler top bar for the first four turns (Armies list, War overview and playback appear on turn 5).

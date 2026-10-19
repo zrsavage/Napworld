@@ -364,6 +364,15 @@ body.tutfocus #topbar #b-att, body.tutfocus #topbar #playsel, body.tutfocus #top
 body.tutfocus #topbar #b-set, body.tutfocus #topbar #b-save, body.tutfocus #topbar #advance, body.tutfocus #topbar #b-les, body.tutfocus #topbar #b-dip:not(.tut-hl), body.tutfocus #topbar .stat:nth-of-type(n+3) { display: none !important; }
 .lessons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .lesson { text-align: left; padding: 8px 10px; font-family: var(--f-body); font-size: 14px; }
 
+#advisor { position: absolute; left: 140px; bottom: 30px; width: 400px; background: rgba(16,22,30,.93); border: 1.5px solid #6fb7ff; border-radius: 9px; padding: 6px 10px 8px; z-index: 4; box-shadow: 0 4px 18px #0009; font-size: 13.5px; }
+#advisor.min { width: 130px; } #advisor .ahead { display: flex; align-items: center; gap: 8px; } #advisor .ahead b { color: #9fd0ff; letter-spacing: 1.2px; text-transform: uppercase; font-size: 11px; } #advisor .ahead button { margin-left: auto; padding: 0 7px; }
+#advisor .arow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; border-top: 1px solid #ffffff14; } #advisor .arow span { flex: 1; } #advisor .arow button { padding: 2px 8px; font-size: 11px; }
+#hintcard { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); width: min(520px, 90%); background: linear-gradient(#1f2a38, #141b24); border: 2px solid #6fb7ff; border-radius: 10px; padding: 10px 16px; z-index: 13; box-shadow: 0 10px 40px #000c; font-size: 14px; line-height: 1.45; }
+#hintcard h4 { margin: 0 0 4px; font: 700 16px var(--f-title); color: #9fd0ff; } #hintcard .hf { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.oddsbox { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); } .oddsbox.good { border-color: #4a8; } .oddsbox.bad { border-color: #c55; }
+body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsimple #topbar #playsel { display: none !important; }
+.learnchk { margin-left: 14px; display: inline-flex; align-items: center; gap: 5px; }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -2340,6 +2349,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 
   // -------------------------------------------------------------------- battles
   const TERRAIN_DEF = { p: 1.0, h: 1.15, f: 1.1, m: 1.25 };
+  // expected strength ratio (attacker / defender) as the auto-resolver sees it, without the dice
+  C.battleOdds = function (sideA, sideD, prov, fortSideA, fortSideD) {
+    const ps = S.provinces[prov], terr = C.def(prov).terrain;
+    const a = sidePower(sideA, fortSideA ? 1 + 0.12 * ps.fort : 1), d = sidePower(sideD, (TERRAIN_DEF[terr] || 1) * (fortSideD ? 1 + 0.12 * ps.fort : 1));
+    return { a, d, ratio: a / Math.max(1, d) };
+  };
+  C.oddsLabel = (r) => (r >= 1.6 ? 'Strongly in your favour' : r >= 1.18 ? 'In your favour' : r >= 0.85 ? 'Roughly even' : r >= 0.62 ? 'Against you' : 'Hopeless: avoid this fight');
   function genBonus(armies) {
     let best = null;
     for (const a of armies) if (a.general) { const g = S.generals[a.general]; if (!best || g.lead + g.atk > best.lead + best.atk) best = g; }
@@ -2441,7 +2457,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     if (involved && H().runBattle) {
       S.pendingWeather = pickWeather(); S.pendingTod = pickTod();
-      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+      const od = C.battleOdds(sideA, sideD, prov, fortSideIsA, fortSideIsD), my = playerA ? od.ratio : 1 / Math.max(0.01, od.ratio);
+      choice = await H().askBattle({ odds: { ratio: my, label: C.oddsLabel(my), terrain: terr, fort: ps.fort, attacker: playerA }, weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
     }
     if (choice === 'retreat' && retreatTo && mine.length) {
       for (const a of mine) {
@@ -2480,6 +2497,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const rA = sidePower(sideA, fortSideIsA ? 1 + 0.12 * ps.fort : 1) * (0.85 + rnd() * 0.3);
       const rD = sidePower(sideD, (TERRAIN_DEF[terr] || 1) * (fortSideIsD ? 1 + 0.12 * ps.fort : 1)) * (0.85 + rnd() * 0.3);
       winner = rA > rD ? 'A' : 'D';
+      if (involved && NAP.settings && NAP.settings.learn) { const wr = Math.max(rA, rD) / Math.max(1, Math.min(rA, rD)); plog(`Why it went that way: the ${winner === 'A' ? 'attackers' : 'defenders'} had about ${wr.toFixed(1)}\u00D7 the effective strength (men, regiment quality, general, terrain${ps.fort ? ', fortifications' : ''}${(TERRAIN_DEF[terr] || 1) > 1 && winner === 'D' ? ': the defenders held good ground' : ''}).`, 'info', [S.player]); }
       const k = Math.min(rA, rD) / Math.max(rA, rD, 1);
       const winLoss = 0.07 + 0.22 * k, loseLoss = 0.32 + 0.45 * (1 - k);
       applyCasualties(winner === 'A' ? sideA : sideD, winLoss);
@@ -2685,6 +2703,25 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     return [];
   };
   // things the player should look at before ending the turn
+  // learning mode: the few most useful things to do right now, in plain words
+  C.advice = function (f) {
+    const out = C.attention(f).filter((x) => x.kind !== 'idle-home' && x.kind !== 'queue'), fs = S.factions[f], war = wars(f).filter((x) => x !== 'minor').length > 0;
+    const mine = C.provincesOf(f);
+    // opportunities: an army next to a weakly held enemy province
+    for (const a of C.armiesOf(f)) {
+      if (a.path.length || a.units.length < 4) continue;
+      for (const q of C.neighbors(f, a.prov)) {
+        const ps = S.provinces[q]; if (!atWar(f, ps.owner) || C.isSea(a.prov, q)) continue;
+        const foes = S.armies.filter((x) => x.prov === q && atWar(x.owner, f)), fm = foes.reduce((n, x) => n + C.armyMen(x), 0), mm = C.armyMen(a);
+        if (mm > fm * 1.4) { out.push({ kind: 'opportunity', sev: 2, army: a.id, prov: a.prov, text: `Your army in ${C.def(a.prov).name} (${Math.round(mm).toLocaleString('en-US')} men) can attack ${C.def(q).name}${fm ? ` (about ${Math.round(fm).toLocaleString('en-US')} defenders)` : ' (undefended)'}: right-click it` }); break; }
+      }
+    }
+    if (war && fs.gold >= 150 && !mine.some((p) => S.provinces[p.id].queue.length)) out.push({ kind: 'recruit', sev: 2, prov: fs.cap, text: `You are at war and nothing is being recruited. Select ${C.def(fs.cap).name} and raise a regiment` });
+    if (fs.gold >= 300 && !mine.some((p) => S.provinces[p.id].build)) { const p = mine.filter((x) => !S.provinces[x.id].market && !S.provinces[x.id].siege).sort((x, y) => y.income - x.income)[0]; if (p) out.push({ kind: 'market', sev: 1, prov: p.id, text: `Build a Market in ${p.name} (Build tab): +50% of its income, for good` }); }
+    if (S.turn <= 4 && !S.dipSeen && !S.treaties_seen) out.push({ kind: 'diplo', sev: 1, text: 'Open Diplomacy: a trade agreement with a friendly nation earns gold every month' });
+    const seen = new Set(); // one line per kind of advice
+    return out.sort((x, y) => y.sev - x.sev).filter((x) => (seen.has(x.kind) ? false : seen.add(x.kind)));
+  };
   C.attention = function (f) {
     const out = [], fs = S.factions[f], warNow = wars(f).length > 0;
     for (const a of C.armiesOf(f)) {
@@ -5869,6 +5906,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   };
 
   // ------------------------------------------------------------------ battle tutorial
+  // first-time hint cards for Learning mode: shown once each, when the situation first comes up
+  G.HINTS = [
+    { id: 'supply', title: 'Supply', when: (S, C) => C.armiesOf(S.player).some((a) => (a.supply || 0) >= 2), text: 'One of your armies is far from friendly land and is <b>running short of supply</b>: it loses men every turn. Move it back toward your own or an allied province, or tick <i>Forage</i> in its panel to live off the land at the cost of angering the province.' },
+    { id: 'siege-def', title: 'A province is besieged', when: (S, C) => C.provincesOf(S.player).some((p) => S.provinces[p.id].siege), text: 'An enemy is <b>besieging</b> one of your provinces. Fortifications make it last longer. A relief army marching into the province breaks the siege, so bring one if you can. Local militia will already be fighting for it.' },
+    { id: 'siege-att', title: 'Besieging', when: (S, C) => C.armiesOf(S.player).some((a) => S.provinces[a.prov].siege && S.provinces[a.prov].siege.by === S.player), text: 'Your army is <b>besieging</b> a province. Keep it there: each turn adds to the siege until the walls fall. Artillery speeds it up, and you can <i>Storm the walls</i> for a quick (costly) assault.' },
+    { id: 'unrest', title: 'Unrest', when: (S, C) => C.provincesOf(S.player).some((p) => (S.provinces[p.id].unrest || 0) >= 30), text: 'A province is getting restless. <b>Unrest</b> rises in conquered land and under heavy taxation; at 60% it cuts income and can end in revolt. Set the province policy to <i>Martial law</i>, or station an army there.' },
+    { id: 'lowgold', title: 'Watch the treasury', when: (S, C, me) => me.gold < 60, text: 'Your gold is almost gone. Regiments cost <b>upkeep</b> every month, and if you cannot pay them they desert. Disband weak regiments, set a rich province to <i>Heavy taxation</i>, or make peace.' },
+    { id: 'blockade', title: 'Blockade', when: (S, C) => C.provincesOf(S.player).some((p) => S.provinces[p.id].blockade), text: 'An enemy fleet is <b>blockading</b> one of your ports: its income is halved and nothing can be built there. Build ships at a Shipyard or make peace to lift it.' },
+    { id: 'firstbattle', title: 'Battles', when: (S, C, me) => (me.wonBattles || 0) + (me.lostBattles || 0) >= 1, text: 'You have fought your first battle. Victories raise your regiments\' experience, and a defeated army retreats, so <b>chase it</b> before it recovers. Armies that lose many men can be reinforced for gold and manpower in friendly territory.' },
+    { id: 'general', title: 'Generals', when: (S, C) => C.attention(S.player).some((x) => x.kind === 'general'), text: 'An army with no general is weaker. Select it and use <i>Appoint general</i>. A general can only command so many regiments at once, so very large armies fight better when split under several leaders.' },
+    { id: 'unlock', title: 'More tools unlocked', when: (S) => S.turn >= 5, text: 'The <b>Armies</b> list (key A), the <b>War overview</b> (key W) and the playback setting are now available in the top bar. The Armies list lets you reinforce or merge every army at once.' }
+  ];
   G.BATTLE_TIPS = [
     { id: 'deploy', when: (B) => B.deployPhase, text: '<b>Deployment.</b> Drag a box to select regiments, then right-click inside the blue zone to place them, or right-drag a line to form a battle line. Use F1-F4 to change formation (F1 Line, F2 Column, F3 Square, F4 Skirmish); Ctrl+1-9 saves a control group, the digit recalls it. Faint cones show each regiment\'s range (press <b>V</b> to hide them). Press <b>Space</b> when ready.' },
     { id: 'advance', when: (B) => !B.deployPhase && B.t < 25, text: '<b>Advance.</b> Right-click an enemy regiment to attack it: infantry march to musket range (about 140 px) and fire. Artillery fires on its own up to 480 px &mdash; protect it. The green bar above each unit is morale, the white bar is strength.' },
@@ -5921,7 +5970,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -5972,7 +6021,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   function showNations() {
     $('#start').className = '';
     let picked = null;
-    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div></div>
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label class="learnchk" data-tip="<b>Learning mode</b><br>An advisor panel with suggested next steps, first-time hint cards, a battle odds preview and plain-language results. It does not make the game easier or harder: it just teaches as you play."><input type="checkbox" id="learnchk"> Learning mode</label></div></div>
       <div class="beginrow"><button class="primary bigbegin" id="beginbtn" hidden>Begin the Campaign</button></div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
@@ -5989,6 +6038,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
+    $('#learnchk').checked = !!NAP.settings.learn; $('#learnchk').onchange = (e) => { NAP.settings.learn = e.target.checked; saveSettings(); };
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => {
       picked = c.dataset.f; ui.picked = picked;
       $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
@@ -6158,7 +6208,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const s = S();
     if (s.busy || s.winner) return;
     if (!skipWarn && !ui.noIdleWarn && !(ui.tut && ui.tut.on)) {
-      const idle = C.attention(s.player).filter((x) => x.kind === 'idle' || x.kind === 'supply');
+      const kinds = NAP.settings.learn ? ['idle', 'supply', 'queue', 'gold', 'recruit'] : ['idle', 'supply'];
+      const idle = (NAP.settings.learn ? C.advice(s.player) : C.attention(s.player)).filter((x) => kinds.includes(x.kind));
       if (idle.length) {
         const r = await modal(`<h2>Armies awaiting orders</h2><div class="body">${idle.slice(0, 6).map((x, i) => `<div class="attrow"><span>${esc(x.text)}</span><button data-r="g${i}">Go</button></div>`).join('')}<label class="muted" style="display:block;margin-top:10px"><input type="checkbox" id="idlewarn"> Don't warn me again</label></div><div class="foot"><button data-r="no">Review</button><button class="primary" data-r="yes">End turn anyway</button></div>`);
         const chk = $('#idlewarn'); if (chk && chk.checked) ui.noIdleWarn = true;
@@ -6178,7 +6229,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (NAP.audio) NAP.audio.sfx('roll');
     try { await C.endTurn(); } catch (e) { console.error(e); toast('Error: ' + e.message); s.busy = false; }
     if (NAP.settings.autosave) { try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ } }
-    refresh();
+    refresh(); learnHints();
   }
   // end turns until something needs the player
   async function advance() {
@@ -6479,7 +6530,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
   async function showDiplomacy() {
     const s = S(), me = s.player;
-    ui.dipOpened = true;
+    ui.dipOpened = true; s.dipSeen = true;
     const m = $('#modal');
     const close = () => { m.hidden = true; m.innerHTML = ''; refresh(); };
     const main = (msg) => {
@@ -6651,6 +6702,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <div class="setprev" id="set-prev">The Grande Armée crosses the Rhine at dawn. <b>Gold 1,240</b> &middot; Manpower 9,800</div>
       <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
       <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
+      <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning mode</b>: advisor, hint cards, battle odds, extra warnings</label>
       <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
@@ -6663,6 +6715,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     $$('set-font').onchange = (e) => { st.font = e.target.value; commit(); };
     $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
     $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
+    $$('set-learn').onchange = (e) => { st.learn = e.target.checked; commit(); if (S()) refresh(); };
     $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
     $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };
@@ -6778,6 +6831,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     };
     const p = NAP.world.byId[info.prov];
     const html = `<h2>Battle at ${esc(p.name)}</h2><div class="body"><p>${info.playerIsAttacker ? 'Your army attacks!' : 'Your army is attacked!'} Terrain: <b>${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[info.terrain]}</b> · Weather: <b>${{ clear: 'Clear', rain: 'Rain (muskets weaker)', fog: 'Fog (short sight)', snow: 'Snow (slow, tiring)' }[info.weather || 'clear']}</b>${info.tod === 'dusk' ? ' · <b>Dusk</b> (battle ends at nightfall)' : info.tod === 'dawn' ? ' · Dawn' : ''}${info.fort ? ` · Fortification level ${info.fort}` : ''}.</p>
+      ${NAP.settings.learn && info.odds ? `<div class="oddsbox ${info.odds.ratio >= 1.18 ? 'good' : info.odds.ratio >= 0.85 ? '' : 'bad'}"><b>${esc(info.odds.label)}</b> <span class="muted">(about ${info.odds.ratio >= 1 ? info.odds.ratio.toFixed(1) + '\u00D7 stronger than' : (1 / info.odds.ratio).toFixed(1) + '\u00D7 weaker than'} the enemy once terrain, fortifications and generals are counted). Fighting it yourself lets you do better than the odds; auto-resolve just rolls the dice on them.</span></div>` : ''}
       <div class="sides">${side(info.sideA)}${side(info.sideD)}</div></div>
       <div class="foot">${info.canRetreat ? `<button data-r="retreat" data-tip="<b>Withdraw</b><br>Slip away to ${esc(info.canRetreat)} before the enemy closes. Costs 5-10% of the army; each army can do this once every 6 turns.">Withdraw to ${esc(info.canRetreat)} (-5-10%)</button>` : ''}<button data-r="auto">Auto-resolve</button><button class="primary" data-r="fight">Fight the battle</button></div>`;
     return modal(html, 'event');
@@ -7051,7 +7105,33 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   window.addEventListener('mouseup', () => { mmDrag = false; });
 
   // ------------------------------------------------------------------ render loop
-  function refresh() { if (!S()) return; renderTop(); renderSide(); dirty = true; if (ui.tut && ui.tut.on) { tutCheck(); if (ui.tut.on && !$('#coach')) tutRender(); else applyHighlights(); } }
+  // ---- learning mode: advisor, hint cards and a simpler top bar at the start
+  function renderAdvisor() {
+    let el = $('#advisor');
+    const on = NAP.settings.learn && S() && !(ui.tut && ui.tut.on) && !$('#game').hidden;
+    document.body.classList.toggle('learnsimple', !!(NAP.settings.learn && S() && S().turn < 5));
+    if (!on) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'advisor'; $('#mapwrap').appendChild(el); }
+    const adv = C.advice(S().player).slice(0, 3), min = ui.advMin;
+    el.className = min ? 'min' : '';
+    el.innerHTML = `<div class="ahead"><b>Advisor</b><span class="muted">${min ? '' : 'what to do next'}</span><button id="advtoggle" title="${min ? 'Show' : 'Hide'}">${min ? '+' : '\u2212'}</button></div>${min ? '' : (adv.length ? adv.map((x, i) => `<div class="arow"><span>${esc(x.text)}</span>${x.prov || x.army ? `<button data-adv="${i}">Show</button>` : ''}</div>`).join('') : '<div class="arow"><span>All in order. Press <b>End Turn</b> when you are ready.</span></div>')}`;
+    $('#advtoggle').onclick = () => { ui.advMin = !ui.advMin; renderAdvisor(); };
+    el.querySelectorAll('[data-adv]').forEach((b) => (b.onclick = () => focusAttention(adv[+b.dataset.adv])));
+  }
+  const hintSeen = () => { try { return JSON.parse(localStorage.getItem('napworld-hints') || '{}'); } catch (e) { return {}; } };
+  function learnHints() {
+    if (!NAP.settings.learn || !S() || (ui.tut && ui.tut.on) || $('#hintcard')) return;
+    const seen = hintSeen(), s = S(), me = s.factions[s.player];
+    const h = NAP.guide.HINTS.find((x) => !seen[x.id] && (() => { try { return x.when(s, C, me); } catch (e) { return false; } })());
+    if (!h) return;
+    seen[h.id] = 1; try { localStorage.setItem('napworld-hints', JSON.stringify(seen)); } catch (e) { /* ignore */ }
+    const el = document.createElement('div'); el.id = 'hintcard';
+    el.innerHTML = `<h4>\u2139 ${esc(h.title)}</h4><div>${h.text}</div><div class="hf"><button id="hintoff" class="muted">Turn hints off</button><button id="hintok" class="primary">Got it</button></div>`;
+    $('#mapwrap').appendChild(el);
+    $('#hintok').onclick = () => el.remove();
+    $('#hintoff').onclick = () => { NAP.settings.learn = false; saveSettings(); el.remove(); refresh(); toast('Learning mode off (switch it back on in Settings)'); };
+  }
+  function refresh() { if (!S()) return; renderTop(); renderSide(); renderAdvisor(); dirty = true; if (ui.tut && ui.tut.on) { tutCheck(); if (ui.tut.on && !$('#coach')) tutRender(); else applyHighlights(); } }
   function frame() {
     requestAnimationFrame(frame);
     if (ui.pulseProv && !$('#game').hidden) dirty = true;

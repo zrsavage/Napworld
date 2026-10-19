@@ -27,7 +27,7 @@
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -78,7 +78,7 @@
   function showNations() {
     $('#start').className = '';
     let picked = null;
-    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div></div>
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label class="learnchk" data-tip="<b>Learning mode</b><br>An advisor panel with suggested next steps, first-time hint cards, a battle odds preview and plain-language results. It does not make the game easier or harder: it just teaches as you play."><input type="checkbox" id="learnchk"> Learning mode</label></div></div>
       <div class="beginrow"><button class="primary bigbegin" id="beginbtn" hidden>Begin the Campaign</button></div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
@@ -95,6 +95,7 @@
     $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
+    $('#learnchk').checked = !!NAP.settings.learn; $('#learnchk').onchange = (e) => { NAP.settings.learn = e.target.checked; saveSettings(); };
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => {
       picked = c.dataset.f; ui.picked = picked;
       $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
@@ -264,7 +265,8 @@
     const s = S();
     if (s.busy || s.winner) return;
     if (!skipWarn && !ui.noIdleWarn && !(ui.tut && ui.tut.on)) {
-      const idle = C.attention(s.player).filter((x) => x.kind === 'idle' || x.kind === 'supply');
+      const kinds = NAP.settings.learn ? ['idle', 'supply', 'queue', 'gold', 'recruit'] : ['idle', 'supply'];
+      const idle = (NAP.settings.learn ? C.advice(s.player) : C.attention(s.player)).filter((x) => kinds.includes(x.kind));
       if (idle.length) {
         const r = await modal(`<h2>Armies awaiting orders</h2><div class="body">${idle.slice(0, 6).map((x, i) => `<div class="attrow"><span>${esc(x.text)}</span><button data-r="g${i}">Go</button></div>`).join('')}<label class="muted" style="display:block;margin-top:10px"><input type="checkbox" id="idlewarn"> Don't warn me again</label></div><div class="foot"><button data-r="no">Review</button><button class="primary" data-r="yes">End turn anyway</button></div>`);
         const chk = $('#idlewarn'); if (chk && chk.checked) ui.noIdleWarn = true;
@@ -284,7 +286,7 @@
     if (NAP.audio) NAP.audio.sfx('roll');
     try { await C.endTurn(); } catch (e) { console.error(e); toast('Error: ' + e.message); s.busy = false; }
     if (NAP.settings.autosave) { try { localStorage.setItem(AUTOSAVE_KEY, C.serialize()); } catch (e) { /* storage full or blocked */ } }
-    refresh();
+    refresh(); learnHints();
   }
   // end turns until something needs the player
   async function advance() {
@@ -585,7 +587,7 @@
   }
   async function showDiplomacy() {
     const s = S(), me = s.player;
-    ui.dipOpened = true;
+    ui.dipOpened = true; s.dipSeen = true;
     const m = $('#modal');
     const close = () => { m.hidden = true; m.innerHTML = ''; refresh(); };
     const main = (msg) => {
@@ -757,6 +759,7 @@
       <div class="setprev" id="set-prev">The Grande Armée crosses the Rhine at dawn. <b>Gold 1,240</b> &middot; Manpower 9,800</div>
       <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
       <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
+      <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning mode</b>: advisor, hint cards, battle odds, extra warnings</label>
       <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
@@ -769,6 +772,7 @@
     $$('set-font').onchange = (e) => { st.font = e.target.value; commit(); };
     $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
     $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
+    $$('set-learn').onchange = (e) => { st.learn = e.target.checked; commit(); if (S()) refresh(); };
     $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
     $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };
@@ -884,6 +888,7 @@
     };
     const p = NAP.world.byId[info.prov];
     const html = `<h2>Battle at ${esc(p.name)}</h2><div class="body"><p>${info.playerIsAttacker ? 'Your army attacks!' : 'Your army is attacked!'} Terrain: <b>${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[info.terrain]}</b> · Weather: <b>${{ clear: 'Clear', rain: 'Rain (muskets weaker)', fog: 'Fog (short sight)', snow: 'Snow (slow, tiring)' }[info.weather || 'clear']}</b>${info.tod === 'dusk' ? ' · <b>Dusk</b> (battle ends at nightfall)' : info.tod === 'dawn' ? ' · Dawn' : ''}${info.fort ? ` · Fortification level ${info.fort}` : ''}.</p>
+      ${NAP.settings.learn && info.odds ? `<div class="oddsbox ${info.odds.ratio >= 1.18 ? 'good' : info.odds.ratio >= 0.85 ? '' : 'bad'}"><b>${esc(info.odds.label)}</b> <span class="muted">(about ${info.odds.ratio >= 1 ? info.odds.ratio.toFixed(1) + '\u00D7 stronger than' : (1 / info.odds.ratio).toFixed(1) + '\u00D7 weaker than'} the enemy once terrain, fortifications and generals are counted). Fighting it yourself lets you do better than the odds; auto-resolve just rolls the dice on them.</span></div>` : ''}
       <div class="sides">${side(info.sideA)}${side(info.sideD)}</div></div>
       <div class="foot">${info.canRetreat ? `<button data-r="retreat" data-tip="<b>Withdraw</b><br>Slip away to ${esc(info.canRetreat)} before the enemy closes. Costs 5-10% of the army; each army can do this once every 6 turns.">Withdraw to ${esc(info.canRetreat)} (-5-10%)</button>` : ''}<button data-r="auto">Auto-resolve</button><button class="primary" data-r="fight">Fight the battle</button></div>`;
     return modal(html, 'event');
@@ -1157,7 +1162,33 @@
   window.addEventListener('mouseup', () => { mmDrag = false; });
 
   // ------------------------------------------------------------------ render loop
-  function refresh() { if (!S()) return; renderTop(); renderSide(); dirty = true; if (ui.tut && ui.tut.on) { tutCheck(); if (ui.tut.on && !$('#coach')) tutRender(); else applyHighlights(); } }
+  // ---- learning mode: advisor, hint cards and a simpler top bar at the start
+  function renderAdvisor() {
+    let el = $('#advisor');
+    const on = NAP.settings.learn && S() && !(ui.tut && ui.tut.on) && !$('#game').hidden;
+    document.body.classList.toggle('learnsimple', !!(NAP.settings.learn && S() && S().turn < 5));
+    if (!on) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement('div'); el.id = 'advisor'; $('#mapwrap').appendChild(el); }
+    const adv = C.advice(S().player).slice(0, 3), min = ui.advMin;
+    el.className = min ? 'min' : '';
+    el.innerHTML = `<div class="ahead"><b>Advisor</b><span class="muted">${min ? '' : 'what to do next'}</span><button id="advtoggle" title="${min ? 'Show' : 'Hide'}">${min ? '+' : '\u2212'}</button></div>${min ? '' : (adv.length ? adv.map((x, i) => `<div class="arow"><span>${esc(x.text)}</span>${x.prov || x.army ? `<button data-adv="${i}">Show</button>` : ''}</div>`).join('') : '<div class="arow"><span>All in order. Press <b>End Turn</b> when you are ready.</span></div>')}`;
+    $('#advtoggle').onclick = () => { ui.advMin = !ui.advMin; renderAdvisor(); };
+    el.querySelectorAll('[data-adv]').forEach((b) => (b.onclick = () => focusAttention(adv[+b.dataset.adv])));
+  }
+  const hintSeen = () => { try { return JSON.parse(localStorage.getItem('napworld-hints') || '{}'); } catch (e) { return {}; } };
+  function learnHints() {
+    if (!NAP.settings.learn || !S() || (ui.tut && ui.tut.on) || $('#hintcard')) return;
+    const seen = hintSeen(), s = S(), me = s.factions[s.player];
+    const h = NAP.guide.HINTS.find((x) => !seen[x.id] && (() => { try { return x.when(s, C, me); } catch (e) { return false; } })());
+    if (!h) return;
+    seen[h.id] = 1; try { localStorage.setItem('napworld-hints', JSON.stringify(seen)); } catch (e) { /* ignore */ }
+    const el = document.createElement('div'); el.id = 'hintcard';
+    el.innerHTML = `<h4>\u2139 ${esc(h.title)}</h4><div>${h.text}</div><div class="hf"><button id="hintoff" class="muted">Turn hints off</button><button id="hintok" class="primary">Got it</button></div>`;
+    $('#mapwrap').appendChild(el);
+    $('#hintok').onclick = () => el.remove();
+    $('#hintoff').onclick = () => { NAP.settings.learn = false; saveSettings(); el.remove(); refresh(); toast('Learning mode off (switch it back on in Settings)'); };
+  }
+  function refresh() { if (!S()) return; renderTop(); renderSide(); renderAdvisor(); dirty = true; if (ui.tut && ui.tut.on) { tutCheck(); if (ui.tut.on && !$('#coach')) tutRender(); else applyHighlights(); } }
   function frame() {
     requestAnimationFrame(frame);
     if (ui.pulseProv && !$('#game').hidden) dirty = true;

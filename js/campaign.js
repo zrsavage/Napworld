@@ -696,6 +696,13 @@
 
   // -------------------------------------------------------------------- battles
   const TERRAIN_DEF = { p: 1.0, h: 1.15, f: 1.1, m: 1.25 };
+  // expected strength ratio (attacker / defender) as the auto-resolver sees it, without the dice
+  C.battleOdds = function (sideA, sideD, prov, fortSideA, fortSideD) {
+    const ps = S.provinces[prov], terr = C.def(prov).terrain;
+    const a = sidePower(sideA, fortSideA ? 1 + 0.12 * ps.fort : 1), d = sidePower(sideD, (TERRAIN_DEF[terr] || 1) * (fortSideD ? 1 + 0.12 * ps.fort : 1));
+    return { a, d, ratio: a / Math.max(1, d) };
+  };
+  C.oddsLabel = (r) => (r >= 1.6 ? 'Strongly in your favour' : r >= 1.18 ? 'In your favour' : r >= 0.85 ? 'Roughly even' : r >= 0.62 ? 'Against you' : 'Hopeless: avoid this fight');
   function genBonus(armies) {
     let best = null;
     for (const a of armies) if (a.general) { const g = S.generals[a.general]; if (!best || g.lead + g.atk > best.lead + best.atk) best = g; }
@@ -797,7 +804,8 @@
     }
     if (involved && H().runBattle) {
       S.pendingWeather = pickWeather(); S.pendingTod = pickTod();
-      choice = await H().askBattle({ weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
+      const od = C.battleOdds(sideA, sideD, prov, fortSideIsA, fortSideIsD), my = playerA ? od.ratio : 1 / Math.max(0.01, od.ratio);
+      choice = await H().askBattle({ odds: { ratio: my, label: C.oddsLabel(my), terrain: terr, fort: ps.fort, attacker: playerA }, weather: S.pendingWeather, tod: S.pendingTod, prov, sideA, sideD, attackerSide: 0, playerIsAttacker: playerA, canRetreat: retreatTo ? C.def(retreatTo).name : null, terrain: terr, fort: ps.fort, fortSide: fortSideIsD ? 'D' : fortSideIsA ? 'A' : null });
     }
     if (choice === 'retreat' && retreatTo && mine.length) {
       for (const a of mine) {
@@ -836,6 +844,7 @@
       const rA = sidePower(sideA, fortSideIsA ? 1 + 0.12 * ps.fort : 1) * (0.85 + rnd() * 0.3);
       const rD = sidePower(sideD, (TERRAIN_DEF[terr] || 1) * (fortSideIsD ? 1 + 0.12 * ps.fort : 1)) * (0.85 + rnd() * 0.3);
       winner = rA > rD ? 'A' : 'D';
+      if (involved && NAP.settings && NAP.settings.learn) { const wr = Math.max(rA, rD) / Math.max(1, Math.min(rA, rD)); plog(`Why it went that way: the ${winner === 'A' ? 'attackers' : 'defenders'} had about ${wr.toFixed(1)}\u00D7 the effective strength (men, regiment quality, general, terrain${ps.fort ? ', fortifications' : ''}${(TERRAIN_DEF[terr] || 1) > 1 && winner === 'D' ? ': the defenders held good ground' : ''}).`, 'info', [S.player]); }
       const k = Math.min(rA, rD) / Math.max(rA, rD, 1);
       const winLoss = 0.07 + 0.22 * k, loseLoss = 0.32 + 0.45 * (1 - k);
       applyCasualties(winner === 'A' ? sideA : sideD, winLoss);
@@ -1041,6 +1050,25 @@
     return [];
   };
   // things the player should look at before ending the turn
+  // learning mode: the few most useful things to do right now, in plain words
+  C.advice = function (f) {
+    const out = C.attention(f).filter((x) => x.kind !== 'idle-home' && x.kind !== 'queue'), fs = S.factions[f], war = wars(f).filter((x) => x !== 'minor').length > 0;
+    const mine = C.provincesOf(f);
+    // opportunities: an army next to a weakly held enemy province
+    for (const a of C.armiesOf(f)) {
+      if (a.path.length || a.units.length < 4) continue;
+      for (const q of C.neighbors(f, a.prov)) {
+        const ps = S.provinces[q]; if (!atWar(f, ps.owner) || C.isSea(a.prov, q)) continue;
+        const foes = S.armies.filter((x) => x.prov === q && atWar(x.owner, f)), fm = foes.reduce((n, x) => n + C.armyMen(x), 0), mm = C.armyMen(a);
+        if (mm > fm * 1.4) { out.push({ kind: 'opportunity', sev: 2, army: a.id, prov: a.prov, text: `Your army in ${C.def(a.prov).name} (${Math.round(mm).toLocaleString('en-US')} men) can attack ${C.def(q).name}${fm ? ` (about ${Math.round(fm).toLocaleString('en-US')} defenders)` : ' (undefended)'}: right-click it` }); break; }
+      }
+    }
+    if (war && fs.gold >= 150 && !mine.some((p) => S.provinces[p.id].queue.length)) out.push({ kind: 'recruit', sev: 2, prov: fs.cap, text: `You are at war and nothing is being recruited. Select ${C.def(fs.cap).name} and raise a regiment` });
+    if (fs.gold >= 300 && !mine.some((p) => S.provinces[p.id].build)) { const p = mine.filter((x) => !S.provinces[x.id].market && !S.provinces[x.id].siege).sort((x, y) => y.income - x.income)[0]; if (p) out.push({ kind: 'market', sev: 1, prov: p.id, text: `Build a Market in ${p.name} (Build tab): +50% of its income, for good` }); }
+    if (S.turn <= 4 && !S.dipSeen && !S.treaties_seen) out.push({ kind: 'diplo', sev: 1, text: 'Open Diplomacy: a trade agreement with a friendly nation earns gold every month' });
+    const seen = new Set(); // one line per kind of advice
+    return out.sort((x, y) => y.sev - x.sev).filter((x) => (seen.has(x.kind) ? false : seen.add(x.kind)));
+  };
   C.attention = function (f) {
     const out = [], fs = S.factions[f], warNow = wars(f).length > 0;
     for (const a of C.armiesOf(f)) {
