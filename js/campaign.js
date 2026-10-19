@@ -910,7 +910,7 @@
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
       const heavy = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'siege').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(4, Math.ceil(heavy * 1.5)) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(2, heavy) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -1127,7 +1127,7 @@
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.02 };
+  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.01 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;

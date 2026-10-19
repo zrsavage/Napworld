@@ -349,6 +349,11 @@ table.t { font-size: 14px; }
 
 .b-roster .rc.rout, .b-roster .rr { }
 
+.tabs { display: flex; gap: 2px; margin: 0 0 6px; border-bottom: 1px solid var(--line); } .tab { flex: 1; padding: 5px 4px; background: transparent; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted); }
+.tab.on { background: var(--panel2); color: var(--gold2); border-color: var(--line); } .tab i { font-style: normal; font-size: 11px; background: var(--gold); color: #111; border-radius: 8px; padding: 0 5px; margin-left: 3px; }
+.ubtn.locked { opacity: .42; font-style: italic; } .ubtn.poor { opacity: .62; } .ubtn.done { opacity: .6; border-style: dashed; } .hint { font-size: 11.5px; margin-top: 4px; }
+#side .subh { margin: 8px 0 2px; font-size: 10.5px; color: var(--gold); text-transform: uppercase; }
+
 </style>
 </head>
 <body>
@@ -2540,7 +2545,7 @@ table.t { font-size: 14px; }
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
       const heavy = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'siege').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(4, Math.ceil(heavy * 1.5)) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(2, heavy) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -2757,7 +2762,7 @@ table.t { font-size: 14px; }
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.02 };
+  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.01 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -6074,27 +6079,34 @@ table.t { font-size: 14px; }
     if (mine) {
       html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option></select></div>`;
       const unitRow = (t) => {
-        const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs];
-        return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
+        const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs], poor = !lock && err;
+        return `<button class="ubtn${lock ? ' locked' : poor ? ' poor' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : `<span class="${poor ? 'bad' : ''}">${cost}g</span> · ${u.time}t`}</span></button>`;
       };
-      html += `<div class="sec" data-fold="recruit"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
-      html += Object.keys(U).filter((t) => !U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
-      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
-      if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
-      html += `</div><div class="sec" data-fold="build"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
-      for (const b of Object.keys(NAP.BUILDINGS)) {
-        if (NAP.BUILDINGS[b].port && (!p.port || !s.naval)) continue;
-        const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b);
-        html += `<button class="ubtn${err ? ' locked' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '\u2714 ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : bd.cost + 'g \u00B7 ' + bd.time + 't'}</span></button>`;
-      }
-      if (ps.build) html += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)${(ps.bq || []).map((q, i) => `<br>Next ${i + 1}: ${NAP.BUILDINGS[q].name} <a href="#" data-bqx="${i}" data-tip="Cancel and refund ${NAP.BUILDINGS[q].cost} gold">cancel</a>`).join('')}<br><span class="muted">Queue ${1 + (ps.bq || []).length}/${C.BUILD_QUEUE}</span></div>`;
-      html += `</div>`;
+      const avail = (t) => !U[t].nation || U[t].nation === owner;
+      const grp = (title, list) => (list.length ? `<div class="subh">${title}</div>` + list.map(unitRow).join('') : '');
+      const kt = Object.keys(U).filter(avail);
+      let recruitHTML = grp('Infantry', kt.filter((t) => U[t].cls === 'inf' && !U[t].nation)) + grp('Cavalry', kt.filter((t) => U[t].cls === 'cav' && !U[t].nation)) + grp('Artillery', kt.filter((t) => U[t].cls === 'art' && !U[t].nation)) + grp(esc(F(owner).adj) + ' regiments', kt.filter((t) => U[t].nation));
+      recruitHTML += `<div class="muted hint">Greyed: a building is missing (padlock) or you cannot afford it (red). Hover for stats.</div>`;
+      if (ps.queue.length) recruitHTML += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
+      const bRow = (b) => {
+        const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b), reqMiss = err && /^Requires/.test(err), poor = err && !reqMiss && err !== 'Already built' && !built;
+        return `<button class="ubtn${built ? ' done' : reqMiss ? ' locked' : err ? ' poor' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '✔ ' : reqMiss ? '\u{1F512} ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : `<span class="${poor ? 'bad' : ''}">${bd.cost}g</span> · ${bd.time}t`}</span></button>`;
+      };
+      const bAll = Object.keys(NAP.BUILDINGS).filter((b) => !(NAP.BUILDINGS[b].port && (!p.port || !s.naval)));
+      const bgrp = (title, ids) => { const l = ids.filter((b) => bAll.includes(b)); return l.length ? `<div class="subh">${title}</div>` + l.map(bRow).join('') : ''; };
+      let buildHTML = bgrp('Economy', ['market', 'bank']) + bgrp('Military', ['barracks', 'depot', 'stables', 'arsenal', 'academy']) + bgrp('Defence', ['fort']) + bgrp('Naval', ['shipyard']);
+      if (ps.build) buildHTML += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)${(ps.bq || []).map((q, i) => `<br>Next ${i + 1}: ${NAP.BUILDINGS[q].name} <a href="#" data-bqx="${i}" data-tip="Cancel and refund ${NAP.BUILDINGS[q].cost} gold">cancel</a>`).join('')}<br><span class="muted">Queue ${1 + (ps.bq || []).length}/${C.BUILD_QUEUE}</span></div>`;
+      let navyHTML = '';
       if (p.port && s.naval) {
-        html += `<div class="sec" data-fold="navy"><h4>Navy <span class="qm" data-tip="Ships are built at a Shipyard in a port. Fleets sail between five sea zones, fight enemy fleets automatically, blockade enemy ports and escort your armies across the sea.">?</span></h4>`;
-        html += Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' \u00B7 Cost ' + C.shipCost(pid, t) + 'g \u00B7 Upkeep ' + sh.upkeep + '/turn \u00B7 Builds in ' + sh.time + ' turns \u00B7 Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
-        if ((ps.shipQueue || []).length) html += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
-        html += `</div>`;
+        navyHTML = Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' · Cost ' + C.shipCost(pid, t) + 'g · Upkeep ' + sh.upkeep + '/turn · Builds in ' + sh.time + ' turns · Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
+        if ((ps.shipQueue || []).length) navyHTML += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       }
+      const tabbed = !(ui.tut && ui.tut.on), tabs = [['recruit', 'Recruit', recruitHTML, ps.queue.length], ['build', 'Build', buildHTML, (ps.build ? 1 : 0) + (ps.bq || []).length]];
+      if (navyHTML) tabs.push(['navy', 'Navy', navyHTML, (ps.shipQueue || []).length]);
+      if (!tabs.some((t) => t[0] === ui.tab)) ui.tab = 'recruit';
+      if (tabbed) {
+        html += `<div class="sec"><div class="tabs">${tabs.map((t) => `<button class="tab${ui.tab === t[0] ? ' on' : ''}" data-tab="${t[0]}">${t[1]}${t[3] ? ` <i>${t[3]}</i>` : ''}</button>`).join('')}</div>${tabs.find((t) => t[0] === ui.tab)[2]}</div>`;
+      } else html += tabs.map((t) => `<div class="sec"><h4>${t[1]}</h4>${t[2]}</div>`).join('');
     } else if (owner !== 'minor' || true) {
       const war = C.atWar(s.player, owner);
       html += `<div class="sec"><h4>Diplomacy</h4><div class="kv"><span>Relations</span><b>${C.rel(s.player, owner) > 0 ? '+' : ''}${Math.round(C.rel(s.player, owner))}</b></div>
@@ -6102,6 +6114,7 @@ table.t { font-size: 14px; }
     }
     el.innerHTML = html;
     bindClose();
+    el.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { ui.tab = b.dataset.tab; refresh(); }));
     el.querySelectorAll('[data-fold]').forEach((sec) => {
       const k = sec.dataset.fold, forced = ui.tut && ui.tut.on;
       sec.classList.toggle('folded', !forced && (k in ui.folds ? ui.folds[k] : k !== 'recruit'));
