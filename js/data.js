@@ -229,6 +229,7 @@
   const LONG_MOVE = { scotland: { name: 'Lowland Scotland', lon: -3.7, lat: 55.9 }, northengland: { lon: -2.7, lat: 54.5 }, andalusia: { lon: -5.9, lat: 37.4 },
     anatolia_w: { lon: 31.0, lat: 39.2 }, serbia: { name: 'Serbia', lon: 20.7, lat: 44.2 }, norway_s: { name: 'Oslo & Telemark', lon: 9.8, lat: 59.8 }, paris: { name: 'Paris' } };
   NAP.lengthMode = 'short';
+  NAP.SEA_HOP = 220; // longest single sea crossing an army can make in one turn (longer voyages take several hops)
   NAP.defsFor = function (mode) {
     if (mode !== 'long') return NAP.BASE_DEFS;
     const defs = NAP.BASE_DEFS.map((d) => Object.assign({}, d, LONG_MOVE[d.id] || {}));

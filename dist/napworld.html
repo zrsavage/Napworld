@@ -633,6 +633,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
   const LONG_MOVE = { scotland: { name: 'Lowland Scotland', lon: -3.7, lat: 55.9 }, northengland: { lon: -2.7, lat: 54.5 }, andalusia: { lon: -5.9, lat: 37.4 },
     anatolia_w: { lon: 31.0, lat: 39.2 }, serbia: { name: 'Serbia', lon: 20.7, lat: 44.2 }, norway_s: { name: 'Oslo & Telemark', lon: 9.8, lat: 59.8 }, paris: { name: 'Paris' } };
   NAP.lengthMode = 'short';
+  NAP.SEA_HOP = 220; // longest single sea crossing an army can make in one turn (longer voyages take several hops)
   NAP.defsFor = function (mode) {
     if (mode !== 'long') return NAP.BASE_DEFS;
     const defs = NAP.BASE_DEFS.map((d) => Object.assign({}, d, LONG_MOVE[d.id] || {}));
@@ -1281,7 +1282,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
       const ps = z.ports.map((id) => byId[id]).filter((p) => p && p.port);
       for (let a = 0; a < ps.length; a++) for (let b = a + 1; b < ps.length; b++) {
         const dx = ps[a].cx - ps[b].cx, dy = ps[a].cy - ps[b].cy;
-        if (Math.hypot(dx, dy) <= z.range && !ps[a].adj.includes(ps[b].idx)) {
+        if (Math.hypot(dx, dy) <= Math.min(z.range, NAP.SEA_HOP || 1e9) && !ps[a].adj.includes(ps[b].idx)) {
           seaAdj[ps[a].idx].add(ps[b].idx); seaAdj[ps[b].idx].add(ps[a].idx);
         }
       }
@@ -5821,7 +5822,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     { id: 'move', title: 'March!', text: `With the army selected, <b>right-click Belgium</b> to order a march there. A dashed line previews the route. Armies advance one province per turn, and cannot enter neutral nations' lands without a declaration of war.`, pulse: () => 'belgium', check: (c) => { const a = c.S.armies.find((x) => x.id === c.ui.sel.army); return a && (a.path.length > 0 || a.prov === 'belgium'); } },
     { id: 'endturn', title: 'End the turn', text: `Press <b>End Turn</b> (or <kbd>Enter</kbd>). Every nation moves at once. One turn is one month. After each turn you get a summary of income, battles and diplomatic news.`, hl: ['#endturn'], check: (c) => c.S.turn >= 1 },
     { id: 'diplo', title: 'Diplomacy', text: `Open <b>Diplomacy</b> from the top bar. Here you can declare war, propose alliances, and negotiate peace. When you make peace you choose the <b>terms</b>: gold or provinces to demand, or concessions to offer. Your <b>war score</b> &mdash; battles won and provinces taken &mdash; decides what the enemy will accept.`, hl: ['#b-dip'], check: (c) => c.ui.dipOpened },
-    { id: 'sea', title: 'Sea routes', manual: true, text: `Unless you switched on naval warfare, there are no fleets. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
+    { id: 'sea', title: 'Sea routes', manual: true, text: `Unless you switched on naval warfare, there are no fleets. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. Only <b>short crossings</b> work like this (the Channel, the Baltic straits, the Adriatic...); a long voyage hops from port to port, one crossing per turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
     { id: 'battle', title: 'Battles', manual: true, practice: true, text: `When armies meet you can <b>auto-resolve</b> or <b>fight</b> the battle yourself. Fighting lets you deploy your regiments, use formations and flank the enemy. Weather, time of day, terrain and fortifications all matter. Want to try? Hit <b>Practice battle</b> below &mdash; it won't affect your campaign.` },
     { id: 'siege', title: 'Sieges, assaults and rebellion', manual: true, text: `To take a province, move an army in and hold it. Fortified provinces need several turns of siege (artillery speeds this up), or you can <b>storm the walls</b> at a cost in men. Conquered provinces need a garrison or they will revolt, so do not spread your army too thin.` },
     { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Replay any lesson, with its animated demo, from the <b>Lessons</b> button in the top bar, or press <b>How to play (?)</b> any time for a reminder. For a first real campaign we suggest <b>Russia</b> (the gentlest start) or <b>Britain</b> (safe and rich); France, the nation in this tutorial, is much harder. Vive l'Empereur!` }
@@ -6034,7 +6035,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
   function showNations() {
     $('#start').className = '';
     let picked = null;
-    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label><label class="learnchk" data-tip="<b>Easy mode</b><br>Simple rules to learn on: you can only recruit <b>line infantry, cavalry and artillery</b>, and only build a <b>Market</b> (money) and <b>Barracks</b> (recruiting). Also switches on the advisor, hint cards and battle odds. The AI plays normally, so it is not an easy game, just a simple one."><input type="checkbox" id="learnchk"> Easy mode (simple rules)</label></div></div>
+    let html = `<div class="navbar"><button id="backbtn">&larr; Back</button><h1>Choose your nation</h1><div class="navright"><label>Difficulty <select id="diff"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label></div></div>
       <div class="beginrow"><button class="primary bigbegin" id="beginbtn" hidden>Begin the Campaign</button></div>
       <div class="cards">`;
     const order = Object.keys(NAP.NATION_GUIDE).sort((x, y) => NAP.NATION_GUIDE[x].rank - NAP.NATION_GUIDE[y].rank);
@@ -6051,7 +6052,6 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     $('#start').innerHTML = html; $('#start').hidden = false; $('#start').scrollTop = 0;
     $('#diff').value = ui.difficulty;
     $('#diff').onchange = (e) => (ui.difficulty = e.target.value);
-    $('#learnchk').checked = !!NAP.settings.easy; $('#learnchk').onchange = (e) => { NAP.settings.easy = e.target.checked; NAP.settings.learn = e.target.checked; saveSettings(); };
     $('#start').querySelectorAll('.card').forEach((c) => (c.onclick = () => {
       picked = c.dataset.f; ui.picked = picked;
       $('#start').querySelectorAll('.card').forEach((x) => x.classList.toggle('sel', x === c));
@@ -6060,7 +6060,10 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     // naval warfare is asked at the moment you begin
     const begin = async () => {
       if (!picked) return;
-      if (NAP.settings.easy) { ui.long = false; ui.naval = false; beginGame(picked); return; }
+      const mr = await modal(`<h2>Choose your mode</h2><div class="body"><p><b>Easy mode</b> (recommended for a first game): simple rules. You recruit only <b>line infantry, cavalry and artillery</b> and build only a <b>Market</b> (money) and <b>Barracks</b> (recruiting). An advisor suggests what to do next, hint cards explain new situations, and battles show their odds. The enemy still plays normally, so it is a simple game, not a weak opponent.</p><p><b>Advanced mode</b>: every unit and building, generals and lieutenants, fortifications, and the options for a long map and naval warfare. Nothing is explained unless you ask.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="adv">Advanced mode</button><button data-r="easy" class="primary">Easy mode</button></div>`, 'event');
+      if (mr === 'easy') { NAP.settings.easy = true; NAP.settings.learn = true; saveSettings(); ui.long = false; ui.naval = false; beginGame(picked); return; }
+      if (mr !== 'adv') return;
+      NAP.settings.easy = false; NAP.settings.learn = false; saveSettings();
       const lr = await modal(`<h2>Length of game</h2><div class="body"><p><b>Short</b> (standard): the map as you see it, about ${NAP.BASE_DEFS.length} provinces. Quicker to play and the best way to learn.</p><p><b>Long</b>: about ${NAP.defsFor('long').length} provinces. Many regions are split in two (Paris and Orleans, Kent and London, Bosnia and Serbia and so on), so there is more to conquer, garrison and defend, and wars take far longer. Each nation's total wealth is about the same; it is simply cut into more pieces.</p></div><div class="foot"><button data-r="back">Cancel</button><button data-r="short" ${ui.long ? '' : 'class="primary"'}>Short game</button><button data-r="long" ${ui.long ? 'class="primary"' : ''}>Long game</button></div>`, 'event');
       if (lr !== 'short' && lr !== 'long') return;
       ui.long = lr === 'long';
@@ -6717,8 +6720,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
       <div class="setprev" id="set-prev">The Grande Armée crosses the Rhine at dawn. <b>Gold 1,240</b> &middot; Manpower 9,800</div>
       <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
       <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
-      <label class="chk" data-tip="Applies to new games. Simple rules: only line infantry, cavalry and artillery to recruit, and only Market and Barracks to build. Also switches on the learning aids."><input type="checkbox" id="set-easy" ${st.easy ? 'checked' : ''}> <b>Easy mode for new games</b>: simple rules (infantry, cavalry, artillery; Market and Barracks only)</label>
-      <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning aids</b>: advisor, hint cards, battle odds, extra warnings</label>
+            <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning aids</b>: advisor, hint cards, battle odds, extra warnings</label>
       <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
@@ -6731,7 +6733,6 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     $$('set-font').onchange = (e) => { st.font = e.target.value; commit(); };
     $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
     $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
-    $$('set-easy').onchange = (e) => { st.easy = e.target.checked; if (e.target.checked) { st.learn = true; $$('set-learn').checked = true; } commit(); };
     $$('set-learn').onchange = (e) => { st.learn = e.target.checked; commit(); if (S()) refresh(); };
     $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };

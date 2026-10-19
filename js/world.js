@@ -180,7 +180,7 @@
       const ps = z.ports.map((id) => byId[id]).filter((p) => p && p.port);
       for (let a = 0; a < ps.length; a++) for (let b = a + 1; b < ps.length; b++) {
         const dx = ps[a].cx - ps[b].cx, dy = ps[a].cy - ps[b].cy;
-        if (Math.hypot(dx, dy) <= z.range && !ps[a].adj.includes(ps[b].idx)) {
+        if (Math.hypot(dx, dy) <= Math.min(z.range, NAP.SEA_HOP || 1e9) && !ps[a].adj.includes(ps[b].idx)) {
           seaAdj[ps[a].idx].add(ps[b].idx); seaAdj[ps[b].idx].add(ps[a].idx);
         }
       }

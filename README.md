@@ -219,3 +219,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Easy mode (simple rules)
 - Tick **Easy mode (simple rules)** on the nation-select screen (it remembers your choice; also in Settings, for new games). Your choices shrink to the basics: you can recruit only **line infantry, cavalry and artillery**, and build only a **Market** (money) and **Barracks** (recruiting). Naval warfare and the long map are switched off, and it turns on the learning aids (advisor, hint cards, battle odds). The AI plays normally, so this is a *simple* game, not a weak enemy. It applies to the player only and is stored with the save.
+
+### Mode prompt and shorter sea hops
+- **Begin the Campaign** now asks first: **Easy mode** (the default button: simple rules, advisor, hints, odds; short map, no naval) or **Advanced mode** (everything, then the usual length and naval questions). The nation-select checkbox is gone.
+- Armies could previously cross the whole Atlantic in one move between any two ports of a sea. Sea links are now capped at 220 map px (the Channel, Baltic straits, Adriatic, Sicily and similar short crossings); a long voyage hops from port to port, one crossing per turn. 292 sea links became about 134.
