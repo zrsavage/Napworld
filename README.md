@@ -194,3 +194,13 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Province panel tabs
 - The province panel now has **Recruit / Build (/ Navy)** tabs instead of one long list. Units are grouped (Infantry, Cavalry, Artillery, your nation's regiments) and buildings (Economy, Military, Defence, Naval). Missing requirements are greyed with a padlock; things you cannot afford show their cost in red. The tutorial still shows everything stacked.
+
+### Generals menu, command limits, militia and more
+- **General menu** (button in the army panel): stats, traits, experience, command limit, lieutenants and special orders.
+- **Command limit:** a general commands 10 + 3 per LEAD point regiments in one battle (+8 per extra general or lieutenant on the side). Regiments beyond it fight *out of command* (-10% morale, -8% fire); the battle HUD shows "Command n/cap". A lieutenant (40g, slots by general level) leads a separate army under him and widens the limit. Auto-resolved battles apply a small penalty too. This is what stops one giant stack from being the best plan.
+- **Lightning march:** a general-led army moves two provinces with no losses (8 turn cooldown). **Inspire** in battle (key I): +15 morale and +10% fire near the general for 20 s, at some risk to him (90 s cooldown). AI generals with the Aggressive / Steadfast traits choose to attack or defend accordingly.
+- **Battle:** saved **deployment layouts** (3 slots, Save/Load next to the Start button), weather effects badge with tooltip, and **artillery target priority** (key T: nearest / infantry / counter-battery / cavalry).
+- **Local militia:** when an enemy marches into or besieges a province with no defending army, the people rise: 1-4 militia regiments fight a real battle (you can fight it yourself). They go home afterwards.
+- **Scorched earth** (province policy): no income and rising unrest, but an invader there suffers extra supply loss. The AI uses it when an enemy occupies one of its undefended provinces.
+- **Naval:** opposed landings cost 6% of the army (2% when your fleet covers the sea zone) plus fatigue. Frigate-only fleets docked in a blockaded port act as **blockade runners**: they win back part of the lost income (up to 85% of normal) but risk being caught.
+- **Peace talks:** pick several terms at once; a live meter shows how willing they are.

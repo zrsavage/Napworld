@@ -345,3 +345,9 @@ table.t { font-size: 14px; }
 .tab.on { background: var(--panel2); color: var(--gold2); border-color: var(--line); } .tab i { font-style: normal; font-size: 11px; background: var(--gold); color: #111; border-radius: 8px; padding: 0 5px; margin-left: 3px; }
 .ubtn.locked { opacity: .42; font-style: italic; } .ubtn.poor { opacity: .62; } .ubtn.done { opacity: .6; border-style: dashed; } .hint { font-size: 11.5px; margin-top: 4px; }
 #side .subh { margin: 8px 0 2px; font-size: 10.5px; color: var(--gold); text-transform: uppercase; }
+
+.b-wx .wxb { cursor: help; color: #cfe4ff; } #b-cmd { margin-left: 8px; } .b-deployonly { display: inline-flex; gap: 4px; align-items: center; }
+
+.meter { margin: 4px 0 8px; } .mbar { height: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .mbar i { display: block; height: 100%; } .mbar i.ok { background: #4c4; } .mbar i.mid { background: #ec3; } .mbar i.no { background: #e44; }
+.genbox { display: flex; flex-direction: column; gap: 8px; } .genstats { display: flex; gap: 18px; } .genstats b { font-size: 20px; } .gentrait { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); } .gentrait small { display: block; color: var(--muted); }
+.genrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--line); }

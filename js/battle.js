@@ -74,7 +74,7 @@
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
       this.nextId = 1;
-      this.rallyCd = [0, 0];
+      this.rallyCd = [0, 0]; this.inspCd = 0;
       this.initialMen = [0, 0];
       this.deadGen = [];
       this.genDead = [false, false]; this.noGen = [false, false];
@@ -227,6 +227,12 @@
           formation: 'line', w: 14, d: 14, state: 'idle', order: null, target: null, kills: 0, calm: 0
         };
         this.units.push(gu);
+        { // command limit: regiments beyond what the general can handle fight at a disadvantage
+          const cap = sides[s].cap != null ? sides[s].cap : 99;
+          const mine = this.units.filter((u) => u.side === s && u.cls !== 'gen').sort((a, b) => NAP.UNITS[b.type].power * b.max - NAP.UNITS[a.type].power * a.max);
+          mine.slice(cap).forEach((u) => { u.ooc = true; u.baseMorale *= 0.9; u.morale = u.baseMorale; u.fireMul *= 0.92; });
+          (this.cmd = this.cmd || [{}, {}])[s] = { cap, n: mine.length, over: Math.max(0, mine.length - cap) };
+        }
         this.units.filter((u) => u.side === s && u.cls !== 'gen').forEach((u) => (this.initialMen[s] += u.men));
         this.sides = sides;
       }
@@ -367,6 +373,7 @@
       this.t += dt;
       this.recAcc += dt; if (this.recAcc >= 1) { this.recAcc -= 1; this.record(); }
       for (const g of [0, 1]) this.rallyCd[g] = Math.max(0, this.rallyCd[g] - dt);
+      this.inspCd = Math.max(0, this.inspCd - dt);
       // update in random order each tick so neither side gets a first-mover advantage
       const us = this.units.slice();
       for (let i = us.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = us[i]; us[i] = us[j]; us[j] = tmp; }
@@ -429,6 +436,7 @@
       const bt = BT[u.type], s = u.side;
       const en = this.enemies(s);
       u.sinceHit += dt;
+      if (u.inspT > 0) u.inspT -= dt;
       if (u.hitT > 0) u.hitT -= dt;
       u.floatT -= dt;
       if (u.floatT <= 0) { u.floatT = 1.0; if (u.cumHit >= 3) { this.floaters.push({ x: u.x, y: u.y - Math.max(u.w, u.d) / 2 - 14, txt: '-' + Math.round(u.cumHit), t: 0, side: u.side }); u.cumHit = 0; } }
@@ -633,7 +641,10 @@
                 const d = Math.hypot(e.x - u.x, e.y - u.y);
                 if (d > maxRange) continue;
                 let sc = d;
-                if (u.cls === 'art') { if (e.cls === 'art') sc *= 1.3; if (e.formation === 'column' || e.formation === 'square') sc *= 0.75; }
+                if (u.cls === 'art') {
+                  if (e.cls === 'art') sc *= 1.3; if (e.formation === 'column' || e.formation === 'square') sc *= 0.75;
+                  if (u.prio && u.prio !== 'near') sc *= e.cls === u.prio ? 0.4 : 1.5; // standing orders: counter-battery, infantry or cavalry first
+                }
                 if (e.state === 'routing') sc *= 1.8;
                 if (sc < bd) { bd = sc; tgt = e; }
               }
@@ -649,7 +660,7 @@
               const tt = this.terrainAt(tgt.x, tgt.y);
               const ex = this.exposure(tgt, u);
               const mor = 0.6 + 0.4 * (u.morale / 100);
-              const aura = nearGen ? 1.06 : 1;
+              const aura = (nearGen ? 1.06 : 1) * (u.inspT > 0 ? 1.1 : 1);
               let cas;
               if (u.cls === 'art') {
                 const guns = u.men / 80;
@@ -711,7 +722,8 @@
       const g = this.general(s);
       const attacker = (s === 0) === this.spec.playerIsAttacker;
       if (this.aiMode === undefined) this.aiMode = {};
-      const mode = this.aiMode[s] || (this.aiMode[s] = attacker ? 'attack' : (rnd() < 0.35 ? 'attack' : 'defend'));
+      const gtr = (g && g.gen && g.gen.traits) || [];
+      const mode = this.aiMode[s] || (this.aiMode[s] = attacker ? 'attack' : (rnd() < 0.35 + (gtr.includes('aggressive') ? 0.3 : 0) - (gtr.includes('defender') ? 0.25 : 0) ? 'attack' : 'defend'));
       const nearestEnemyDist = (u) => { const e = this.nearest(u, en); return e ? Math.hypot(e.x - u.x, e.y - u.y) : 1e9; };
       const goAttack = mode === 'attack' || this.t > 100 || my.some((u) => nearestEnemyDist(u) < 190) || this.strength(s) < this.strength(1 - s) * 0.7;
       const infFront = my.filter((u) => u.cls === 'inf' && u.state !== 'routing');
@@ -1484,7 +1496,7 @@
       r.innerHTML = `
         <div class="b-top">
           <div class="b-side b-s0"><b id="b-n0"></b><div class="b-bar"><i id="b-f0"></i></div><span id="b-m0"></span></div>
-          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span><br><span id="b-obj" data-tip="<b>Objectives</b><br>Hold flagged points to earn victory points (1 per point per second). Hold all of them for 75 seconds, or lead by 25 VP at the time limit, to win."></span></div>
+          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span> <span id="b-wx" class="b-wx"></span> <span id="b-cmd"></span><br><span id="b-obj" data-tip="<b>Objectives</b><br>Hold flagged points to earn victory points (1 per point per second). Hold all of them for 75 seconds, or lead by 25 VP at the time limit, to win."></span></div>
           <div class="b-side b-s1"><b id="b-n1"></b><div class="b-bar"><i id="b-f1"></i></div><span id="b-m1"></span></div>
         </div>
         <div class="b-stage" id="b-stage"><canvas id="b-canvas"></canvas>
@@ -1505,8 +1517,9 @@
             <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
             <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="hold" data-tip="<b>Hold / Free</b> (key G)<br><b>Hold</b> (default): a regiment stays on its spot and only fires at what comes into range. <b>Free</b>: it may step forward to engage an enemy just out of range. Toggles the selected regiments; FREE shows above them.">Hold/Free <kbd>G</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
-            <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
+            <button data-a="inspire" id="b-insp" data-tip="<b>Inspire</b> (key I)<br>Your general rides the line: units near him gain +15 morale and +10% fire for 20 seconds. He is exposed to fire while doing it. 90 second cooldown.">Inspire <kbd>I</kbd></button><button data-a="prio" id="b-prio" data-tip="<b>Gun target priority</b> (key T)<br>Cycles the selected artillery between: nearest, infantry first, counter-battery (enemy guns first) and cavalry first.">Targets <kbd>T</kbd></button><button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
+            <span class="b-deployonly"><select id="b-slot" data-tip="Layout slot"><option value="1">Layout 1</option><option value="2">Layout 2</option><option value="3">Layout 3</option></select><button data-a="savelay" data-tip="Save where your regiments are standing now (positions, facing and formations) in this slot.">Save</button><button data-a="loadlay" data-tip="Re-apply a saved layout to your regiments of the same types.">Load</button></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
             <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
@@ -1595,7 +1608,7 @@
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
         else if (k === 'v') { this.showRange = this.showRange === false; }
-        else if (k === 'b' && !e.ctrlKey) this.fallBack(); else if (k === 'g' && !e.ctrlKey) this.toggleHold();
+        else if (k === 'b' && !e.ctrlKey) this.fallBack(); else if (k === 'g' && !e.ctrlKey) this.toggleHold(); else if (k === 'i' && !e.ctrlKey) this.inspire(); else if (k === 't' && !e.ctrlKey) this.cyclePrio();
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -1621,7 +1634,7 @@
         else if (b.dataset.z) { const z = b.dataset.z; if (z === 'in') this.zoomBy(1.4); else if (z === 'out') this.zoomBy(1 / 1.4); else if (z === 'fit') this.zoomFit(); else this.focusSelection(); }
         else if (b.dataset.a === 'pause') this.togglePause();
         else if (b.dataset.a === 'charge') this.doCharge();
-        else if (b.dataset.a === 'halt') this.halt(); else if (b.dataset.a === 'hold') this.toggleHold();
+        else if (b.dataset.a === 'inspire') this.inspire(); else if (b.dataset.a === 'prio') this.cyclePrio(); else if (b.dataset.a === 'savelay') this.saveLayout(); else if (b.dataset.a === 'loadlay') this.loadLayout(); else if (b.dataset.a === 'halt') this.halt(); else if (b.dataset.a === 'hold') this.toggleHold();
         else if (b.dataset.a === 'fallback') this.fallBack();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
@@ -1723,6 +1736,49 @@
       }
       if (out.length) this.msg(`${out.length} regiment${out.length > 1 ? 's' : ''} falling back`);
     }
+    inspire() {
+      const g = this.general(0);
+      if (this.deployPhase || this.over) return;
+      if (!g || g.dead) { this.msg('You have no general to inspire the line'); return; }
+      if (this.inspCd > 0) { this.msg(`Inspire ready in ${Math.ceil(this.inspCd)}s`); return; }
+      let n = 0;
+      for (const u of this.units) if (u.side === 0 && u.cls !== 'gen' && this.alive(u) && u.state !== 'routing' && Math.hypot(u.x - g.x, u.y - g.y) < 260) { u.morale = Math.min(u.baseMorale * 1.1, u.morale + 15); u.inspT = 20; n++; }
+      this.inspCd = 90; this.damage(g, 12, null);
+      this.floaters.push({ x: g.x, y: g.y - 22, txt: 'INSPIRE!', t: 0, side: 0 });
+      this.msg(`${g.name} rides the line: ${n} regiment${n === 1 ? '' : 's'} inspired!`); this.snd('bugle', 3, g.x, g.y);
+    }
+    cyclePrio() {
+      const us = this.selectedUnits().filter((u) => u.cls === 'art');
+      if (!us.length) { this.msg('Select artillery to set its target priority'); return; }
+      const L = ['near', 'inf', 'art', 'cav'], N = { near: 'nearest enemy', inf: 'infantry first', art: 'counter-battery (enemy guns first)', cav: 'cavalry first' };
+      const nx = L[(L.indexOf(us[0].prio || 'near') + 1) % L.length];
+      us.forEach((u) => (u.prio = nx)); this.msg('Guns: ' + N[nx]);
+    }
+    // ---- saved deployment layouts (browser storage)
+    layouts() { try { return JSON.parse(localStorage.getItem('napworld-layouts') || '{}'); } catch (e) { return {}; } }
+    saveLayout() {
+      if (!this.deployPhase) return;
+      const slot = this.root.querySelector('#b-slot').value, mine = this.units.filter((u) => u.side === 0 && u.cls !== 'gen'), cnt = {};
+      const items = mine.map((u) => { const i = cnt[u.type] = (cnt[u.type] || 0) + 1; return { t: u.type, i, x: u.x / this.zoneR, y: u.y / FH, f: u.facing, form: u.formation }; });
+      const all = this.layouts(); all[slot] = { items, n: items.length };
+      try { localStorage.setItem('napworld-layouts', JSON.stringify(all)); this.msg(`Layout ${slot} saved (${items.length} regiments)`); } catch (e) { this.msg('Could not save the layout'); }
+    }
+    loadLayout() {
+      if (!this.deployPhase) return;
+      const slot = this.root.querySelector('#b-slot').value, lay = this.layouts()[slot];
+      if (!lay) { this.msg(`Layout ${slot} is empty`); return; }
+      const cnt = {}; let n = 0;
+      for (const u of this.units.filter((q) => q.side === 0 && q.cls !== 'gen')) {
+        const i = cnt[u.type] = (cnt[u.type] || 0) + 1, it = lay.items.find((q) => q.t === u.type && q.i === i); if (!it) continue;
+        u.x = clamp(it.x * this.zoneR, 30, this.zoneR); u.y = clamp(it.y * FH, 30, FH - 30); u.facing = it.f; u.order = null; u.target = null;
+        if (BT[u.type].forms.includes(it.form)) { u.formation = it.form; u.wantForm = null; } [u.w, u.d] = dims(u); n++;
+      }
+      this.msg(`Layout ${slot} applied to ${n} regiments`);
+    }
+    wxText() {
+      const W = this.spec.weather || 'clear';
+      return { clear: 'Clear: no effects.', rain: 'Rain: musket fire \u221235%, artillery \u221215%, movement \u221210%.', fog: 'Fog: all weapon ranges \u221230%.', snow: 'Snow: movement \u221215%, men tire 30% faster.' }[W] + ({ dawn: ' Dawn.', day: '', dusk: ' Dusk: the fight ends at nightfall.' }[this.spec.tod || 'day'] || '');
+    }
     toggleHold() {
       const us = this.selectedUnits().filter((u) => u.cls !== 'gen' && u.cls !== 'art');
       if (!us.length) { this.msg('Select regiments first'); return; }
@@ -1776,7 +1832,7 @@
       if (sel.length === 1) {
         const u = sel[0];
         if (u.cls === 'gen') { el.innerHTML = `<b>${u.name}</b> &mdash; Commander (ATK ${u.gen.atk} DEF ${u.gen.def} LEAD ${u.gen.lead}) &middot; health ${Math.round(u.men)}/${u.max}. His aura boosts morale &amp; fire nearby; if he falls, every regiment loses heart and recovers slowly. Keep him behind your infantry.`; return; }
-        el.innerHTML = `<b>${NAP.UNITS[u.type].name}</b> &middot; ${Math.round(u.men)}/${u.max} men &middot; morale ${Math.round(u.morale)} &middot; fatigue ${Math.round(u.fatigue)} &middot; ${FORM_NAMES[u.formation]}${u.state === 'routing' ? ' &middot; <span class="bad">ROUTING</span>' : ''}`;
+        el.title = ''; el.innerHTML = `<b>${NAP.UNITS[u.type].name}</b>${u.ooc ? ' <b class="bad">OUT OF COMMAND</b>' : ''}${u.prio && u.prio !== 'near' ? ' <b class="gold">[targets: ' + u.prio + ']</b>' : ''} &middot; ${Math.round(u.men)}/${u.max} men &middot; morale ${Math.round(u.morale)} &middot; fatigue ${Math.round(u.fatigue)} &middot; ${FORM_NAMES[u.formation]}${u.state === 'routing' ? ' &middot; <span class="bad">ROUTING</span>' : ''}`;
       } else {
         const men = sel.filter((u) => u.cls !== 'gen').reduce((a, u) => a + u.men, 0);
         el.innerHTML = `<b>${sel.length}</b> units selected &middot; ${Math.round(men)} men`;
@@ -1888,6 +1944,11 @@
           + (this.holdT[0] > 0 ? ` \u00B7 <b class="good">hold ${Math.max(0, Math.ceil(75 - this.holdT[0]))}s</b>` : this.holdT[1] > 0 ? ` \u00B7 <b class="bad">enemy hold ${Math.max(0, Math.ceil(75 - this.holdT[1]))}s</b>` : '');
         if (ob.dataset.h !== h) { ob.innerHTML = h; ob.dataset.h = h; }
       }
+      { const wx = r.querySelector('#b-wx'); if (wx && !wx.dataset.set) { wx.dataset.set = 1; wx.innerHTML = `<span class="wxb" data-tip="${this.wxText()}">\u2601 ${this.weatherName}</span>`; }
+        const cm = r.querySelector('#b-cmd'), c0 = this.cmd && this.cmd[0];
+        if (cm && c0 && c0.cap < 90) { const h = c0.over ? `<span class="bad" data-tip="Your general can only command ${c0.cap} regiments here. The ${c0.over} weakest fight out of command: -10% morale, -8% fire. Appoint lieutenants, bring more generals, or fight with smaller armies.">\u26A0 ${c0.over} out of command</span>` : `<span class="muted" data-tip="Regiments your general can command: ${c0.cap}">Command ${c0.n}/${c0.cap}</span>`; if (cm.dataset.h !== h) { cm.innerHTML = h; cm.dataset.h = h; } }
+        const ib = r.querySelector('#b-insp'); if (ib) ib.innerHTML = this.inspCd > 0 ? `Inspire (${Math.ceil(this.inspCd)}s)` : 'Inspire <kbd>I</kbd>';
+        const dz = r.querySelector('.b-deployonly'); if (dz) dz.style.display = this.deployPhase ? '' : 'none'; }
       const zl = r.querySelector('#b-zoom'); if (zl) zl.textContent = Math.round(this.cam.z * 100) + '%';
       const t = Math.floor(this.t);
       r.querySelector('#b-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;

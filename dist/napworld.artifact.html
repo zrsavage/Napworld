@@ -349,6 +349,12 @@ table.t { font-size: 14px; }
 .ubtn.locked { opacity: .42; font-style: italic; } .ubtn.poor { opacity: .62; } .ubtn.done { opacity: .6; border-style: dashed; } .hint { font-size: 11.5px; margin-top: 4px; }
 #side .subh { margin: 8px 0 2px; font-size: 10.5px; color: var(--gold); text-transform: uppercase; }
 
+.b-wx .wxb { cursor: help; color: #cfe4ff; } #b-cmd { margin-left: 8px; } .b-deployonly { display: inline-flex; gap: 4px; align-items: center; }
+
+.meter { margin: 4px 0 8px; } .mbar { height: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .mbar i { display: block; height: 100%; } .mbar i.ok { background: #4c4; } .mbar i.mid { background: #ec3; } .mbar i.no { background: #e44; }
+.genbox { display: flex; flex-direction: column; gap: 8px; } .genstats { display: flex; gap: 18px; } .genstats b { font-size: 20px; } .gentrait { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); } .gentrait small { display: block; color: var(--muted); }
+.genrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+
 html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
 </style>
 <div id="app">
@@ -1770,6 +1776,29 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     return [...t].slice(0, 2);
   }
   C.VERSION = 6;
+  // command: a general can handle only so many regiments in one battle; extra officers and lieutenants widen it
+  C.commandCap = (g) => (g ? 10 + 3 * g.lead : 8);
+  C.lieutSlots = (g) => Math.min(3, 1 + Math.floor((g.lvl || 1) / 3));
+  C.LIEUT_COST = 40;
+  C.lieutsOf = (g) => S.armies.filter((a) => a.lt === g.id);
+  C.sideCommand = function (armies) {
+    const best = genBonus(armies); let cap = C.commandCap(best);
+    for (const a of armies) { const ag = a.general ? S.generals[a.general] : null; if (ag && ag !== best) cap += 8; else if (!ag && a.lt) cap += 8; }
+    return cap;
+  };
+  C.setLieutenant = function (g, army, on) {
+    if (!g.alive || army.owner !== g.owner) return 'Not available';
+    if (!on) { army.lt = null; return null; }
+    const host = S.armies.find((x) => x.general === g.id);
+    if (!host || host === army || host.prov !== army.prov) return 'The army must be in the same province as the general';
+    if (army.general) return 'That army already has a general';
+    if (C.lieutsOf(g).length >= C.lieutSlots(g)) return g.name + ' has no free lieutenant slots';
+    if (S.factions[g.owner].gold < C.LIEUT_COST) return 'Not enough gold';
+    S.factions[g.owner].gold -= C.LIEUT_COST; army.lt = g.id; return null;
+  };
+  // lightning march: a general-led army moves two provinces with no losses or fatigue this turn (cooldown 8 turns)
+  C.lightningCheck = (a) => { const g = a.general ? S.generals[a.general] : null; if (!g) return 'Needs a general'; if ((g.lcd || 0) > 0) return 'Ready in ' + g.lcd + ' turns'; if (!a.path.length) return 'Give the army a destination first'; return null; };
+  C.lightning = function (a) { const e = C.lightningCheck(a); if (e) return e; a.lightning = true; S.generals[a.general].lcd = 8; return null; };
   C.hasTrait = (g, t) => !!g && (g.traits || []).includes(t);
   C.assignGeneral = function (army, gid) {
     if (army.general) { const old = S.generals[army.general]; if (old) old.assigned = null; if (old && old.alive) S.pool[old.owner].push(old.id); }
@@ -1818,9 +1847,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const d = C.def(ps.id);
     let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0));
     if (ps.siege) v *= 0.1;
-    if (ps.blockade) v *= 0.5;
+    if (ps.blockade) v *= 0.5 + Math.min(0.35, 0.15 * C.runners(ps.id));
     if (ps.foraged) v *= 0.3;
-    v *= { tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1;
+    v *= ps.policy === 'scorch' ? 0 : ({ tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1);
     const u = ps.unrest || 0;
     v *= u >= 60 ? 0.5 : u >= 30 ? 0.8 : 1;
     return v;
@@ -2198,13 +2227,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
     return opts;
   };
-  // Player proposes peace to an AI faction with a chosen term. Returns [ok, message].
-  C.proposePeace = function (from, to, termId) {
+  // How willing `to` is to sign a peace package from `from` (one term or several). need = score required.
+  C.peaceEval = function (from, to, termIds) {
     const w = S.wars[pkey(from, to)];
-    if (!w) return [false, 'You are not at war.'];
-    const [base] = C.acceptsPeace(to, from);
-    let [, why] = C.acceptsPeace(to, from);
-    // recompute numeric score
+    if (!w) return { err: 'You are not at war.' };
+    const ids = [].concat(termIds || []);
     const mine = factionPower(to) + 1, theirs = factionPower(from) + 1, sr = mine / theirs;
     let score = w.exh * 5 - F(to).aggr * 18;
     score += C.provincesOf(from).filter((p) => p.owner === to).length * 12;
@@ -2216,21 +2243,28 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const sp = S.provinces[S.factions[to].cap];
     if (sp && sp.owner !== to) score += 20;
     if (from === S.player) score += S.difficulty === 'easy' ? 10 : S.difficulty === 'hard' ? -8 : 0;
-    const [kind, arg] = termId.split(':');
-    let apply = () => {};
     const wg = w.goal && w.goal.by === from ? w.goal : null;
-    const optList = C.peaceOptions(from, to);
-    const opt = optList.find((o) => o.id === termId);
-    if (!opt) return [false, 'That term is no longer available.'];
-    if (opt.goal) score += 12; else if (kind === 'province' && wg && wg.type === 'province') score -= 8; // demands outside your war goal look illegitimate
-    if (kind === 'gold') { score -= opt.gold / 25; apply = () => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }; }
-    else if (kind === 'province') { score -= provValue(arg) * 1.1; apply = () => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.bq = []; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }; }
-    else if (kind === 'tribute') { score += opt.gold / 20; apply = () => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }; }
-    else if (kind === 'release') { score += provValue(arg) * 0.9; apply = () => { const ps = S.provinces[arg]; ps.owner = to; ps.siege = null; ps.unrest = 10; NAP.recolor(S); }; }
-    if (S.turn - w.since < 2) return [false, 'The war has only just begun.'];
-    const ok = score >= 25;
-    if (ok) { apply(); makePeace(from, to); return [true, 'Peace is agreed on your terms.']; }
-    return [false, kind === 'province' || kind === 'gold' ? 'Those demands are too harsh for them.' : 'They are not ready for peace yet.'];
+    const optList = C.peaceOptions(from, to), applies = [];
+    let nProv = 0, hard = false;
+    for (const termId of ids) {
+      const [kind, arg] = termId.split(':');
+      const opt = optList.find((o) => o.id === termId);
+      if (!opt) return { err: 'That term is no longer available.' };
+      if (opt.goal) score += 12; else if (kind === 'province' && wg && wg.type === 'province') score -= 8; // demands outside your war goal look illegitimate
+      if (kind === 'gold') { score -= opt.gold / 25; hard = true; applies.push(() => { S.factions[to].gold -= opt.gold; S.factions[from].gold += opt.gold; }); }
+      else if (kind === 'province') { score -= provValue(arg) * 1.1 + (nProv++ ? 6 : 0); hard = true; applies.push(() => { const ps = S.provinces[arg]; ps.owner = from; ps.siege = null; ps.queue = []; ps.build = null; ps.bq = []; ps.unrest = 35; NAP.recolor(S); if (!C.provincesOf(to).length) eliminate(to); }); }
+      else if (kind === 'tribute') { score += opt.gold / 20; applies.push(() => { S.factions[from].gold -= opt.gold; S.factions[to].gold += opt.gold; }); }
+      else if (kind === 'release') { score += provValue(arg) * 0.9; applies.push(() => { const ps = S.provinces[arg]; ps.owner = to; ps.siege = null; ps.unrest = 10; NAP.recolor(S); }); }
+    }
+    return { score, need: 25, hard, early: S.turn - w.since < 2, apply: () => applies.forEach((f) => f()) };
+  };
+  // Player proposes a peace package (one or several terms combined) to an AI faction. Returns [ok, message].
+  C.proposePeace = function (from, to, termIds) {
+    const ev = C.peaceEval(from, to, termIds);
+    if (ev.err) return [false, ev.err];
+    if (ev.early) return [false, 'The war has only just begun.'];
+    if (ev.score >= ev.need) { ev.apply(); makePeace(from, to); return [true, 'Peace is agreed on your terms.']; }
+    return [false, ev.hard ? 'Those demands are too harsh for them.' : 'They are not ready for peace yet.'];
   };
 
   // -------------------------------------------------------------------- province policy, unrest, assault
@@ -2242,7 +2276,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const core = p.owner === ps.owner;
       let d = core ? -2 : 2.5;
       if (!core && (p.owner === 'spain' || p.owner === 'portugal' || p.owner === 'russia' || p.terrain === 'm') && !allied(ps.owner, p.owner)) d += 2;
-      d += { tax: 2, levy: 1, order: -4 }[ps.policy] || 0;
+      d += { tax: 2, levy: 1, order: -4, scorch: 3 }[ps.policy] || 0;
       if (d > 0) d *= NAP.perk(ps.owner, 'unrest');
       const gar = S.armies.filter((a) => a.prov === p.id && (a.owner === ps.owner)).reduce((n, a) => n + a.units.length, 0);
       if (gar) d -= gar >= 3 ? 8 : 5;
@@ -2306,7 +2340,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     let p = 0;
     for (const a of armies) for (const u of a.units) p += u.men * U[u.type].power * (1 + 0.06 * C.vetOf(u)) * F(a.owner).morale * (C.provincesOf(a.owner).length <= 4 && a.owner !== 'minor' ? 1.15 : 1) * (1 - (a.fatigue || 0) / 250); // last stand, tiredness
     const g = genBonus(armies);
-    return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (extraMul || 1);
+    const regts = armies.reduce((n, a) => n + a.units.length, 0), over = Math.max(0, regts - C.sideCommand(armies));
+    return p * (1 + (g ? (g.atk + g.def + g.lead - 9) * 0.03 : 0)) * (1 - 0.12 * over / Math.max(1, regts)) * (extraMul || 1);
   }
   function applyCasualties(armies, frac) {
     for (const a of armies) {
@@ -2347,6 +2382,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (!a.general) return;
     const g = S.generals[a.general];
     g.alive = false; g.assigned = null; a.general = null;
+    for (const x of S.armies) if (x.lt === g.id) x.lt = null;
     plog(`${g.name} has been killed in action!`, 'bad', [g.owner]);
   }
   function retreat(a, fromProv, enemyFacs) {
@@ -2452,6 +2488,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     plog(`Battle of ${name}: ${F(win[0].owner).name} defeats ${F(lose[0].owner).name}${choice === 'fight' ? '' : ' (auto-resolved)'}.`,
       win.some((a) => a.owner === S.player) ? 'good' : 'bad', [...facsA, ...facsD]);
     if (!involved) C.log(`Battle of ${name}: ${F(win[0].owner).adj} victory over the ${F(lose[0].owner).adj}.`, 'battle-minor');
+    // local militia fight to the end and then go home
+    for (const g of [...sideA, ...sideD]) if (g.garrison) { const o = S.factions[g.owner]; if (o && g.owner !== 'minor') o.manpower += Math.round(C.armyMen(g) * 0.5); removeArmy(g); }
     // retreat losers
     const enemyFacs = winFacs;
     for (const a of lose.slice()) {
@@ -2471,16 +2509,26 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     armies.forEach((a) => a.units.forEach((u) => units.push({ ref: u, type: u.type, men: u.men, max: u.max, faction: a.owner, vet: C.vetOf(u), fatigue: Math.min(60, (a.fatigue || 0) * 0.7) })));
     const g = genBonus(armies);
     return {
-      faction: armies[0].owner, armies, units,
+      faction: armies[0].owner, armies, units, cap: C.sideCommand(armies),
       general: g ? { id: g.id, name: g.name, atk: g.atk, def: g.def, lead: g.lead, trait: g.trait, traits: g.traits || [] } : null,
       staff: [...new Set(armies.map((a) => a.staff).filter(Boolean))]
     };
   }
 
   // -------------------------------------------------------------------- turn processing
+  // Local militia: when an enemy marches into (or besieges) a province that has no defending army, the people rise and fight
+  function spawnGarrison(pid) {
+    const ps = S.provinces[pid], d = C.def(pid);
+    const n = clamp(Math.round(d.manpower * 0.6 + (ps.fort || 0) * 0.8), 1, 4);
+    const units = Array.from({ length: n }, () => ({ type: 'militia', men: 560, max: 560, xp: 0, vet: 0 }));
+    const g = C.makeArmy(ps.owner, pid, units); g.garrison = true; ps.garrisoned = true;
+    plog(`The people of ${d.name} take up arms: ${n} regiments of local militia.`, 'info', [ps.owner]);
+    return g;
+  }
+  const needsGarrison = (att, pid) => { const ps = S.provinces[pid]; return ps.owner !== att.owner && !allied(att.owner, ps.owner) && atWar(att.owner, ps.owner) && !ps.garrisoned && !S.armies.some((x) => x.prov === pid && atWar(x.owner, att.owner)); };
   async function stepArmy(a, second) {
     if (!S.armies.includes(a) || !a.path.length) return;
-    const pace = C.pace(a);
+    const pace = C.pace(a), lightning = !!a.lightning;
     if (pace === 'slow' && !second) { a.slowT = (a.slowT || 0) + 1; if (a.slowT % 2 === 1) return; }
     a.moved = true;
     const dest = a.path[0];
@@ -2492,9 +2540,15 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     a.from = from;
     if (sea && a.units.length > SEA_CAP) { plog(`The ${F(a.owner).adj} army is too large to sail (max ${SEA_CAP} regiments).`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
     if (sea && C.seaBlocked(a.owner, from, dest)) { plog(`An enemy fleet bars the ${F(a.owner).adj} army from sailing from ${C.def(from).name}.`, 'bad', [a.owner]); a.path = []; a.from = from; return; }
+    if (sea && atWar(a.owner, S.provinces[dest].owner)) { // opposed landing: costly unless your own fleet commands the sea
+      const zb = portZones(dest), common = portZones(from).filter((z) => zb.includes(z));
+      const escorted = S.fleets.some((x) => common.includes(x.zone) && (x.owner === a.owner || allied(x.owner, a.owner)));
+      applyCasualties([a], escorted ? 0.02 : 0.06); a.fatigue = Math.min(100, (a.fatigue || 0) + (escorted ? 10 : 30));
+      plog(`The ${F(a.owner).adj} army lands at ${C.def(dest).name}${escorted ? ' under the guns of its fleet' : ' through the surf and takes losses'}.`, 'info', [a.owner]);
+    }
     const enemies = S.armies.filter((x) => x.prov === dest && atWar(x.owner, a.owner));
-    if (enemies.length) {
-      const prevProv = a.prov;
+    const garr = !enemies.length && needsGarrison(a, dest) ? spawnGarrison(dest) : null;
+    if (enemies.length || garr) {
       await resolveBattle(a, dest, from);
       return;
     }
@@ -2503,13 +2557,14 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // relief army breaks siege
       S.provinces[dest].siege = null;
     }
-    if ((a.forced || pace === 'fast') && !second && a.path.length && S.armies.includes(a)) {
+    if ((a.forced || a.lightning || pace === 'fast') && !second && a.path.length && S.armies.includes(a)) {
       const nxt = a.path[0];
       if (!S.armies.some((x) => x.prov === nxt && atWar(x.owner, a.owner)) && S.provinces[dest].owner !== 'x') {
-        if (a.forced) { applyCasualties([a], 0.03); a.forcedMarch = true; }
+        if (a.forced && !a.lightning) { applyCasualties([a], 0.03); a.forcedMarch = true; }
         await stepArmy(a, true);
       }
     }
+    if (!second) a.lightning = false;
   }
 
   // A column that marches into the province an enemy army has just left catches its rearguard: a free blow for the pursuer.
@@ -2530,13 +2585,18 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       }
     }
   }
-  function siegePhase(f) {
+  async function siegePhase(f) {
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
       const mine = S.armies.filter((a) => a.prov === p.id && a.owner === f);
       if (!mine.length) continue;
       if (!atWar(f, ps.owner)) continue;
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
+      if (needsGarrison(mine[0], p.id)) { // nobody to defend: the townsfolk rise
+        const top = mine.slice().sort((x, y) => y.units.length - x.units.length)[0];
+        spawnGarrison(p.id); await resolveBattle(top, p.id, top.from || p.id);
+        if (!S.armies.includes(top) || top.prov !== p.id) continue;
+      }
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
       const heavy = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'siege').length, 0);
       const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(2, heavy) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
@@ -2548,13 +2608,14 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     // clear sieges with no besieger
     for (const p of W().provs) {
       const ps = S.provinces[p.id];
+      if (!ps.siege && !S.armies.some((a) => a.prov === p.id && atWar(a.owner, ps.owner) && !a.garrison)) ps.garrisoned = false;
       if (ps.siege && !S.armies.some((a) => a.prov === p.id && a.owner === ps.siege.by)) ps.siege = null;
     }
   }
 
   function captureProvince(pid, f) {
     const ps = S.provinces[pid], old = ps.owner, d = C.def(pid);
-    ps.owner = f; ps.siege = null; ps.queue = []; ps.shipQueue = []; ps.build = null; ps.bq = []; ps.policy = 'balanced';
+    ps.owner = f; ps.siege = null; ps.queue = []; ps.shipQueue = []; ps.build = null; ps.bq = []; ps.policy = 'balanced'; ps.garrisoned = false;
     if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
@@ -2585,12 +2646,13 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   function supplyDepth(a) {
     const home = (id) => { const o = S.provinces[id].owner; return o === a.owner || allied(a.owner, o); };
     if (home(a.prov)) return 0;
+    const burnt = S.provinces[a.prov].policy === 'scorch' ? 2 : 0; // a scorched province feeds no invader
     let q = [a.prov], seen = new Set(q), d = 0;
     while (q.length && d < 4) {
       d++; const nq = [];
       for (const cur of q) for (const i of W().byId[cur].adj) {
         const id = W().provs[i].id; if (seen.has(id)) continue; seen.add(id);
-        if (home(id)) return d; nq.push(id);
+        if (home(id)) return Math.min(4, d + burnt); nq.push(id);
       }
       q = nq;
     }
@@ -2692,6 +2754,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   function generalsPhase() {
     for (const g of Object.values(S.generals)) {
       if (!g.alive || !g.arrived || !S.factions[g.owner] || !S.factions[g.owner].alive) continue;
+      if ((g.lcd || 0) > 0) g.lcd--;
       if (g.assigned) { g.idle = 0; g.loyalty = Math.min(100, (g.loyalty || 70) + 0.35); }
       else {
         g.idle = (g.idle || 0) + 1;
@@ -2810,6 +2873,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       counts[best] = (counts[best] || 0) + 1; total++; up += U[best].upkeep;; myMen += U[best].men;
     }
     for (const p of own) { const ps = S.provinces[p.id]; ps.policy = (ps.unrest || 0) > 35 ? 'order' : fs.gold < 120 ? 'tax' : 'balanced'; }
+    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!p.capital && !ps.siege && S.armies.some((x) => x.prov === p.id && atWar(x.owner, f)) && !S.armies.some((x) => x.prov === p.id && x.owner === f)) ps.policy = 'scorch'; }
     // buildings
     if (fs.gold > 450 && rnd() < 0.25) {
       const cands = own.filter((p) => !S.provinces[p.id].build);
@@ -3445,12 +3509,15 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     dropEmptyFleets();
     // a fleet whose docking port was captured while it was sailing home keeps sailing; its path is re-checked at each step
   }
+  // blockade runners: frigate-only fleets docked in a blockaded port slip goods through (less income lost) but may be caught
+  C.runners = (pid) => (S.fleets || []).filter((x) => x.port === pid && (x.ships.frigate || 0) > 0 && !(x.ships.sol || 0)).length;
   function updateBlockades() {
     for (const p of W().provs) {
       const ps = S.provinces[p.id], was = !!ps.blockade; ps.blockade = false;
       if (!p.port || ps.owner === 'minor') continue;
       const zs = portZones(p.id); if (!zs.length) continue;
       ps.blockade = zs.every((z) => S.fleets.some((x) => x.zone === z && atWar(x.owner, ps.owner)) && !S.fleets.some((x) => x.zone === z && (x.owner === ps.owner || allied(x.owner, ps.owner))));
+      if (ps.blockade) for (const fl of S.fleets.filter((x) => x.port === p.id && (x.ships.frigate || 0) > 0 && !(x.ships.sol || 0))) { if (rnd() < 0.12) { fl.ships.frigate--; plog(`A ${F(fl.owner).adj} blockade runner is caught off ${p.name} and lost.`, 'bad', [fl.owner]); } }
       if (ps.blockade && !was) plog(`${p.name} is blockaded by an enemy fleet! Income halved and no ships can be built.`, 'bad', [ps.owner]);
     }
   }
@@ -3518,7 +3585,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         if (!S.armies.includes(a)) continue;
         await stepArmy(a);
       }
-      siegePhase(f);
+      await siegePhase(f);
       if (H().phase) {
         const moves = S.armies.filter((a) => a.owner === f && before.has(a.id) && before.get(a.id) !== a.prov).map((a) => ({ from: before.get(a.id), to: a.prov, n: a.units.length }));
         if (moves.length) await H().phase({ f, moves });
@@ -3685,7 +3752,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
       this.nextId = 1;
-      this.rallyCd = [0, 0];
+      this.rallyCd = [0, 0]; this.inspCd = 0;
       this.initialMen = [0, 0];
       this.deadGen = [];
       this.genDead = [false, false]; this.noGen = [false, false];
@@ -3838,6 +3905,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           formation: 'line', w: 14, d: 14, state: 'idle', order: null, target: null, kills: 0, calm: 0
         };
         this.units.push(gu);
+        { // command limit: regiments beyond what the general can handle fight at a disadvantage
+          const cap = sides[s].cap != null ? sides[s].cap : 99;
+          const mine = this.units.filter((u) => u.side === s && u.cls !== 'gen').sort((a, b) => NAP.UNITS[b.type].power * b.max - NAP.UNITS[a.type].power * a.max);
+          mine.slice(cap).forEach((u) => { u.ooc = true; u.baseMorale *= 0.9; u.morale = u.baseMorale; u.fireMul *= 0.92; });
+          (this.cmd = this.cmd || [{}, {}])[s] = { cap, n: mine.length, over: Math.max(0, mine.length - cap) };
+        }
         this.units.filter((u) => u.side === s && u.cls !== 'gen').forEach((u) => (this.initialMen[s] += u.men));
         this.sides = sides;
       }
@@ -3978,6 +4051,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       this.t += dt;
       this.recAcc += dt; if (this.recAcc >= 1) { this.recAcc -= 1; this.record(); }
       for (const g of [0, 1]) this.rallyCd[g] = Math.max(0, this.rallyCd[g] - dt);
+      this.inspCd = Math.max(0, this.inspCd - dt);
       // update in random order each tick so neither side gets a first-mover advantage
       const us = this.units.slice();
       for (let i = us.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const tmp = us[i]; us[i] = us[j]; us[j] = tmp; }
@@ -4040,6 +4114,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const bt = BT[u.type], s = u.side;
       const en = this.enemies(s);
       u.sinceHit += dt;
+      if (u.inspT > 0) u.inspT -= dt;
       if (u.hitT > 0) u.hitT -= dt;
       u.floatT -= dt;
       if (u.floatT <= 0) { u.floatT = 1.0; if (u.cumHit >= 3) { this.floaters.push({ x: u.x, y: u.y - Math.max(u.w, u.d) / 2 - 14, txt: '-' + Math.round(u.cumHit), t: 0, side: u.side }); u.cumHit = 0; } }
@@ -4244,7 +4319,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
                 const d = Math.hypot(e.x - u.x, e.y - u.y);
                 if (d > maxRange) continue;
                 let sc = d;
-                if (u.cls === 'art') { if (e.cls === 'art') sc *= 1.3; if (e.formation === 'column' || e.formation === 'square') sc *= 0.75; }
+                if (u.cls === 'art') {
+                  if (e.cls === 'art') sc *= 1.3; if (e.formation === 'column' || e.formation === 'square') sc *= 0.75;
+                  if (u.prio && u.prio !== 'near') sc *= e.cls === u.prio ? 0.4 : 1.5; // standing orders: counter-battery, infantry or cavalry first
+                }
                 if (e.state === 'routing') sc *= 1.8;
                 if (sc < bd) { bd = sc; tgt = e; }
               }
@@ -4260,7 +4338,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
               const tt = this.terrainAt(tgt.x, tgt.y);
               const ex = this.exposure(tgt, u);
               const mor = 0.6 + 0.4 * (u.morale / 100);
-              const aura = nearGen ? 1.06 : 1;
+              const aura = (nearGen ? 1.06 : 1) * (u.inspT > 0 ? 1.1 : 1);
               let cas;
               if (u.cls === 'art') {
                 const guns = u.men / 80;
@@ -4322,7 +4400,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const g = this.general(s);
       const attacker = (s === 0) === this.spec.playerIsAttacker;
       if (this.aiMode === undefined) this.aiMode = {};
-      const mode = this.aiMode[s] || (this.aiMode[s] = attacker ? 'attack' : (rnd() < 0.35 ? 'attack' : 'defend'));
+      const gtr = (g && g.gen && g.gen.traits) || [];
+      const mode = this.aiMode[s] || (this.aiMode[s] = attacker ? 'attack' : (rnd() < 0.35 + (gtr.includes('aggressive') ? 0.3 : 0) - (gtr.includes('defender') ? 0.25 : 0) ? 'attack' : 'defend'));
       const nearestEnemyDist = (u) => { const e = this.nearest(u, en); return e ? Math.hypot(e.x - u.x, e.y - u.y) : 1e9; };
       const goAttack = mode === 'attack' || this.t > 100 || my.some((u) => nearestEnemyDist(u) < 190) || this.strength(s) < this.strength(1 - s) * 0.7;
       const infFront = my.filter((u) => u.cls === 'inf' && u.state !== 'routing');
@@ -5095,7 +5174,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       r.innerHTML = `
         <div class="b-top">
           <div class="b-side b-s0"><b id="b-n0"></b><div class="b-bar"><i id="b-f0"></i></div><span id="b-m0"></span></div>
-          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span><br><span id="b-obj" data-tip="<b>Objectives</b><br>Hold flagged points to earn victory points (1 per point per second). Hold all of them for 75 seconds, or lead by 25 VP at the time limit, to win."></span></div>
+          <div class="b-mid"><span id="b-time">0:00</span> &middot; <span id="b-terr"></span> <span id="b-wx" class="b-wx"></span> <span id="b-cmd"></span><br><span id="b-obj" data-tip="<b>Objectives</b><br>Hold flagged points to earn victory points (1 per point per second). Hold all of them for 75 seconds, or lead by 25 VP at the time limit, to win."></span></div>
           <div class="b-side b-s1"><b id="b-n1"></b><div class="b-bar"><i id="b-f1"></i></div><span id="b-m1"></span></div>
         </div>
         <div class="b-stage" id="b-stage"><canvas id="b-canvas"></canvas>
@@ -5116,8 +5195,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
             <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
             <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="hold" data-tip="<b>Hold / Free</b> (key G)<br><b>Hold</b> (default): a regiment stays on its spot and only fires at what comes into range. <b>Free</b>: it may step forward to engage an enemy just out of range. Toggles the selected regiments; FREE shows above them.">Hold/Free <kbd>G</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
-            <button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
+            <button data-a="inspire" id="b-insp" data-tip="<b>Inspire</b> (key I)<br>Your general rides the line: units near him gain +15 morale and +10% fire for 20 seconds. He is exposed to fire while doing it. 90 second cooldown.">Inspire <kbd>I</kbd></button><button data-a="prio" id="b-prio" data-tip="<b>Gun target priority</b> (key T)<br>Cycles the selected artillery between: nearest, infantry first, counter-battery (enemy guns first) and cavalry first.">Targets <kbd>T</kbd></button><button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
+            <span class="b-deployonly"><select id="b-slot" data-tip="Layout slot"><option value="1">Layout 1</option><option value="2">Layout 2</option><option value="3">Layout 3</option></select><button data-a="savelay" data-tip="Save where your regiments are standing now (positions, facing and formations) in this slot.">Save</button><button data-a="loadlay" data-tip="Re-apply a saved layout to your regiments of the same types.">Load</button></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
             <button data-sp="0.25" class="b-sp" data-tip="Slow motion: a quarter speed. Best for careful orders.">&frac14;x</button><button data-sp="0.5" class="b-sp" data-tip="Half speed (default)">&frac12;x</button><button data-sp="1" class="b-sp">1x</button><button data-sp="2" class="b-sp">2x</button><button data-sp="4" class="b-sp">4x</button>
             <span class="b-sep"></span>
@@ -5206,7 +5286,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         else if (dg) this.recallGroup(+dg[1]);
         else if (k === ' ') { this.togglePause(); e.preventDefault(); }
         else if (k === 'v') { this.showRange = this.showRange === false; }
-        else if (k === 'b' && !e.ctrlKey) this.fallBack(); else if (k === 'g' && !e.ctrlKey) this.toggleHold();
+        else if (k === 'b' && !e.ctrlKey) this.fallBack(); else if (k === 'g' && !e.ctrlKey) this.toggleHold(); else if (k === 'i' && !e.ctrlKey) this.inspire(); else if (k === 't' && !e.ctrlKey) this.cyclePrio();
         else if (k === 'c' && !e.ctrlKey) this.doCharge(); else if (k === 'h') this.halt(); else if (k === 'r') this.rally();
         else if (k === 'escape') { this.sel.clear(); this.updateInfo(); }
         else if (k === 'a' && e.ctrlKey) { this.units.filter((u) => u.side === 0 && this.alive(u)).forEach((u) => this.sel.add(u)); e.preventDefault(); this.updateInfo(); }
@@ -5232,7 +5312,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         else if (b.dataset.z) { const z = b.dataset.z; if (z === 'in') this.zoomBy(1.4); else if (z === 'out') this.zoomBy(1 / 1.4); else if (z === 'fit') this.zoomFit(); else this.focusSelection(); }
         else if (b.dataset.a === 'pause') this.togglePause();
         else if (b.dataset.a === 'charge') this.doCharge();
-        else if (b.dataset.a === 'halt') this.halt(); else if (b.dataset.a === 'hold') this.toggleHold();
+        else if (b.dataset.a === 'inspire') this.inspire(); else if (b.dataset.a === 'prio') this.cyclePrio(); else if (b.dataset.a === 'savelay') this.saveLayout(); else if (b.dataset.a === 'loadlay') this.loadLayout(); else if (b.dataset.a === 'halt') this.halt(); else if (b.dataset.a === 'hold') this.toggleHold();
         else if (b.dataset.a === 'fallback') this.fallBack();
         else if (b.dataset.a === 'rally') this.rally();
         else if (b.dataset.a === 'withdraw') this.withdraw();
@@ -5334,6 +5414,49 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       }
       if (out.length) this.msg(`${out.length} regiment${out.length > 1 ? 's' : ''} falling back`);
     }
+    inspire() {
+      const g = this.general(0);
+      if (this.deployPhase || this.over) return;
+      if (!g || g.dead) { this.msg('You have no general to inspire the line'); return; }
+      if (this.inspCd > 0) { this.msg(`Inspire ready in ${Math.ceil(this.inspCd)}s`); return; }
+      let n = 0;
+      for (const u of this.units) if (u.side === 0 && u.cls !== 'gen' && this.alive(u) && u.state !== 'routing' && Math.hypot(u.x - g.x, u.y - g.y) < 260) { u.morale = Math.min(u.baseMorale * 1.1, u.morale + 15); u.inspT = 20; n++; }
+      this.inspCd = 90; this.damage(g, 12, null);
+      this.floaters.push({ x: g.x, y: g.y - 22, txt: 'INSPIRE!', t: 0, side: 0 });
+      this.msg(`${g.name} rides the line: ${n} regiment${n === 1 ? '' : 's'} inspired!`); this.snd('bugle', 3, g.x, g.y);
+    }
+    cyclePrio() {
+      const us = this.selectedUnits().filter((u) => u.cls === 'art');
+      if (!us.length) { this.msg('Select artillery to set its target priority'); return; }
+      const L = ['near', 'inf', 'art', 'cav'], N = { near: 'nearest enemy', inf: 'infantry first', art: 'counter-battery (enemy guns first)', cav: 'cavalry first' };
+      const nx = L[(L.indexOf(us[0].prio || 'near') + 1) % L.length];
+      us.forEach((u) => (u.prio = nx)); this.msg('Guns: ' + N[nx]);
+    }
+    // ---- saved deployment layouts (browser storage)
+    layouts() { try { return JSON.parse(localStorage.getItem('napworld-layouts') || '{}'); } catch (e) { return {}; } }
+    saveLayout() {
+      if (!this.deployPhase) return;
+      const slot = this.root.querySelector('#b-slot').value, mine = this.units.filter((u) => u.side === 0 && u.cls !== 'gen'), cnt = {};
+      const items = mine.map((u) => { const i = cnt[u.type] = (cnt[u.type] || 0) + 1; return { t: u.type, i, x: u.x / this.zoneR, y: u.y / FH, f: u.facing, form: u.formation }; });
+      const all = this.layouts(); all[slot] = { items, n: items.length };
+      try { localStorage.setItem('napworld-layouts', JSON.stringify(all)); this.msg(`Layout ${slot} saved (${items.length} regiments)`); } catch (e) { this.msg('Could not save the layout'); }
+    }
+    loadLayout() {
+      if (!this.deployPhase) return;
+      const slot = this.root.querySelector('#b-slot').value, lay = this.layouts()[slot];
+      if (!lay) { this.msg(`Layout ${slot} is empty`); return; }
+      const cnt = {}; let n = 0;
+      for (const u of this.units.filter((q) => q.side === 0 && q.cls !== 'gen')) {
+        const i = cnt[u.type] = (cnt[u.type] || 0) + 1, it = lay.items.find((q) => q.t === u.type && q.i === i); if (!it) continue;
+        u.x = clamp(it.x * this.zoneR, 30, this.zoneR); u.y = clamp(it.y * FH, 30, FH - 30); u.facing = it.f; u.order = null; u.target = null;
+        if (BT[u.type].forms.includes(it.form)) { u.formation = it.form; u.wantForm = null; } [u.w, u.d] = dims(u); n++;
+      }
+      this.msg(`Layout ${slot} applied to ${n} regiments`);
+    }
+    wxText() {
+      const W = this.spec.weather || 'clear';
+      return { clear: 'Clear: no effects.', rain: 'Rain: musket fire \u221235%, artillery \u221215%, movement \u221210%.', fog: 'Fog: all weapon ranges \u221230%.', snow: 'Snow: movement \u221215%, men tire 30% faster.' }[W] + ({ dawn: ' Dawn.', day: '', dusk: ' Dusk: the fight ends at nightfall.' }[this.spec.tod || 'day'] || '');
+    }
     toggleHold() {
       const us = this.selectedUnits().filter((u) => u.cls !== 'gen' && u.cls !== 'art');
       if (!us.length) { this.msg('Select regiments first'); return; }
@@ -5387,7 +5510,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (sel.length === 1) {
         const u = sel[0];
         if (u.cls === 'gen') { el.innerHTML = `<b>${u.name}</b> &mdash; Commander (ATK ${u.gen.atk} DEF ${u.gen.def} LEAD ${u.gen.lead}) &middot; health ${Math.round(u.men)}/${u.max}. His aura boosts morale &amp; fire nearby; if he falls, every regiment loses heart and recovers slowly. Keep him behind your infantry.`; return; }
-        el.innerHTML = `<b>${NAP.UNITS[u.type].name}</b> &middot; ${Math.round(u.men)}/${u.max} men &middot; morale ${Math.round(u.morale)} &middot; fatigue ${Math.round(u.fatigue)} &middot; ${FORM_NAMES[u.formation]}${u.state === 'routing' ? ' &middot; <span class="bad">ROUTING</span>' : ''}`;
+        el.title = ''; el.innerHTML = `<b>${NAP.UNITS[u.type].name}</b>${u.ooc ? ' <b class="bad">OUT OF COMMAND</b>' : ''}${u.prio && u.prio !== 'near' ? ' <b class="gold">[targets: ' + u.prio + ']</b>' : ''} &middot; ${Math.round(u.men)}/${u.max} men &middot; morale ${Math.round(u.morale)} &middot; fatigue ${Math.round(u.fatigue)} &middot; ${FORM_NAMES[u.formation]}${u.state === 'routing' ? ' &middot; <span class="bad">ROUTING</span>' : ''}`;
       } else {
         const men = sel.filter((u) => u.cls !== 'gen').reduce((a, u) => a + u.men, 0);
         el.innerHTML = `<b>${sel.length}</b> units selected &middot; ${Math.round(men)} men`;
@@ -5499,6 +5622,11 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           + (this.holdT[0] > 0 ? ` \u00B7 <b class="good">hold ${Math.max(0, Math.ceil(75 - this.holdT[0]))}s</b>` : this.holdT[1] > 0 ? ` \u00B7 <b class="bad">enemy hold ${Math.max(0, Math.ceil(75 - this.holdT[1]))}s</b>` : '');
         if (ob.dataset.h !== h) { ob.innerHTML = h; ob.dataset.h = h; }
       }
+      { const wx = r.querySelector('#b-wx'); if (wx && !wx.dataset.set) { wx.dataset.set = 1; wx.innerHTML = `<span class="wxb" data-tip="${this.wxText()}">\u2601 ${this.weatherName}</span>`; }
+        const cm = r.querySelector('#b-cmd'), c0 = this.cmd && this.cmd[0];
+        if (cm && c0 && c0.cap < 90) { const h = c0.over ? `<span class="bad" data-tip="Your general can only command ${c0.cap} regiments here. The ${c0.over} weakest fight out of command: -10% morale, -8% fire. Appoint lieutenants, bring more generals, or fight with smaller armies.">\u26A0 ${c0.over} out of command</span>` : `<span class="muted" data-tip="Regiments your general can command: ${c0.cap}">Command ${c0.n}/${c0.cap}</span>`; if (cm.dataset.h !== h) { cm.innerHTML = h; cm.dataset.h = h; } }
+        const ib = r.querySelector('#b-insp'); if (ib) ib.innerHTML = this.inspCd > 0 ? `Inspire (${Math.ceil(this.inspCd)}s)` : 'Inspire <kbd>I</kbd>';
+        const dz = r.querySelector('.b-deployonly'); if (dz) dz.style.display = this.deployPhase ? '' : 'none'; }
       const zl = r.querySelector('#b-zoom'); if (zl) zl.textContent = Math.round(this.cam.z * 100) + '%';
       const t = Math.floor(this.t);
       r.querySelector('#b-time').textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
@@ -6071,7 +6199,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       html += `<div class="sec"><h4>Armies here</h4>${armies.map((a) => `<div class="armychip ${army && a.id === army.id ? 'sel' : ''}" data-army="${a.id}"><i style="background:${F(a.owner).color}"></i><span>${esc(F(a.owner).adj)} · ${a.units.length} regts · ${fmt(C.armyMen(a))} men${a.general ? ' · ★ ' + esc(s.generals[a.general].name) : ''}</span></div>`).join('')}</div>`;
     }
     if (mine) {
-      html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option></select></div>`;
+      html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option><option value="scorch">Scorched earth (no income, unrest rises; invaders here starve)</option></select></div>`;
       const unitRow = (t) => {
         const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs], poor = !lock && err;
         return `<button class="ubtn${lock ? ' locked' : poor ? ' poor' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : `<span class="${poor ? 'bad' : ''}">${cost}g</span> · ${u.time}t`}</span></button>`;
@@ -6162,6 +6290,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
+    { const cap = C.sideCommand([a]), n = a.units.length; html += `<div class="kv"><span>Command</span><b class="${n > cap ? 'bad' : ''}" data-tip="Regiments the general can handle in one battle. Extra regiments fight at -10% morale / -8% fire. Lieutenants and extra generals raise the limit.">${n} / ${cap}${n > cap ? ' (over)' : ''}</b></div>`; }
     { const pc = C.pace(a); html += `<div class="kv"><span>March pace</span><b class="${pc === 'fast' ? 'good' : pc === 'slow' ? 'warn' : ''}" data-tip="${pc === 'fast' ? 'All mounted: two provinces a turn.' : pc === 'slow' ? 'A siege train: one province every other turn.' : 'One province a turn.'}">${pc === 'fast' ? 'Fast (cavalry)' : pc === 'slow' ? 'Slow (siege train)' : 'Normal'}</b></div>`; }
     const dpt = C.supplyDepth(a);
     html += `<div class="kv"><span>Fatigue</span><b class="${(a.fatigue || 0) > 50 ? 'bad' : (a.fatigue || 0) > 20 ? 'warn' : ''}">${Math.round(a.fatigue || 0)}%</b></div><div class="kv"><span>Supply</span><b class="${dpt >= 2 ? 'bad' : dpt === 1 ? 'warn' : 'good'}">${dpt === 0 ? 'At home' : dpt === 1 ? 'Foraging' : dpt === 2 ? 'Strained' : 'Cut off'}</b></div>`;
@@ -6186,7 +6315,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       html += `<div class="row"><button data-act="split">Split selected</button><button data-act="merge">Merge here</button><button data-act="stop">Halt</button><button data-act="disband" class="danger">Disband</button></div>`;
       const pool = C.availableGenerals(s.player);
       if (pool.length) html += `<div class="row"><select id="genpick"><option value="">Appoint general…</option>${pool.map((x) => `<option value="${x.id}">${esc(x.name)} (${x.atk}/${x.def}/${x.lead})</option>`).join('')}</select></div>`;
-      if (g) html += `<div class="row"><button data-act="relieve">Relieve general</button></div>`;
+      if (g) html += `<div class="row"><button data-act="genmenu" class="primary" data-tip="Traits, command limit, lieutenants and special orders for this general.">General menu</button><button data-act="relieve">Relieve general</button></div>`;
     }
     return html + '</div>';
   }
@@ -6205,6 +6334,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       else if (act === 'forced') { a.forced = b.checked; }
       else if (act === 'storm') { const r = C.assault(a); toast(r.text); }
       else if (act === 'disband') { const idx = checked(); if (!idx.length) return toast('Tick regiments to disband'); idx.sort((x, y) => y - x).forEach((i) => C.disbandUnit(a, i)); if (!S().armies.includes(a)) ui.sel.army = null; }
+      else if (act === 'genmenu') { if (a.general) showGeneral(a.general); return; }
       else if (act === 'relieve') { const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
       refresh();
     }));
@@ -6294,12 +6424,22 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const opts = C.peaceOptions(me, f), ws = C.warScore(me, f);
       m.innerHTML = `<div class="dlg"><h2>Peace with ${esc(F(f).name)}</h2><div class="body">
         <p>War score: <b class="${ws >= 0 ? 'good' : 'bad'}">${ws >= 0 ? '+' : ''}${Math.round(ws)}</b> <span class="muted">(battles won and provinces taken; the higher, the harsher the terms they may accept)</span></p>
-        ${opts.map((o, i) => `<label class="termopt"><input type="radio" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}><span>${esc(o.label)}<small class="muted" style="display:block">${esc(termHelp(o.id))}</small></span></label>`).join('')}
+        <p class="muted">Tick one term or <b>several together</b>: small asks add up, big ones weigh on the meter.</p>
+        <div class="meter" id="pmeter"></div>
+        ${opts.map((o, i) => `<label class="termopt"><input type="checkbox" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}><span>${esc(o.label)}<small class="muted" style="display:block">${esc(termHelp(o.id))}</small></span></label>`).join('')}
         <p class="muted" id="dipmsg" style="min-height:20px"></p></div>
         <div class="foot"><button id="tback">Back</button><button class="primary" id="tgo">Propose</button></div></div>`;
       $('#tback').onclick = () => main('');
+      const picked = () => [...m.querySelectorAll('input[name=term]:checked')].map((c) => c.value);
+      const meter = () => {
+        const ids = picked(), ev = ids.length ? C.peaceEval(me, f, ids) : null, el = $('#pmeter');
+        if (!ev || ev.err) { el.innerHTML = '<span class="muted">Choose at least one term.</span>'; return; }
+        const pct = Math.max(0, Math.min(100, Math.round(ev.score / ev.need * 100))), ok = ev.score >= ev.need;
+        el.innerHTML = `<div class="mbar"><i class="${ok ? 'ok' : pct > 60 ? 'mid' : 'no'}" style="width:${pct}%"></i></div><small class="${ok ? 'good' : 'muted'}">${ev.early ? 'The war has only just begun.' : ok ? 'They are likely to accept.' : pct > 60 ? 'Close: soften a demand or add a concession.' : 'They will refuse. Ask for less, or offer tribute.'}</small>`;
+      };
+      m.querySelectorAll('input[name=term]').forEach((c) => (c.onchange = meter)); meter();
       $('#tgo').onclick = () => {
-        const id = m.querySelector('input[name=term]:checked').value;
+        const id = picked(); if (!id.length) { $('#dipmsg').textContent = 'Choose a term first.'; return; }
         const [ok, msg] = C.proposePeace(me, f, id);
         refresh();
         if (ok) main(msg); else { $('#dipmsg').textContent = msg; }
@@ -6368,6 +6508,40 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (k === 'p') { const pp = NAP.world.byId[id]; ui.sel = { prov: id, army: null, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.3); clampCam(); refresh(); }
     else if (k === 'a') { const a = s.armies.find((x) => x.id === +id); if (a) { const pp = NAP.world.byId[a.prov]; ui.sel = { prov: a.prov, army: a.id, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.5); clampCam(); refresh(); } }
   }
+  // ---- general menu
+  async function showGeneral(gid) {
+    for (;;) {
+      const s = S(), g = s.generals[gid]; if (!g || !g.alive) return;
+      const host = s.armies.find((a) => a.general === gid), mine = g.owner === s.player;
+      const need = [0, 40, 100, 200, 350, 550, 800][g.lvl] || null, cap = host ? C.sideCommand([host]) : C.commandCap(g);
+      const here = host ? s.armies.filter((a) => a.prov === host.prov && a.owner === g.owner && a !== host && !a.general) : [];
+      const slots = C.lieutSlots(g), lts = C.lieutsOf(g);
+      const lc = host ? C.lightningCheck(host) : 'Needs an army';
+      const statBar = (v) => `<span class="gold">${'\u25CF'.repeat(Math.min(9, v))}</span><span class="muted">${'\u25CB'.repeat(Math.max(0, 9 - v))}</span>`;
+      const html = `<h2>\u2605 ${esc(g.name)} <span class="muted" style="font-size:14px">Level ${g.lvl} \u00B7 ${esc(F(g.owner).adj)}</span></h2><div class="body genbox">
+        <div class="genstats"><div>ATK<br><b>${g.atk}</b></div><div>DEF<br><b>${g.def}</b></div><div>LEAD<br><b>${g.lead}</b></div><div style="margin-left:auto;text-align:right">${need ? `Experience ${Math.round(g.xp)} / ${need}` : 'Highest rank'}<br><span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}">Loyalty ${Math.round(g.loyalty || 70)}</span></div></div>
+        <div class="muted">${esc(g.trait || '')}${host ? ' \u00B7 commanding the army in ' + esc(NAP.world.byId[host.prov].name) : ' \u00B7 not commanding an army'}</div>
+        ${(g.traits || []).map((t) => `<div class="gentrait"><b>${esc(NAP.TRAITS[t].name)}</b><small>${esc(NAP.TRAITS[t].desc)} The AI general of this type also fights accordingly.</small></div>`).join('')}
+        <h4 style="margin:6px 0 0">Command</h4>
+        <div>He can command <b>${cap}</b> regiments in one battle (10 + 3 per LEAD point, +8 for each other general or lieutenant on the same side). ${host ? `Your army has <b class="${host.units.length > cap ? 'bad' : ''}">${host.units.length}</b>.` : ''} Regiments beyond the limit fight out of command: -10% morale, -8% fire.</div>
+        <h4 style="margin:6px 0 0">Lieutenants <span class="muted">(${lts.length}/${slots})</span></h4>
+        ${lts.map((a) => `<div class="genrow"><span>Army in ${esc(NAP.world.byId[a.prov].name)} \u00B7 ${a.units.length} regts</span>${mine ? `<button data-r="ltoff:${a.id}">Dismiss</button>` : ''}</div>`).join('')}
+        ${mine && host ? (here.length ? here.filter((a) => !a.lt).map((a) => `<div class="genrow"><span>Army here \u00B7 ${a.units.length} regts</span><button data-r="lton:${a.id}" ${lts.length >= slots ? 'disabled' : ''} data-tip="A lieutenant leads this army under the general: it adds +8 to his command limit, so smaller armies can fight together without penalty. ${C.LIEUT_COST} gold.">Appoint lieutenant (${C.LIEUT_COST}g)</button></div>`).join('') : '<div class="muted">No other armies in his province to appoint a lieutenant to.</div>') : ''}
+        <h4 style="margin:6px 0 0">Special orders</h4>
+        <div class="genrow"><span><b>Lightning march</b><br><small class="muted">Campaign: his army moves two provinces this turn with no losses. Cooldown 8 turns.</small></span>${mine ? `<button data-r="light" ${lc ? 'disabled' : ''} data-tip="${esc(lc || 'Ready')}">${lc ? esc(lc) : 'Order'}</button>` : ''}</div>
+        <div class="genrow"><span><b>Inspire</b><br><small class="muted">Battle (key I): units near him gain +15 morale and +10% fire for 20 s, at some risk to him. 90 s cooldown.</small></span></div>
+        <div class="genrow"><span><b>Rally</b><br><small class="muted">Battle (key R): restores order to routing units near him. 35 s cooldown.</small></span></div>
+        </div><div class="foot"><button data-r="x">Close</button></div>`;
+      const r = await modal(html, 'wide');
+      if (!r || r === 'x') break;
+      if (r.startsWith('lton:')) { const a = s.armies.find((x) => x.id === +r.slice(5)); const e = a && C.setLieutenant(g, a, true); if (e) toast(e); }
+      else if (r.startsWith('ltoff:')) { const a = s.armies.find((x) => x.id === +r.slice(6)); if (a) C.setLieutenant(g, a, false); }
+      else if (r === 'light') { const e = host && C.lightning(host); if (e) toast(e); else toast('Lightning march ordered: his army moves twice this turn'); }
+      refresh();
+    }
+    refresh();
+  }
+
   // ---- settings
   async function showSettings() {
     const st = NAP.settings;

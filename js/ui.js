@@ -405,7 +405,7 @@
       html += `<div class="sec"><h4>Armies here</h4>${armies.map((a) => `<div class="armychip ${army && a.id === army.id ? 'sel' : ''}" data-army="${a.id}"><i style="background:${F(a.owner).color}"></i><span>${esc(F(a.owner).adj)} · ${a.units.length} regts · ${fmt(C.armyMen(a))} men${a.general ? ' · ★ ' + esc(s.generals[a.general].name) : ''}</span></div>`).join('')}</div>`;
     }
     if (mine) {
-      html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option></select></div>`;
+      html += `<div class="sec"><h4>Policy</h4><select id="polpick" style="width:100%"><option value="balanced">Balanced</option><option value="tax">Heavy taxation (+25% gold, unrest rises)</option><option value="levy">Conscription (+50% manpower, −15% gold)</option><option value="order">Martial order (unrest falls, −15% gold)</option><option value="scorch">Scorched earth (no income, unrest rises; invaders here starve)</option></select></div>`;
       const unitRow = (t) => {
         const u = U[t], err = C.recruitCheck(pid, t), cost = C.unitCost(pid, t), lock = u.needs && !ps[u.needs], poor = !lock && err;
         return `<button class="ubtn${lock ? ' locked' : poor ? ' poor' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : `<span class="${poor ? 'bad' : ''}">${cost}g</span> · ${u.time}t`}</span></button>`;
@@ -496,6 +496,7 @@
     if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
+    { const cap = C.sideCommand([a]), n = a.units.length; html += `<div class="kv"><span>Command</span><b class="${n > cap ? 'bad' : ''}" data-tip="Regiments the general can handle in one battle. Extra regiments fight at -10% morale / -8% fire. Lieutenants and extra generals raise the limit.">${n} / ${cap}${n > cap ? ' (over)' : ''}</b></div>`; }
     { const pc = C.pace(a); html += `<div class="kv"><span>March pace</span><b class="${pc === 'fast' ? 'good' : pc === 'slow' ? 'warn' : ''}" data-tip="${pc === 'fast' ? 'All mounted: two provinces a turn.' : pc === 'slow' ? 'A siege train: one province every other turn.' : 'One province a turn.'}">${pc === 'fast' ? 'Fast (cavalry)' : pc === 'slow' ? 'Slow (siege train)' : 'Normal'}</b></div>`; }
     const dpt = C.supplyDepth(a);
     html += `<div class="kv"><span>Fatigue</span><b class="${(a.fatigue || 0) > 50 ? 'bad' : (a.fatigue || 0) > 20 ? 'warn' : ''}">${Math.round(a.fatigue || 0)}%</b></div><div class="kv"><span>Supply</span><b class="${dpt >= 2 ? 'bad' : dpt === 1 ? 'warn' : 'good'}">${dpt === 0 ? 'At home' : dpt === 1 ? 'Foraging' : dpt === 2 ? 'Strained' : 'Cut off'}</b></div>`;
@@ -520,7 +521,7 @@
       html += `<div class="row"><button data-act="split">Split selected</button><button data-act="merge">Merge here</button><button data-act="stop">Halt</button><button data-act="disband" class="danger">Disband</button></div>`;
       const pool = C.availableGenerals(s.player);
       if (pool.length) html += `<div class="row"><select id="genpick"><option value="">Appoint general…</option>${pool.map((x) => `<option value="${x.id}">${esc(x.name)} (${x.atk}/${x.def}/${x.lead})</option>`).join('')}</select></div>`;
-      if (g) html += `<div class="row"><button data-act="relieve">Relieve general</button></div>`;
+      if (g) html += `<div class="row"><button data-act="genmenu" class="primary" data-tip="Traits, command limit, lieutenants and special orders for this general.">General menu</button><button data-act="relieve">Relieve general</button></div>`;
     }
     return html + '</div>';
   }
@@ -539,6 +540,7 @@
       else if (act === 'forced') { a.forced = b.checked; }
       else if (act === 'storm') { const r = C.assault(a); toast(r.text); }
       else if (act === 'disband') { const idx = checked(); if (!idx.length) return toast('Tick regiments to disband'); idx.sort((x, y) => y - x).forEach((i) => C.disbandUnit(a, i)); if (!S().armies.includes(a)) ui.sel.army = null; }
+      else if (act === 'genmenu') { if (a.general) showGeneral(a.general); return; }
       else if (act === 'relieve') { const gid = a.general; if (gid) { S().generals[gid].assigned = null; S().pool[S().generals[gid].owner].push(gid); a.general = null; } }
       refresh();
     }));
@@ -628,12 +630,22 @@
       const opts = C.peaceOptions(me, f), ws = C.warScore(me, f);
       m.innerHTML = `<div class="dlg"><h2>Peace with ${esc(F(f).name)}</h2><div class="body">
         <p>War score: <b class="${ws >= 0 ? 'good' : 'bad'}">${ws >= 0 ? '+' : ''}${Math.round(ws)}</b> <span class="muted">(battles won and provinces taken; the higher, the harsher the terms they may accept)</span></p>
-        ${opts.map((o, i) => `<label class="termopt"><input type="radio" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}><span>${esc(o.label)}<small class="muted" style="display:block">${esc(termHelp(o.id))}</small></span></label>`).join('')}
+        <p class="muted">Tick one term or <b>several together</b>: small asks add up, big ones weigh on the meter.</p>
+        <div class="meter" id="pmeter"></div>
+        ${opts.map((o, i) => `<label class="termopt"><input type="checkbox" name="term" value="${esc(o.id)}" ${i === 0 ? 'checked' : ''}><span>${esc(o.label)}<small class="muted" style="display:block">${esc(termHelp(o.id))}</small></span></label>`).join('')}
         <p class="muted" id="dipmsg" style="min-height:20px"></p></div>
         <div class="foot"><button id="tback">Back</button><button class="primary" id="tgo">Propose</button></div></div>`;
       $('#tback').onclick = () => main('');
+      const picked = () => [...m.querySelectorAll('input[name=term]:checked')].map((c) => c.value);
+      const meter = () => {
+        const ids = picked(), ev = ids.length ? C.peaceEval(me, f, ids) : null, el = $('#pmeter');
+        if (!ev || ev.err) { el.innerHTML = '<span class="muted">Choose at least one term.</span>'; return; }
+        const pct = Math.max(0, Math.min(100, Math.round(ev.score / ev.need * 100))), ok = ev.score >= ev.need;
+        el.innerHTML = `<div class="mbar"><i class="${ok ? 'ok' : pct > 60 ? 'mid' : 'no'}" style="width:${pct}%"></i></div><small class="${ok ? 'good' : 'muted'}">${ev.early ? 'The war has only just begun.' : ok ? 'They are likely to accept.' : pct > 60 ? 'Close: soften a demand or add a concession.' : 'They will refuse. Ask for less, or offer tribute.'}</small>`;
+      };
+      m.querySelectorAll('input[name=term]').forEach((c) => (c.onchange = meter)); meter();
       $('#tgo').onclick = () => {
-        const id = m.querySelector('input[name=term]:checked').value;
+        const id = picked(); if (!id.length) { $('#dipmsg').textContent = 'Choose a term first.'; return; }
         const [ok, msg] = C.proposePeace(me, f, id);
         refresh();
         if (ok) main(msg); else { $('#dipmsg').textContent = msg; }
@@ -702,6 +714,40 @@
     if (k === 'p') { const pp = NAP.world.byId[id]; ui.sel = { prov: id, army: null, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.3); clampCam(); refresh(); }
     else if (k === 'a') { const a = s.armies.find((x) => x.id === +id); if (a) { const pp = NAP.world.byId[a.prov]; ui.sel = { prov: a.prov, army: a.id, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.5); clampCam(); refresh(); } }
   }
+  // ---- general menu
+  async function showGeneral(gid) {
+    for (;;) {
+      const s = S(), g = s.generals[gid]; if (!g || !g.alive) return;
+      const host = s.armies.find((a) => a.general === gid), mine = g.owner === s.player;
+      const need = [0, 40, 100, 200, 350, 550, 800][g.lvl] || null, cap = host ? C.sideCommand([host]) : C.commandCap(g);
+      const here = host ? s.armies.filter((a) => a.prov === host.prov && a.owner === g.owner && a !== host && !a.general) : [];
+      const slots = C.lieutSlots(g), lts = C.lieutsOf(g);
+      const lc = host ? C.lightningCheck(host) : 'Needs an army';
+      const statBar = (v) => `<span class="gold">${'\u25CF'.repeat(Math.min(9, v))}</span><span class="muted">${'\u25CB'.repeat(Math.max(0, 9 - v))}</span>`;
+      const html = `<h2>\u2605 ${esc(g.name)} <span class="muted" style="font-size:14px">Level ${g.lvl} \u00B7 ${esc(F(g.owner).adj)}</span></h2><div class="body genbox">
+        <div class="genstats"><div>ATK<br><b>${g.atk}</b></div><div>DEF<br><b>${g.def}</b></div><div>LEAD<br><b>${g.lead}</b></div><div style="margin-left:auto;text-align:right">${need ? `Experience ${Math.round(g.xp)} / ${need}` : 'Highest rank'}<br><span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}">Loyalty ${Math.round(g.loyalty || 70)}</span></div></div>
+        <div class="muted">${esc(g.trait || '')}${host ? ' \u00B7 commanding the army in ' + esc(NAP.world.byId[host.prov].name) : ' \u00B7 not commanding an army'}</div>
+        ${(g.traits || []).map((t) => `<div class="gentrait"><b>${esc(NAP.TRAITS[t].name)}</b><small>${esc(NAP.TRAITS[t].desc)} The AI general of this type also fights accordingly.</small></div>`).join('')}
+        <h4 style="margin:6px 0 0">Command</h4>
+        <div>He can command <b>${cap}</b> regiments in one battle (10 + 3 per LEAD point, +8 for each other general or lieutenant on the same side). ${host ? `Your army has <b class="${host.units.length > cap ? 'bad' : ''}">${host.units.length}</b>.` : ''} Regiments beyond the limit fight out of command: -10% morale, -8% fire.</div>
+        <h4 style="margin:6px 0 0">Lieutenants <span class="muted">(${lts.length}/${slots})</span></h4>
+        ${lts.map((a) => `<div class="genrow"><span>Army in ${esc(NAP.world.byId[a.prov].name)} \u00B7 ${a.units.length} regts</span>${mine ? `<button data-r="ltoff:${a.id}">Dismiss</button>` : ''}</div>`).join('')}
+        ${mine && host ? (here.length ? here.filter((a) => !a.lt).map((a) => `<div class="genrow"><span>Army here \u00B7 ${a.units.length} regts</span><button data-r="lton:${a.id}" ${lts.length >= slots ? 'disabled' : ''} data-tip="A lieutenant leads this army under the general: it adds +8 to his command limit, so smaller armies can fight together without penalty. ${C.LIEUT_COST} gold.">Appoint lieutenant (${C.LIEUT_COST}g)</button></div>`).join('') : '<div class="muted">No other armies in his province to appoint a lieutenant to.</div>') : ''}
+        <h4 style="margin:6px 0 0">Special orders</h4>
+        <div class="genrow"><span><b>Lightning march</b><br><small class="muted">Campaign: his army moves two provinces this turn with no losses. Cooldown 8 turns.</small></span>${mine ? `<button data-r="light" ${lc ? 'disabled' : ''} data-tip="${esc(lc || 'Ready')}">${lc ? esc(lc) : 'Order'}</button>` : ''}</div>
+        <div class="genrow"><span><b>Inspire</b><br><small class="muted">Battle (key I): units near him gain +15 morale and +10% fire for 20 s, at some risk to him. 90 s cooldown.</small></span></div>
+        <div class="genrow"><span><b>Rally</b><br><small class="muted">Battle (key R): restores order to routing units near him. 35 s cooldown.</small></span></div>
+        </div><div class="foot"><button data-r="x">Close</button></div>`;
+      const r = await modal(html, 'wide');
+      if (!r || r === 'x') break;
+      if (r.startsWith('lton:')) { const a = s.armies.find((x) => x.id === +r.slice(5)); const e = a && C.setLieutenant(g, a, true); if (e) toast(e); }
+      else if (r.startsWith('ltoff:')) { const a = s.armies.find((x) => x.id === +r.slice(6)); if (a) C.setLieutenant(g, a, false); }
+      else if (r === 'light') { const e = host && C.lightning(host); if (e) toast(e); else toast('Lightning march ordered: his army moves twice this turn'); }
+      refresh();
+    }
+    refresh();
+  }
+
   // ---- settings
   async function showSettings() {
     const st = NAP.settings;
