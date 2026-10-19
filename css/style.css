@@ -155,7 +155,7 @@ table.t .btns button { font-size: 11px; padding: 2px 6px; margin-right: 3px; }
 .bar i { display: block; height: 100%; background: linear-gradient(90deg, #5cb85c, #e8b04a, #d9534f); background-size: 300% 100%; }
 .tut-hl { outline: 2px solid #ffd54a !important; box-shadow: 0 0 12px #ffd54a; animation: tutpulse 1.2s infinite; }
 @keyframes tutpulse { 50% { box-shadow: 0 0 22px #ffe58a; } }
-#coach { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); width: min(560px, 92vw); background: linear-gradient(#2a2418, #1b1710); border: 2px solid #f1d487; border-radius: 10px; padding: 12px 16px 10px; z-index: 12; box-shadow: 0 10px 40px #000c; }
+#coach { position: absolute; left: 10px; top: 10px; width: 330px; max-height: calc(100% - 20px); overflow-y: auto; background: linear-gradient(#2a2418, #1b1710); border: 2px solid #f1d487; border-radius: 10px; padding: 10px 14px 10px; z-index: 12; box-shadow: 0 10px 40px #000c; }
 #coach h3 { margin: 0 0 4px; font: 700 17px var(--f-title); color: var(--gold2); }
 #coach .ct { font-size: 13.5px; line-height: 1.5; }
 #coach .cf { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
@@ -351,3 +351,12 @@ table.t { font-size: 14px; }
 .meter { margin: 4px 0 8px; } .mbar { height: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; } .mbar i { display: block; height: 100%; } .mbar i.ok { background: #4c4; } .mbar i.mid { background: #ec3; } .mbar i.no { background: #e44; }
 .genbox { display: flex; flex-direction: column; gap: 8px; } .genstats { display: flex; gap: 18px; } .genstats b { font-size: 20px; } .gentrait { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel2); } .gentrait small { display: block; color: var(--muted); }
 .genrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--line); }
+
+#coach .chead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; } #coach .cstep { font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--gold); }
+#coach .chead button { padding: 1px 8px; font-size: 11px; }
+.tdemo { width: 100%; aspect-ratio: 300 / 176; border-radius: 8px; border: 1px solid #f1d48755; margin: 4px 0 8px; display: block; background: #7fa6b8; }
+/* focus mode: hide everything the lesson is not about */
+body.tutfocus #log, body.tutfocus #minimap, body.tutfocus #hint { display: none !important; }
+body.tutfocus #topbar #b-att, body.tutfocus #topbar #playsel, body.tutfocus #topbar #b-ov, body.tutfocus #topbar #b-cty, body.tutfocus #topbar #b-arm, body.tutfocus #topbar #b-wars,
+body.tutfocus #topbar #b-set, body.tutfocus #topbar #b-save, body.tutfocus #topbar #advance, body.tutfocus #topbar #b-les, body.tutfocus #topbar #b-dip:not(.tut-hl), body.tutfocus #topbar .stat:nth-of-type(n+3) { display: none !important; }
+.lessons { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .lesson { text-align: left; padding: 8px 10px; font-family: var(--f-body); font-size: 14px; }

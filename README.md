@@ -204,3 +204,8 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - **Scorched earth** (province policy): no income and rising unrest, but an invader there suffers extra supply loss. The AI uses it when an enemy occupies one of its undefended provinces.
 - **Naval:** opposed landings cost 6% of the army (2% when your fleet covers the sea zone) plus fatigue. Frigate-only fleets docked in a blockaded port act as **blockade runners**: they win back part of the lost income (up to 85% of normal) but risk being caught.
 - **Peace talks:** pick several terms at once; a live meter shows how willing they are.
+
+### Tutorial rework
+- The guided tutorial is now a *focused* lesson: the world beyond France and her neighbours is dimmed and the camera is kept on that region, most of the top bar and the dispatch log / minimap are hidden, and the instructions live in a docked panel (top-left) instead of an overlay on the map. Turn playback is switched off while it runs.
+- Each lesson has an **animated mock play-through** at the top of the panel: a miniature campaign screen with a ghost cursor that shows exactly what to click (select a province, recruit, build, select an army, right-click to march, end the turn, open Diplomacy...). The non-click lessons (supply, sea routes, battles, sieges) have their own small animations.
+- **Back / Next** navigation, and a **Lessons** button in the top bar (during a normal game) to replay any lesson in the same panel with its demo and button highlights, without leaving your campaign.

@@ -231,12 +231,13 @@
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-cty" data-tip="<b>Country Overview</b> (key O)<br>Your nation at a glance: finances, manpower, strengths and weaknesses, provinces, armies, fleets and diplomacy.">Country Overview</button><button id="b-ov" data-tip="All nations compared">Europe</button><button id="b-arm" data-tip="<b>Army list</b> (key A)<br>Every army you own: sort, jump to it, reinforce or merge them all.">Armies</button><button id="b-wars" data-tip="<b>War overview</b> (key W)<br>Each war you are in: score, goals, enemy forces and threatened borders.">Wars</button><button id="b-set" data-tip="<b>Settings</b><br>Fonts, volume, autosave, colours and more.">&#9881;</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-cty" data-tip="<b>Country Overview</b> (key O)<br>Your nation at a glance: finances, manpower, strengths and weaknesses, provinces, armies, fleets and diplomacy.">Country Overview</button><button id="b-ov" data-tip="All nations compared">Europe</button><button id="b-arm" data-tip="<b>Army list</b> (key A)<br>Every army you own: sort, jump to it, reinforce or merge them all.">Armies</button><button id="b-wars" data-tip="<b>War overview</b> (key W)<br>Each war you are in: score, goals, enemy forces and threatened borders.">Wars</button><button id="b-set" data-tip="<b>Settings</b><br>Fonts, volume, autosave, colours and more.">&#9881;</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-les" data-tip="<b>Lessons</b><br>Replay any tutorial lesson, with an animated demonstration, without leaving your game.">Lessons</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
       <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
     $('#b-mp').onclick = showLevy;
     $('#b-arm').onclick = showArmies; $('#b-wars').onclick = showWars; $('#b-set').onclick = showSettings;
+    $('#b-les').onclick = showLessons;
     $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-cty').onclick = showCountry; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = () => endTurn();
@@ -429,7 +430,7 @@
         navyHTML = Object.keys(NAP.SHIPS).map((t) => { const sh = NAP.SHIPS[t], err = C.shipCheck(pid, t); return `<button class="ubtn${err ? ' locked' : ''}" data-ship="${t}" data-tip="${esc('<b>' + sh.name + '</b><br>' + sh.desc + '<br><span class="ttk">Crew ' + sh.men + ' · Cost ' + C.shipCost(pid, t) + 'g · Upkeep ' + sh.upkeep + '/turn · Builds in ' + sh.time + ' turns · Fleet strength ' + sh.power + '</span>' + (err ? '<br><span class="bad">' + err + '</span>' : ''))}"><span>${!ps.shipyard ? '\u{1F512} ' : ''}${sh.name} <small class="muted">(${sh.men} crew)</small></span><span>${!ps.shipyard ? 'needs Shipyard' : C.shipCost(pid, t) + 'g \u00B7 ' + sh.time + 't'}</span></button>`; }).join('');
         if ((ps.shipQueue || []).length) navyHTML += `<div class="queue">On the slips: ${ps.shipQueue.map((q) => NAP.SHIPS[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       }
-      const tabbed = !(ui.tut && ui.tut.on), tabs = [['recruit', 'Recruit', recruitHTML, ps.queue.length], ['build', 'Build', buildHTML, (ps.build ? 1 : 0) + (ps.bq || []).length]];
+      const tabbed = true, tabs = [['recruit', 'Recruit', recruitHTML, ps.queue.length], ['build', 'Build', buildHTML, (ps.build ? 1 : 0) + (ps.bq || []).length]];
       if (navyHTML) tabs.push(['navy', 'Navy', navyHTML, (ps.shipQueue || []).length]);
       if (!tabs.some((t) => t[0] === ui.tab)) ui.tab = 'recruit';
       if (tabbed) {
@@ -1002,7 +1003,11 @@
     ui.zt = Math.max(0.45, Math.min(4, (ui.zt || ui.cam.z) * Math.exp(-dy * 0.0011)));
     ui.zAnchor = { px: p.x, py: p.y, wx: w0.x, wy: w0.y }; dirty = true;
   }, { passive: false });
-  function clampCam() { ui.cam.x = Math.max(0, Math.min(NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(0, Math.min(NAP.MAP.H, ui.cam.y)); }
+  function clampCam() {
+    const b = ui.tut && ui.tut.on && !ui.tut.review && ui.tut.box;
+    ui.cam.x = Math.max(b ? b.x0 : 0, Math.min(b ? b.x1 : NAP.MAP.W, ui.cam.x)); ui.cam.y = Math.max(b ? b.y0 : 0, Math.min(b ? b.y1 : NAP.MAP.H, ui.cam.y));
+    if (b) { ui.cam.z = Math.max(1.15, Math.min(3, ui.cam.z)); if (ui.zt) ui.zt = Math.max(1.15, Math.min(3, ui.zt)); }
+  }
   function selFleet() { const s = S(); return s && ui.sel.fleet ? (s.fleets || []).find((x) => x.id === ui.sel.fleet) : null; }
   function selArmy() { const s = S(); return s && ui.sel.army ? s.armies.find((a) => a.id === ui.sel.army) : null; }
 
@@ -1024,42 +1029,88 @@
   $('#logminor').onchange = (e) => { $('#loglist').querySelectorAll('[data-minor]').forEach((d) => (d.hidden = !e.target.checked)); };
 
   // ------------------------------------------------------------------ tutorial & practice battle
+  // The guided tutorial is a focused lesson: the world beyond France and her neighbours is dimmed, most buttons are hidden,
+  // and a docked panel with an animated mock play-through shows what to do. Lessons can be replayed later from the top bar.
+  function tutFocusSetup() {
+    const w = NAP.world, s = S(), mine = C.provincesOf(s.player), scope = new Set();
+    for (const p of mine) { scope.add(p.id); for (const i of p.adj) scope.add(w.provs[i].id); }
+    const c = document.createElement('canvas'); c.width = w.gw; c.height = w.gh; const x = c.getContext('2d'), img = x.createImageData(w.gw, w.gh);
+    for (let k = 0; k < w.gw * w.gh; k++) { const pi = w.pg[k]; if (pi && !scope.has(w.provs[pi - 1].id)) { img.data[k * 4] = 8; img.data[k * 4 + 1] = 12; img.data[k * 4 + 2] = 18; img.data[k * 4 + 3] = 190; } }
+    x.putImageData(img, 0, 0);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const id of scope) { const q = w.byId[id]; x0 = Math.min(x0, q.cx); x1 = Math.max(x1, q.cx); y0 = Math.min(y0, q.cy); y1 = Math.max(y1, q.cy); }
+    ui.tut.veil = c; ui.tut.box = { x0: x0 - 40, x1: x1 + 40, y0: y0 - 40, y1: y1 + 40 };
+    ui.zt = null; ui.cam = { x: (x0 + x1) / 2 - 90, y: (y0 + y1) / 2, z: 1.35 }; clampCam();
+    document.body.classList.add('tutfocus');
+  }
   function startTutorial() {
     ui.difficulty = 'easy'; ui.picked = 'france';
     beginGame('france', true);
-    ui.tut = { on: true, step: 0 };
+    ui.tut = { on: true, step: 0, review: false };
+    ui._pb = ui.playback; ui.playback = 'off';
+    tutFocusSetup();
     ui.sel = { prov: null, army: null };
     refresh();
   }
-  function tutStep() { return ui.tut && ui.tut.on ? NAP.guide.STEPS[ui.tut.step] : null; }
-  function tutEnd() { ui.tut = { on: false, step: 0 }; const c = $('#coach'); if (c) c.remove(); ui.pulseProv = null; applyHighlights(); dirty = true; }
-  function tutAdvance() {
-    ui.tut.step++;
-    if (ui.tut.step >= NAP.guide.STEPS.length) { tutEnd(); toast('Tutorial complete — good luck!'); return; }
+  // replay a single lesson inside any running game (no restrictions, nothing is checked)
+  function openLesson(i) {
+    if (!S()) return;
+    if (ui.tut && ui.tut.on && !ui.tut.review) tutEnd();
+    ui.tut = { on: true, step: i, review: true };
     tutRender();
   }
+  async function showLessons() {
+    const steps = NAP.guide.STEPS;
+    const r = await modal(`<h2>Lessons</h2><div class="body"><p class="muted">Replay any part of the tutorial without leaving your game. The lesson appears in a small panel with an animated demonstration, and highlights the buttons it talks about.</p>
+      <div class="lessons">${steps.map((st, i) => `<button class="lesson" data-r="l:${i}"><b>${i + 1}.</b> ${esc(st.title)}</button>`).join('')}</div>
+      <p class="muted" style="margin-top:8px">Want the full guided run again? It starts a separate practice game; your current campaign stays saved if you have saved it.</p></div>
+      <div class="foot"><button data-r="guided">Start guided tutorial (new game)</button><button class="primary" data-r="x">Close</button></div>`, 'wide');
+    if (r && r.startsWith('l:')) openLesson(+r.slice(2));
+    else if (r === 'guided') startTutorial();
+  }
+  function tutStep() { return ui.tut && ui.tut.on ? NAP.guide.STEPS[ui.tut.step] : null; }
+  function tutEnd() {
+    const wasFocus = ui.tut && ui.tut.veil;
+    if (ui._demo) { ui._demo.stop(); ui._demo = null; }
+    if (wasFocus && ui._pb) { ui.playback = ui._pb; ui._pb = null; }
+    ui.tut = { on: false, step: 0 }; document.body.classList.remove('tutfocus');
+    const c = $('#coach'); if (c) c.remove(); ui.pulseProv = null; applyHighlights(); dirty = true; if (S()) refresh();
+  }
+  function tutAdvance() {
+    ui.tut.step++;
+    if (ui.tut.step >= NAP.guide.STEPS.length) { const rv = ui.tut.review; tutEnd(); toast(rv ? 'Lesson finished' : 'Tutorial complete — good luck! Replay lessons any time from the Lessons button.'); return; }
+    tutRender();
+  }
+  function tutBack() { if (ui.tut.step > 0) { ui.tut.step--; tutRender(); } }
   function tutCheck() {
+    if (ui.tut && ui.tut.review) return;
     const st = tutStep(); if (!st || !st.check) return;
     let ok = false; try { ok = st.check({ S: S(), ui }); } catch (e) { ok = false; }
     if (ok) tutAdvance();
   }
   function tutRender() {
     const old = $('#coach'); if (old) old.remove();
+    if (ui._demo) { ui._demo.stop(); ui._demo = null; }
     const st = tutStep();
     if (!st) { ui.pulseProv = null; applyHighlights(); return; }
-    const total = NAP.guide.STEPS.length, i = ui.tut.step;
+    const total = NAP.guide.STEPS.length, i = ui.tut.step, rv = ui.tut.review;
+    if (st.id === 'build') ui.tab = 'build'; else if (st.id === 'recruit') ui.tab = 'recruit';
     const el = document.createElement('div'); el.id = 'coach';
-    el.innerHTML = `<h3>${esc(st.title)}</h3><div class="ct">${st.text}</div>
-      <div class="cf"><div class="dots">${NAP.guide.STEPS.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div>
-      ${st.manual ? '' : '<span class="hintdo">Do this to continue</span>'}
+    el.innerHTML = `<div class="chead"><span class="cstep">${rv ? 'Lesson' : 'Tutorial'} · ${i + 1} of ${total}</span><button id="tskip" title="${rv ? 'Close lesson' : 'Skip the tutorial'}">${rv ? 'Close' : 'Skip'} ✕</button></div>
+      <h3>${esc(st.title)}</h3><canvas id="tdemo" class="tdemo"></canvas>
+      <div class="ct">${st.text}</div>
+      <div class="cf"><div class="dots">${NAP.guide.STEPS.map((_, k) => `<i class="${k < i ? 'done' : k === i ? 'on' : ''}"></i>`).join('')}</div></div>
+      <div class="cf">${st.manual || rv ? '' : '<span class="hintdo">Do this to continue</span>'}<span style="flex:1"></span>
+      ${i > 0 ? '<button id="tback">‹ Back</button>' : ''}
       ${st.practice ? '<button id="tpractice">Practice battle</button>' : ''}
-      <button id="tskip">Skip tutorial</button>
-      ${st.manual ? `<button class="primary" id="tnext">${st.last ? 'Finish' : 'Next'}</button>` : '<button id="tstep">Skip step</button>'}</div>`;
+      ${st.manual || rv ? `<button class="primary" id="tnext">${st.last || i === total - 1 ? 'Finish' : 'Next ›'}</button>` : '<button id="tstep">Skip step</button>'}</div>`;
     $('#mapwrap').appendChild(el);
     $('#tskip').onclick = tutEnd;
     if ($('#tnext')) $('#tnext').onclick = tutAdvance;
     if ($('#tstep')) $('#tstep').onclick = tutAdvance;
+    if ($('#tback')) $('#tback').onclick = tutBack;
     if ($('#tpractice')) $('#tpractice').onclick = startPractice;
+    try { ui._demo = NAP.guide.playDemo($('#tdemo'), st.id); } catch (e) { /* demo is decoration only */ }
     ui.pulseProv = st.pulse ? st.pulse(S()) : null;
     applyHighlights(); dirty = true;
     tutCheck();
@@ -1128,6 +1179,7 @@
     opts.pathProvs = a ? [a.prov, ...(a.path.length ? a.path : ui.preview || [])] : null;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     NAP.drawMap(ctx, ui.cam, vw, vh, s, opts);
+    if (ui.tut && ui.tut.veil) { ctx.save(); ctx.translate(vw / 2 - ui.cam.x * ui.cam.z, vh / 2 - ui.cam.y * ui.cam.z); ctx.scale(ui.cam.z, ui.cam.z); ctx.drawImage(ui.tut.veil, 0, 0, NAP.MAP.W, NAP.MAP.H); ctx.restore(); }
     drawMinimap();
   }
 

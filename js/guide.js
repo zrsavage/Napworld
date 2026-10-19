@@ -48,8 +48,99 @@
     { id: 'sea', title: 'Sea routes', manual: true, text: `Unless you switched on naval warfare, there are no fleets. Ports are linked by <b>sea routes</b> (select an army in a port to see the dashed lines) which armies of up to 12 regiments can cross in one turn. This is how Britain can land troops on the continent, and how you can invade Britain.` },
     { id: 'battle', title: 'Battles', manual: true, practice: true, text: `When armies meet you can <b>auto-resolve</b> or <b>fight</b> the battle yourself. Fighting lets you deploy your regiments, use formations and flank the enemy. Weather, time of day, terrain and fortifications all matter. Want to try? Hit <b>Practice battle</b> below &mdash; it won't affect your campaign.` },
     { id: 'siege', title: 'Sieges, assaults and rebellion', manual: true, text: `To take a province, move an army in and hold it. Fortified provinces need several turns of siege (artillery speeds this up), or you can <b>storm the walls</b> at a cost in men. Conquered provinces need a garrison or they will revolt, so do not spread your army too thin.` },
-    { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Press <b>How to play (?)</b> any time for a reminder. For a first real campaign we suggest <b>Russia</b> (the gentlest start) or <b>Britain</b> (safe and rich); France, the nation in this tutorial, is much harder. Vive l'Empereur!` }
+    { id: 'done', title: 'You are ready, Emperor', manual: true, last: true, text: `You now know the basics. Watch the <b>Dispatches</b> panel for news, keep your treasury positive, and pick your fights. Historical events &mdash; coalitions, uprisings, winters &mdash; will shape the war. Replay any lesson, with its animated demo, from the <b>Lessons</b> button in the top bar, or press <b>How to play (?)</b> any time for a reminder. For a first real campaign we suggest <b>Russia</b> (the gentlest start) or <b>Britain</b> (safe and rich); France, the nation in this tutorial, is much harder. Vive l'Empereur!` }
   ];
+
+  // ------------------------------------------------------------------ animated demos shown in the tutorial panel
+  // A tiny stylised mock of the campaign screen with a ghost cursor that performs each lesson on a loop.
+  const DW = 300, DH = 176;
+  const BOX = { paris: [92, 56, 50, 40], normandy: [30, 62, 58, 40], belgium: [100, 30, 66, 24], burgundy: [92, 100, 60, 36], champagne: [146, 58, 52, 38], britain: [8, 28, 50, 24] };
+  const PT = (id) => { const b = BOX[id]; return [b[0] + b[2] / 2, b[1] + b[3] / 2]; };
+  const BTN = { line: [214, 54, 76, 16], market: [214, 74, 76, 16], end: [232, 3, 62, 16], diplo: [150, 3, 56, 16] };
+  const BP = (id) => { const b = BTN[id]; return [b[0] + b[2] / 2, b[1] + b[3] / 2]; };
+  const target = (t) => (Array.isArray(t) ? t : BOX[t] ? PT(t) : BTN[t] ? BP(t) : t === 'army' ? [52, 82] : t === 'mini' ? [20, 156] : [150, 90]);
+  // scripts: each step moves the cursor to a target, then does something there
+  const SCRIPTS = {
+    camera: [{ to: [120, 100], do: 'grab', cap: 'Drag with the left button to pan' }, { to: [170, 90], do: 'drag', cap: '' }, { to: [150, 90], do: 'zoom', cap: 'Mouse wheel to zoom in and out' }, { to: 'mini', do: 'click', cap: 'Or click the minimap to jump' }],
+    selprov: [{ to: 'paris', do: 'sel', cap: 'Click Paris' }, { to: 'paris', do: 'wait', cap: 'The panel shows what it produces' }],
+    panel: [{ to: [60, 11], do: 'flash:top', cap: 'Gold and manpower live in the top bar' }, { to: 'paris', do: 'sel', cap: 'Unrest and income are in the province panel' }],
+    recruit: [{ to: 'paris', do: 'sel', cap: 'Select your province' }, { to: 'line', do: 'press:line', cap: 'Click Line Infantry to recruit' }, { to: 'line', do: 'wait', cap: 'It arrives in a turn or two' }],
+    build: [{ to: 'paris', do: 'sel', cap: 'Select your province' }, { to: 'market', do: 'press:market', cap: 'Click Market: +50% income' }, { to: 'market', do: 'wait', cap: 'Buildings are permanent upgrades' }],
+    selarmy: [{ to: 'army', do: 'selarmy', cap: 'Click the flag with the gold star' }, { to: 'army', do: 'wait', cap: 'The panel lists its regiments and general' }],
+    move: [{ to: 'army', do: 'selarmy', cap: 'Select the army' }, { to: 'belgium', do: 'route', cap: 'Right-click where it should march' }, { to: 'belgium', do: 'wait', cap: 'A dashed line shows the route' }],
+    endturn: [{ to: 'end', do: 'turn', cap: 'End Turn: one turn is one month' }, { to: 'end', do: 'wait', cap: 'Every nation moves, then you get a report' }],
+    diplo: [{ to: 'diplo', do: 'diplo', cap: 'Open Diplomacy' }, { to: [92, 80], do: 'wait', cap: 'Declare war, ally, trade, negotiate peace' }]
+  };
+  const wrap = (c, x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+  function mockScene(c, steps, t, st) {
+    // timeline: every step = 0.9 s travel + 0.9 s doing; loop with a 1 s pause
+    const T = 1.8, total = steps.length * T + 1.0, tt = Math.max(0, t) % total;
+    const i = Math.min(steps.length - 1, Math.floor(tt / T)), ph = tt - i * T;
+    if (i !== st.i || tt < st.tt) { if (tt < st.tt) Object.assign(st, { sel: null, panel: false, army: false, route: null, toast: '', pressed: null, built: false, queued: 0, date: 0, armyAt: 'normandy', ox: 0, zoom: 1, diplo: false, flash: 0 }); st.i = i; st.done = false; }
+    st.tt = tt;
+    const step = steps[i], prev = i ? target(steps[i - 1].to) : [150, 140], to = target(step.to);
+    const k = Math.min(1, ph / 0.9), e = k * k * (3 - 2 * k);
+    const cur = [prev[0] + (to[0] - prev[0]) * e, prev[1] + (to[1] - prev[1]) * e];
+    if (ph >= 0.9 && !st.done) { st.done = true; const d = step.do; st.click = { x: to[0], y: to[1], t: 0, r: d === 'route' }; st.cap = step.cap;
+      if (d === 'sel') { st.sel = step.to; st.panel = true; } else if (d === 'selarmy') { st.army = true; st.panel = true; st.sel = 'normandy'; }
+      else if (d === 'route') { st.route = { t: 0 }; } else if (d === 'turn') { st.date++; if (st.route) { st.armyAt = 'belgium'; st.route = null; } else st.date = st.date; }
+      else if (d.startsWith('press:')) { st.pressed = d.slice(6); st.flash = 0; if (d === 'press:line') st.queued++; else st.built = true; }
+      else if (d === 'diplo') st.diplo = true; else if (d.startsWith('flash:')) st.flash = 1; else if (d === 'drag') st.ox = 26; else if (d === 'zoom') st.zoom = 1.25; }
+    if (ph < 0.9) st.cap = step.cap;
+    if (st.click) st.click.t += 1 / 60;
+    if (st.route && st.route.t < 1) st.route.t += 1 / 50;
+    // ---- draw
+    c.clearRect(0, 0, DW, DH); c.fillStyle = '#7fa6b8'; c.fillRect(0, 0, DW, DH);
+    c.save(); c.translate(st.ox || 0, 0); c.translate(100, 90); c.scale(st.zoom || 1, st.zoom || 1); c.translate(-100, -90);
+    const prov = (id, col, name) => { const b = BOX[id]; wrap(c, b[0], b[1], b[2], b[3], 8); c.fillStyle = col; c.fill(); c.lineWidth = st.sel === id ? 2.5 : 1; c.strokeStyle = st.sel === id ? '#fff' : 'rgba(20,16,10,.7)'; c.stroke(); c.fillStyle = 'rgba(255,255,255,.92)'; c.font = '9px sans-serif'; c.textAlign = 'center'; c.fillText(name, b[0] + b[2] / 2, b[1] + b[3] / 2 + (id === 'paris' ? 14 : 3)); };
+    prov('britain', '#c8283a', 'Britain'); prov('normandy', '#2a52be', 'Normandy'); prov('paris', '#2a52be', 'Paris'); prov('belgium', '#2a52be', 'Belgium'); prov('burgundy', '#2a52be', 'Burgundy'); prov('champagne', '#2a52be', 'Lorraine');
+    const ax = st.armyAt === 'belgium' ? PT('belgium') : [52, 82];
+    c.fillStyle = '#ffd24a'; c.font = 'bold 13px sans-serif'; c.fillText('★', PT('paris')[0], PT('paris')[1] - 3);
+    wrap(c, ax[0] - 9, ax[1] - 7, 18, 13, 3); c.fillStyle = '#2a52be'; c.fill(); c.strokeStyle = st.army ? '#fff' : '#111'; c.lineWidth = st.army ? 2.2 : 1; c.stroke(); c.fillStyle = '#ffd24a'; c.font = '9px sans-serif'; c.fillText('★ 9', ax[0], ax[1] + 3);
+    if (st.route) { const A = [52, 82], B = PT('belgium'), f = Math.min(1, st.route.t); c.setLineDash([4, 3]); c.strokeStyle = '#ffe27a'; c.lineWidth = 2; c.beginPath(); c.moveTo(A[0], A[1]); c.lineTo(A[0] + (B[0] - A[0]) * f, A[1] + (B[1] - A[1]) * f); c.stroke(); c.setLineDash([]); }
+    c.restore();
+    // side panel
+    wrap(c, 208, 26, 90, 146, 6); c.fillStyle = 'rgba(18,22,30,.96)'; c.fill(); c.strokeStyle = '#555'; c.stroke();
+    c.fillStyle = '#e8d9a0'; c.font = 'bold 10px sans-serif'; c.textAlign = 'left'; c.fillText(st.panel ? (st.army ? 'French army' : (st.sel === 'paris' ? 'Paris' : 'Province')) : 'Select something', 214, 40);
+    if (st.panel) { const bt = (id, label, on) => { const b = BTN[id]; wrap(c, b[0], b[1], b[2], b[3], 4); c.fillStyle = st.pressed === id && st.click && st.click.t < 0.4 ? '#ffd54a' : on ? '#3a5a3a' : '#2c3442'; c.fill(); c.strokeStyle = '#667'; c.stroke(); c.fillStyle = on ? '#cfc' : '#ddd'; c.font = '9px sans-serif'; c.fillText(label, b[0] + 5, b[1] + 11); };
+      if (!st.army) { bt('line', 'Line Infantry  90g', false); bt('market', st.built ? '✔ Market (built)' : 'Market  220g', st.built); if (st.queued) { c.fillStyle = '#ffd54a'; c.font = '9px sans-serif'; c.fillText('In training: Line x' + st.queued, 214, 104); } }
+      else { c.fillStyle = '#ddd'; c.font = '9px sans-serif'; ['9 regiments', 'General: Napoleon', 'Supply: at home'].forEach((l, q) => c.fillText(l, 214, 56 + q * 13)); } }
+    // top bar
+    c.fillStyle = 'rgba(12,16,24,.97)'; c.fillRect(0, 0, DW, 24); c.fillStyle = st.flash ? '#ffd54a' : '#e8d9a0'; c.font = 'bold 10px sans-serif'; c.textAlign = 'left'; c.fillText('● 900g   ☖ 10,150', 6, 15);
+    const tb = (id, label, hot) => { const b = BTN[id]; wrap(c, b[0], b[1], b[2], b[3], 4); c.fillStyle = hot ? '#b08a2a' : '#2c3442'; c.fill(); c.strokeStyle = '#778'; c.stroke(); c.fillStyle = '#fff'; c.font = '9px sans-serif'; c.textAlign = 'center'; c.fillText(label, b[0] + b[2] / 2, b[1] + 11); };
+    tb('diplo', 'Diplomacy', false); tb('end', 'End Turn', true); c.fillStyle = '#ccc'; c.font = '9px sans-serif'; c.textAlign = 'left'; c.fillText(['Jan', 'Feb', 'Mar', 'Apr'][st.date % 4] + ' 1805', 100, 15);
+    if (st.diplo) { wrap(c, 60, 50, 150, 96, 6); c.fillStyle = 'rgba(20,24,32,.97)'; c.fill(); c.strokeStyle = '#d9b44a'; c.stroke(); c.fillStyle = '#e8d9a0'; c.font = 'bold 10px sans-serif'; c.textAlign = 'center'; c.fillText('Diplomacy', 135, 66); c.fillStyle = '#ddd'; c.font = '9px sans-serif'; ['Britain   WAR', 'Spain   Ally', 'Austria  Neutral'].forEach((l, q) => c.fillText(l, 135, 86 + q * 14)); c.fillStyle = '#9c9'; c.fillText('[Declare war] [Ally] [Peace]', 135, 134); }
+    // cursor + click ring
+    if (st.click && st.click.t < 0.5) { c.strokeStyle = st.click.r ? '#ff8a6a' : '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(st.click.x, st.click.y, 3 + st.click.t * 30, 0, 6.3); c.globalAlpha = 1 - st.click.t * 2; c.stroke(); c.globalAlpha = 1; }
+    c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 1; c.beginPath(); c.moveTo(cur[0], cur[1]); c.lineTo(cur[0] + 11, cur[1] + 5); c.lineTo(cur[0] + 6, cur[1] + 7); c.lineTo(cur[0] + 8, cur[1] + 13); c.lineTo(cur[0] + 5, cur[1] + 14); c.lineTo(cur[0] + 3, cur[1] + 8); c.lineTo(cur[0], cur[1] + 11); c.closePath(); c.fill(); c.stroke();
+    // caption
+    if (st.cap) { c.font = 'bold 11px sans-serif'; const w = c.measureText(st.cap).width + 14; wrap(c, 6, DH - 24, Math.min(DW - 12, w), 18, 5); c.fillStyle = 'rgba(0,0,0,.72)'; c.fill(); c.fillStyle = '#ffe27a'; c.textAlign = 'left'; c.fillText(st.cap, 13, DH - 11); }
+  }
+  // self-contained animated explainers for the lessons that are not point-and-click
+  const DRAW = {
+    welcome(c, t) { c.fillStyle = '#243040'; c.fillRect(0, 0, DW, DH); for (let i = 0; i < 9; i++) { const x = ((i * 40 + t * 22) % 340) - 20; c.fillStyle = '#10141c'; c.fillRect(x, 120 - (i % 3) * 4, 7, 22); c.beginPath(); c.arc(x + 3.5, 116 - (i % 3) * 4, 4, 0, 6.3); c.fill(); c.fillRect(x + 8, 96 - (i % 3) * 4, 1.5, 38); }
+      c.fillStyle = '#f1d487'; c.font = 'bold 15px serif'; c.textAlign = 'center'; c.fillText('Europe, 1805', DW / 2, 50); c.font = '11px sans-serif'; c.fillText('Hold 55% of the provinces. Outlast the coalitions.', DW / 2, 70); },
+    army(c, t) { c.fillStyle = '#7fa6b8'; c.fillRect(0, 0, DW, DH); c.fillStyle = '#c9b98a'; c.fillRect(0, 70, DW, 70); c.fillStyle = '#2a52be'; c.fillRect(0, 70, 90, 70); c.fillStyle = '#d9d0b0'; c.font = '10px sans-serif'; c.textAlign = 'center'; c.fillText('home', 45, 128);
+      const x = 40 + ((t * 30) % 200); c.fillStyle = '#2a52be'; c.fillRect(x - 10, 92, 20, 14); c.fillStyle = '#ffd24a'; c.fillText('★', x, 103); const far = Math.max(0, Math.min(1, (x - 90) / 150)); c.fillStyle = '#000a'; c.fillRect(20, 26, 140, 10); c.fillStyle = far > 0.5 ? '#e55' : far > 0.1 ? '#ec3' : '#4c4'; c.fillRect(20, 26, 140 * (1 - far), 10); c.fillStyle = '#fff'; c.textAlign = 'left'; c.fillText('Supply', 166, 35); c.fillText(far > 0.5 ? 'Far from home: attrition!' : 'Stay close to friendly land', 20, 56); },
+    sea(c, t) { c.fillStyle = '#4f7f9c'; c.fillRect(0, 0, DW, DH); c.fillStyle = '#c9b98a'; c.fillRect(0, 0, 70, DH); c.fillRect(230, 0, 70, DH); c.fillStyle = '#fff'; c.font = '10px sans-serif'; c.textAlign = 'center'; c.fillText('Port', 35, 90); c.fillText('Port', 265, 90); c.setLineDash([5, 4]); c.strokeStyle = '#ffe27a'; c.beginPath(); c.moveTo(60, 88); c.lineTo(240, 88); c.stroke(); c.setLineDash([]);
+      const x = 60 + ((t * 60) % 180); c.fillStyle = '#2a2018'; c.beginPath(); c.moveTo(x - 12, 92); c.lineTo(x + 12, 92); c.lineTo(x + 7, 100); c.lineTo(x - 8, 100); c.closePath(); c.fill(); c.fillStyle = '#f4ecd2'; c.fillRect(x - 1, 74, 2, 18); c.beginPath(); c.moveTo(x + 2, 76); c.lineTo(x + 12, 90); c.lineTo(x + 2, 90); c.fill(); c.fillStyle = '#fff'; c.fillText('Armies cross between ports in one turn', 150, 140); },
+    battle(c, t) { c.fillStyle = '#7b9a55'; c.fillRect(0, 0, DW, DH); const volley = (Math.floor(t * 1.5) % 2);
+      for (let i = 0; i < 4; i++) { c.fillStyle = '#2a52be'; c.fillRect(40, 40 + i * 26, 14, 20); c.fillStyle = '#c8283a'; c.fillRect(246, 40 + i * 26, 14, 20); }
+      c.fillStyle = '#fff'; for (let i = 0; i < 4; i++) { const f = (t * 1.5) % 1; c.fillRect(56 + f * 180, 50 + i * 26, 5, 1.5); c.fillRect(244 - f * 180, 52 + i * 26, 5, 1.5); }
+      const cx = 60 + ((t * 40) % 150); c.fillStyle = '#e8c04a'; c.fillRect(cx, 14, 16, 8); c.strokeStyle = '#ffe27a'; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(60, 18); c.lineTo(250, 18); c.lineTo(250, 40); c.stroke(); c.setLineDash([]); c.fillStyle = '#fff'; c.font = 'bold 11px sans-serif'; c.textAlign = 'center'; c.fillText('Fire from range, then flank with cavalry', 150, 160); },
+    siege(c, t) { c.fillStyle = '#9ab06a'; c.fillRect(0, 0, DW, DH); c.fillStyle = '#8a7a62'; c.fillRect(170, 40, 90, 80); for (let i = 0; i < 5; i++) c.fillRect(170 + i * 20, 32, 12, 10); c.fillStyle = '#e8d9a0'; c.font = '10px sans-serif'; c.textAlign = 'center'; c.fillText('Fort', 215, 84);
+      for (let i = 0; i < 3; i++) { c.fillStyle = '#2a2018'; c.fillRect(40, 56 + i * 24, 18, 8); c.beginPath(); c.arc(44, 68 + i * 24, 4, 0, 6.3); c.fill(); const f = ((t * 1.2) + i * 0.3) % 1; c.fillStyle = '#222'; c.beginPath(); c.arc(62 + f * 106, 60 + i * 24, 2.5, 0, 6.3); c.fill(); }
+      const prog = (t * 0.2) % 1; c.fillStyle = '#000a'; c.fillRect(60, 150, 180, 10); c.fillStyle = '#ec3'; c.fillRect(60, 150, 180 * prog, 10); c.fillStyle = '#fff'; c.fillText('Siege progress: walls fall in a few turns (or storm them)', 150, 144); }
+  };
+  const DEMO_FOR = { welcome: 'welcome', camera: 'camera', selprov: 'selprov', panel: 'panel', recruit: 'recruit', build: 'build', selarmy: 'selarmy', army: 'army', move: 'move', endturn: 'endturn', diplo: 'diplo', sea: 'sea', battle: 'battle', siege: 'siege', done: 'welcome' };
+  // start an animation in a canvas; returns {stop()}
+  G.playDemo = function (canvas, stepId) {
+    const id = DEMO_FOR[stepId], c = canvas.getContext('2d'); canvas.width = DW; canvas.height = DH;
+    let raf = 0, t0 = performance.now(), dead = false; const st = { i: -1, tt: 99, sel: null, panel: false, army: false, route: null, pressed: null, built: false, queued: 0, date: 0, armyAt: 'normandy', ox: 0, zoom: 1, diplo: false, flash: 0 };
+    const frame = (now) => { if (dead) return; const t = (now - t0) / 1000; if (SCRIPTS[id]) mockScene(c, SCRIPTS[id], t, st); else if (DRAW[id]) DRAW[id](c, t); raf = requestAnimationFrame(frame); };
+    raf = requestAnimationFrame(frame);
+    return { stop() { dead = true; cancelAnimationFrame(raf); } };
+  };
 
   // ------------------------------------------------------------------ battle tutorial
   G.BATTLE_TIPS = [
