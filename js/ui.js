@@ -411,8 +411,8 @@
         return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
       };
       html += `<div class="sec" data-fold="recruit"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
-      html += Object.keys(U).filter((t) => !U[t].needs).map(unitRow).join('');
-      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs).map(unitRow).join('');
+      html += Object.keys(U).filter((t) => !U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
+      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       html += `</div><div class="sec" data-fold="build"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
       for (const b of Object.keys(NAP.BUILDINGS)) {
@@ -488,6 +488,7 @@
     if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
+    { const pc = C.pace(a); html += `<div class="kv"><span>March pace</span><b class="${pc === 'fast' ? 'good' : pc === 'slow' ? 'warn' : ''}" data-tip="${pc === 'fast' ? 'All mounted: two provinces a turn.' : pc === 'slow' ? 'A siege train: one province every other turn.' : 'One province a turn.'}">${pc === 'fast' ? 'Fast (cavalry)' : pc === 'slow' ? 'Slow (siege train)' : 'Normal'}</b></div>`; }
     const dpt = C.supplyDepth(a);
     html += `<div class="kv"><span>Fatigue</span><b class="${(a.fatigue || 0) > 50 ? 'bad' : (a.fatigue || 0) > 20 ? 'warn' : ''}">${Math.round(a.fatigue || 0)}%</b></div><div class="kv"><span>Supply</span><b class="${dpt >= 2 ? 'bad' : dpt === 1 ? 'warn' : 'good'}">${dpt === 0 ? 'At home' : dpt === 1 ? 'Foraging' : dpt === 2 ? 'Strained' : 'Cut off'}</b></div>`;
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;

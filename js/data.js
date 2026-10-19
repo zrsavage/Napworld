@@ -328,8 +328,36 @@
     art:       { name:'Artillery Battery',short:'Guns',     men:80,  cost:140, upkeep:4, time:1, cls:'art', power:5.0,  morale:62,  speed:12, w:30, d:14,
                  desc:'Long-range cannon: devastating against columns and squares, vulnerable if caught alone.' },
     hart:      { name:'Horse Artillery',  short:'H. Guns',  men:80,  cost:190, upkeep:5, time:2, cls:'art', power:4.6,  morale:66,  speed:24, w:28, d:14, needs:'arsenal',
-                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' }
+                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' },
+    rifle:     { name:'Rifles / Jagers',  short:'Rifles',   men:500, cost:135, upkeep:4, time:1, cls:'inf', power:1.2,  morale:72,  speed:32, w:56, d:10, needs:'barracks',
+                 desc:'Marksmen with rifled arms: the longest infantry range and deadly accurate, but few in number and poor in a melee. Fight in open order, hard to hit.' },
+    dragoon:   { name:'Dragoons',         short:'Dragoon',  men:300, cost:115, upkeep:4, time:1, cls:'cav', power:1.5,  morale:68,  speed:62, w:50, d:10, needs:'stables',
+                 desc:'Mounted infantry. They carry carbines and can fire at short range from the saddle, and still charge, though less hard than true cavalry.' },
+    siege:     { name:'Siege Battery',    short:'Siege',    men:80,  cost:230, upkeep:6, time:2, cls:'art', power:5.5,  morale:60,  speed:6,  w:34, d:16, needs:'arsenal',
+                 desc:'Heavy guns that reduce fortresses: a battery adds a great deal to a siege. Tremendous range and hitting power in battle, but very slow: an army with a siege train marches at half pace.' }
   };
+  // National regiments: flavour sidegrades, never a big edge. Each is a small variation on a standard type, recruitable only by that nation.
+  const NATIONAL = {
+    france:   [{ id: 'voltigeur', base: 'light', name: 'Voltigeurs', short: 'Voltigeur', cost: 108, morale: 68, desc: 'Elite light companies: a little steadier than ordinary skirmishers.' }],
+    britain:  [{ id: 'highlander', base: 'line', name: 'Highlanders', short: 'Highland', cost: 100, morale: 76, desc: 'Kilted shock infantry: fierce in the charge and the melee, weaker at long firefights.' }],
+    russia:   [{ id: 'cossack', base: 'hussar', name: 'Cossacks', short: 'Cossack', men: 300, cost: 70, morale: 52, desc: 'Irregular horse: cheap and fast, deadly against fleeing troops, poor against formed ranks.' }],
+    austria:  [{ id: 'grenzer', base: 'light', name: 'Grenzers', short: 'Grenzer', cost: 75, morale: 58, desc: 'Border infantry from the Military Frontier: cheap and tough skirmishers, a little unreliable.' }],
+    prussia:  [{ id: 'landwehr', base: 'militia', name: 'Landwehr', short: 'Landwehr', cost: 55, morale: 50, power: 0.7, desc: 'Patriot reservists: cheaper than line infantry and steadier than ordinary militia.' }],
+    spain:    [{ id: 'guerrilla', base: 'light', name: 'Guerrilleros', short: 'Guerrilla', men: 400, cost: 60, upkeep: 2, morale: 56, desc: 'Irregular bands: very cheap skirmishers who live off the land.' }],
+    ottoman:  [{ id: 'janissary', base: 'line', name: 'Janissaries', short: 'Janissary', cost: 100, morale: 72, desc: 'The old corps: strong in melee, weaker in volley fire than European line.' },
+               { id: 'sipahi', base: 'lancer', name: 'Sipahi', short: 'Sipahi', cost: 100, morale: 60, needs: 'stables', desc: 'Feudal cavalry: fast, brave, loosely disciplined.' }],
+    portugal: [{ id: 'cacador', base: 'light', name: 'Cacadores', short: 'Cacador', men: 550, cost: 105, morale: 70, desc: 'British-trained light infantry: crack shots for their price.' }],
+    sweden:   [{ id: 'finnjager', base: 'light', name: 'Finnish Jagers', short: 'Finn Jager', men: 550, cost: 90, desc: 'Forest sharpshooters from Finland.' }],
+    denmark:  [{ id: 'marine', base: 'line', name: 'Marine Infantry', short: 'Marines', men: 700, cost: 95, morale: 74, desc: 'Sea soldiers: steady and a good shot, in smaller regiments.' }],
+    naples:   [{ id: 'partisan', base: 'light', name: 'Calabrian Partisans', short: 'Partisan', men: 500, cost: 65, upkeep: 2, morale: 52, desc: 'Cheap mountain irregulars.' }],
+    bavaria:  [{ id: 'chevau', base: 'hussar', name: 'Chevau-legers', short: 'Chevau', men: 280, cost: 100, morale: 68, desc: 'Bavarian light horse: good all-round cavalry.' }]
+  };
+  NAP.NATIONAL = NATIONAL;
+  for (const f of Object.keys(NATIONAL)) for (const n of NATIONAL[f]) {
+    const b = NAP.UNITS[n.base];
+    NAP.UNITS[n.id] = Object.assign({}, b, { name: n.name, short: n.short, men: n.men || b.men, cost: n.cost, upkeep: n.upkeep || b.upkeep, morale: n.morale || b.morale, power: n.power || b.power, nation: f, desc: n.desc }, n.needs ? { needs: n.needs } : (b.needs ? {} : {}));
+    if (!n.needs && b.needs) delete NAP.UNITS[n.id].needs;
+  }
   NAP.BUILDINGS = {
     market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
     barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },

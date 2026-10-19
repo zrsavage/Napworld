@@ -186,3 +186,8 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Short and long games
 - At **Begin the Campaign** you now choose **Short** (the standard 107-province map) or **Long** (about 148 provinces). The long map splits 41 regions in two (e.g. Paris / Orleans, London / Kent, Serbia / Bosnia, Moscow / Tula); each nation's total income and manpower stay about the same, just spread over more pieces. Saves remember their length. The tutorial always uses the short map.
+
+### New units, march pace, siege guns
+- **Rifles / Jagers** (needs Barracks): long-range, accurate open-order marksmen, weak in melee. **Dragoons** (needs Stables): mounted infantry with a short-range carbine and a lighter charge. **Siege Battery** (needs Arsenal): very long range and hard-hitting in battle, and each battery greatly speeds up sieges, but an army carrying one marches at half pace.
+- **March pace:** all-mounted armies (cavalry, dragoons, horse artillery) move two provinces a turn; armies with a siege train move one province every other turn; everything else is unchanged. Shown in the army panel.
+- **National regiments** (flavour only, small sidegrades; each can be raised only by its own nation): Voltigeurs (France), Highlanders (Britain), Cossacks (Russia, pursue routers harder), Grenzers (Austria), Landwehr (Prussia), Guerrilleros (Spain), Janissaries and Sipahi (Ottomans), Cacadores (Portugal), Finnish Jagers (Sweden), Marine Infantry (Denmark), Calabrian Partisans (Naples), Chevau-legers (Bavaria).

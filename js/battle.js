@@ -19,8 +19,20 @@
     guard:   { range: 150, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
-    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
+    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] },
+    rifle:   { range: 168, fire: 0.0047, melee: 0.0026, speed: 32, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'], light: true },
+    dragoon: { range: 100, fire: 0.0030, melee: 0.0058, speed: 62, turn: 2.6, forms: ['line'] },
+    siege:   { range: 570, fire: 0,      melee: 0.0008, speed: 7,  turn: 0.8, forms: ['line'], artMul: 1.25 }
   };
+  BT.light.light = true; BT.militia.mil = true; BT.lancer.lance = true; BT.cuirass.heavy = true;
+  // national regiments: the base type with a few small tweaks
+  {
+    const tw = { voltigeur: { fire: 0.0047, range: 160 }, highlander: { fire: 0.0042, melee: 0.0050, range: 130 }, cossack: { melee: 0.0050, speed: 76, pursuer: true },
+      grenzer: { fire: 0.0040 }, landwehr: { fire: 0.0036, melee: 0.0030, range: 125 }, guerrilla: { fire: 0.0042, range: 170 }, janissary: { fire: 0.0040, melee: 0.0052, range: 130 },
+      sipahi: { melee: 0.0052, speed: 68 }, cacador: { fire: 0.0049, range: 170 }, finnjager: { fire: 0.0046, range: 172 }, marine: { fire: 0.0048, melee: 0.0040, range: 138 },
+      partisan: { fire: 0.0040 }, chevau: { melee: 0.0062, speed: 72 } };
+    for (const f of Object.keys(NAP.NATIONAL || {})) for (const n of NAP.NATIONAL[f]) BT[n.id] = Object.assign({}, BT[n.base], tw[n.id] || {});
+  }
   const FORM_SPEED = { line: 0.85, column: 1.25, square: 0.35, skirmish: 1.1 };
   const FORM_FIRE = { line: 1.0, column: 0.3, square: 0.5, skirmish: 0.55 };
   const FORM_TAKE = { line: 1.0, column: 1.3, square: 1.0, skirmish: 0.5 };
@@ -171,7 +183,7 @@
       if (base.cls === 'cav') u.shockMul = (tr.includes('cavalry') ? 1.15 : 1) * (staff.includes('horse') ? 1.10 : 1) * NAP.perk(src.faction, 'cav');
       if (base.cls === 'art') u.fireMul *= NAP.perk(src.faction, 'art');
       u.morale = u.baseMorale;
-      if (u.type === 'light') u.formation = 'skirmish';
+      if (BT[u.type].light) u.formation = 'skirmish';
       [u.w, u.d] = dims(u);
       return u;
     }
@@ -440,7 +452,7 @@
         u.facing = turnToward(u.facing, Math.atan2(ay, ax), 3 * dt);
         u.fatigue = Math.min(100, u.fatigue + 1.0 * dt);
         // pursuit by cavalry
-        for (const e of en) if (e.cls === 'cav' && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 24) this.damage(u, e.men * 0.03 * dt, e, 0.2);
+        for (const e of en) if (e.cls === 'cav' && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 24) this.damage(u, e.men * 0.03 * (BT[e.type].pursuer ? 1.6 : 1) * dt, e, 0.2);
         // rally
         const close = ne && Math.hypot(ne.x - u.x, ne.y - u.y);
         u.morale += (!ne || close > 220 ? 3.2 : 0.2) * dt;
@@ -580,7 +592,7 @@
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
           u.impacted = true; u.cooldown = 5; this.snd('charge', 1.2, u.x, u.y);
-          const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
+          const shock = u.cls === 'cav' ? (BT[u.type].lance ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
           // cavalry live on angles and weakness: a steady line met head-on shrugs the charge off, a flank or rear hit (or a shaken enemy) is devastating
           let angF = 1, moraleF = 1;
@@ -643,7 +655,7 @@
                 const guns = u.men / 80;
                 const base = guns * 5.5 * (1 - 0.6 * d / maxRange) * (d < 100 ? 2.2 : 1);
                 const vuln = tgt.cls === 'cav' ? 1.1 : tgt.cls === 'art' ? 0.8 : (FORM_ART_VULN[tgt.formation] || 1);
-                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.artFire * (1 - u.fatigue / 300);
+                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.artFire * (1 - u.fatigue / 300) * (bt.artMul || 1);
               } else {
                 const acc = 0.45 + 0.55 * (1 - d / maxRange);
                 const vuln = tgt.cls === 'cav' ? 0.95 : tgt.cls === 'art' ? 0.8 : 1;
@@ -707,7 +719,7 @@
       // objective play: send units to capture, and keep one unit holding each captured point
       const tasked = new Set();
       if (this.objs && this.objs.length) {
-        let cand = my.filter((u) => (u.type === 'light' || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        let cand = my.filter((u) => (BT[u.type].light || BT[u.type].mil || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
         if (!cand.length && mode === 'defend') cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square').slice(0, 1);
         const quota = mode === 'defend' ? 2 : 1, used = new Set();
         let n = 0;
@@ -744,7 +756,7 @@
           if (this.t > 50 || frontBad || d < 175) { u.reserve = false; }
           else { u.order = null; continue; }
         }
-        if (u.cls === 'inf' && u.type === 'light' && goAttack && u.formation !== 'square') {
+        if (u.cls === 'inf' && BT[u.type].light && goAttack && u.formation !== 'square') {
           const dir = s === 0 ? 1 : -1;
           const cavThreat = en.some((c) => c.cls === 'cav' && c.state !== 'routing' && c.charging && Math.hypot(c.x - u.x, c.y - u.y) < 170);
           if (cavThreat || d < 48) {
@@ -769,7 +781,7 @@
             continue;
           }
           // choose formation by distance
-          const wantF = d > 240 ? (u.type === 'light' ? 'skirmish' : 'column') : (u.type === 'light' ? 'skirmish' : 'line');
+          const wantF = d > 240 ? (BT[u.type].light ? 'skirmish' : 'column') : (BT[u.type].light ? 'skirmish' : 'line');
           if (u.formation !== wantF && !u.wantForm && !u.order?.charge) {
             if (!(wantF === 'column' && u.formation === 'line' && d < 300)) this.setFormation(u, wantF);
           }
@@ -824,7 +836,7 @@
             if (c.state === 'routing') sc *= 2.4;
             if (c.formation === 'square') sc *= 0.12;
             if (c.formation === 'column') sc *= 1.4;
-            if (c.cls === 'cav') sc *= u.type === 'cuirass' ? 0.9 : 0.5;
+            if (c.cls === 'cav') sc *= BT[u.type].heavy ? 0.9 : 0.5;
             const ex = this.exposure(c, u);
             sc *= ex;
             if (c.cls === 'inf' && ex === 1 && c.formation === 'line' && c.morale > 55) sc *= 0.12; // never head-on into a steady line

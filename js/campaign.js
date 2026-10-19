@@ -122,6 +122,8 @@
     if (u.cls === 'cav' && ps.stables) c *= 0.9;
     return Math.round(c * NAP.perk(ps.owner, 'cost'));
   };
+  // march pace by composition: all-mounted armies are fast (two provinces a turn), an army with a siege train crawls (one province every other turn)
+  C.pace = (a) => (a.units.some((u) => u.type === 'siege') ? 'slow' : a.units.length && a.units.every((u) => U[u.type].cls === 'cav' || u.type === 'hart') ? 'fast' : 'normal');
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
     S.armies.push(a);
@@ -357,6 +359,7 @@
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
+    if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';
     if (u.needs && !ps[u.needs]) return 'Requires ' + NAP.BUILDINGS[u.needs].name;
     if (fs.gold < C.unitCost(pid, type)) return 'Not enough gold';
     if (fs.manpower < u.men) return 'Not enough manpower';
@@ -848,6 +851,8 @@
   // -------------------------------------------------------------------- turn processing
   async function stepArmy(a, second) {
     if (!S.armies.includes(a) || !a.path.length) return;
+    const pace = C.pace(a);
+    if (pace === 'slow' && !second) { a.slowT = (a.slowT || 0) + 1; if (a.slowT % 2 === 1) return; }
     a.moved = true;
     const dest = a.path[0];
     if (!canEnter(a.owner, dest) || !nbrs(a.owner, a.prov).includes(dest)) { a.path = []; return; }
@@ -869,10 +874,10 @@
       // relief army breaks siege
       S.provinces[dest].siege = null;
     }
-    if (a.forced && !second && a.path.length && S.armies.includes(a)) {
+    if ((a.forced || pace === 'fast') && !second && a.path.length && S.armies.includes(a)) {
       const nxt = a.path[0];
       if (!S.armies.some((x) => x.prov === nxt && atWar(x.owner, a.owner)) && S.provinces[dest].owner !== 'x') {
-        applyCasualties([a], 0.03); a.forcedMarch = true;
+        if (a.forced) { applyCasualties([a], 0.03); a.forcedMarch = true; }
         await stepArmy(a, true);
       }
     }
@@ -904,7 +909,8 @@
       if (!atWar(f, ps.owner)) continue;
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
+      const heavy = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'siege').length, 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(4, Math.ceil(heavy * 1.5)) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -1121,7 +1127,7 @@
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.38, light: 0.12, grenadier: 0.07, guard: 0.03, hussar: 0.08, lancer: 0.04, cuirass: 0.07, art: 0.15, hart: 0.03 };
+  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.02 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -1149,6 +1155,7 @@
     const nMilitia = () => (counts.militia || 0) / Math.max(1, total);
     const evening = () => en.length > 0 && myMen < foeMen * 0.95 && nMilitia() < 0.33 && fs.gold >= 150;
     const want = Object.assign({}, WANT);
+    for (const n of (NAP.NATIONAL && NAP.NATIONAL[f]) || []) want[n.id] = 0.08;
     let guard = 0;
     while (guard++ < 5) {
       want.militia = evening() ? 0.4 : 0;

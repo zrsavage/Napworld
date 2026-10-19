@@ -697,8 +697,36 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     art:       { name:'Artillery Battery',short:'Guns',     men:80,  cost:140, upkeep:4, time:1, cls:'art', power:5.0,  morale:62,  speed:12, w:30, d:14,
                  desc:'Long-range cannon: devastating against columns and squares, vulnerable if caught alone.' },
     hart:      { name:'Horse Artillery',  short:'H. Guns',  men:80,  cost:190, upkeep:5, time:2, cls:'art', power:4.6,  morale:66,  speed:24, w:28, d:14, needs:'arsenal',
-                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' }
+                 desc:'Light guns drawn by galloping teams. Redeploy quickly to follow the fight.' },
+    rifle:     { name:'Rifles / Jagers',  short:'Rifles',   men:500, cost:135, upkeep:4, time:1, cls:'inf', power:1.2,  morale:72,  speed:32, w:56, d:10, needs:'barracks',
+                 desc:'Marksmen with rifled arms: the longest infantry range and deadly accurate, but few in number and poor in a melee. Fight in open order, hard to hit.' },
+    dragoon:   { name:'Dragoons',         short:'Dragoon',  men:300, cost:115, upkeep:4, time:1, cls:'cav', power:1.5,  morale:68,  speed:62, w:50, d:10, needs:'stables',
+                 desc:'Mounted infantry. They carry carbines and can fire at short range from the saddle, and still charge, though less hard than true cavalry.' },
+    siege:     { name:'Siege Battery',    short:'Siege',    men:80,  cost:230, upkeep:6, time:2, cls:'art', power:5.5,  morale:60,  speed:6,  w:34, d:16, needs:'arsenal',
+                 desc:'Heavy guns that reduce fortresses: a battery adds a great deal to a siege. Tremendous range and hitting power in battle, but very slow: an army with a siege train marches at half pace.' }
   };
+  // National regiments: flavour sidegrades, never a big edge. Each is a small variation on a standard type, recruitable only by that nation.
+  const NATIONAL = {
+    france:   [{ id: 'voltigeur', base: 'light', name: 'Voltigeurs', short: 'Voltigeur', cost: 108, morale: 68, desc: 'Elite light companies: a little steadier than ordinary skirmishers.' }],
+    britain:  [{ id: 'highlander', base: 'line', name: 'Highlanders', short: 'Highland', cost: 100, morale: 76, desc: 'Kilted shock infantry: fierce in the charge and the melee, weaker at long firefights.' }],
+    russia:   [{ id: 'cossack', base: 'hussar', name: 'Cossacks', short: 'Cossack', men: 300, cost: 70, morale: 52, desc: 'Irregular horse: cheap and fast, deadly against fleeing troops, poor against formed ranks.' }],
+    austria:  [{ id: 'grenzer', base: 'light', name: 'Grenzers', short: 'Grenzer', cost: 75, morale: 58, desc: 'Border infantry from the Military Frontier: cheap and tough skirmishers, a little unreliable.' }],
+    prussia:  [{ id: 'landwehr', base: 'militia', name: 'Landwehr', short: 'Landwehr', cost: 55, morale: 50, power: 0.7, desc: 'Patriot reservists: cheaper than line infantry and steadier than ordinary militia.' }],
+    spain:    [{ id: 'guerrilla', base: 'light', name: 'Guerrilleros', short: 'Guerrilla', men: 400, cost: 60, upkeep: 2, morale: 56, desc: 'Irregular bands: very cheap skirmishers who live off the land.' }],
+    ottoman:  [{ id: 'janissary', base: 'line', name: 'Janissaries', short: 'Janissary', cost: 100, morale: 72, desc: 'The old corps: strong in melee, weaker in volley fire than European line.' },
+               { id: 'sipahi', base: 'lancer', name: 'Sipahi', short: 'Sipahi', cost: 100, morale: 60, needs: 'stables', desc: 'Feudal cavalry: fast, brave, loosely disciplined.' }],
+    portugal: [{ id: 'cacador', base: 'light', name: 'Cacadores', short: 'Cacador', men: 550, cost: 105, morale: 70, desc: 'British-trained light infantry: crack shots for their price.' }],
+    sweden:   [{ id: 'finnjager', base: 'light', name: 'Finnish Jagers', short: 'Finn Jager', men: 550, cost: 90, desc: 'Forest sharpshooters from Finland.' }],
+    denmark:  [{ id: 'marine', base: 'line', name: 'Marine Infantry', short: 'Marines', men: 700, cost: 95, morale: 74, desc: 'Sea soldiers: steady and a good shot, in smaller regiments.' }],
+    naples:   [{ id: 'partisan', base: 'light', name: 'Calabrian Partisans', short: 'Partisan', men: 500, cost: 65, upkeep: 2, morale: 52, desc: 'Cheap mountain irregulars.' }],
+    bavaria:  [{ id: 'chevau', base: 'hussar', name: 'Chevau-legers', short: 'Chevau', men: 280, cost: 100, morale: 68, desc: 'Bavarian light horse: good all-round cavalry.' }]
+  };
+  NAP.NATIONAL = NATIONAL;
+  for (const f of Object.keys(NATIONAL)) for (const n of NATIONAL[f]) {
+    const b = NAP.UNITS[n.base];
+    NAP.UNITS[n.id] = Object.assign({}, b, { name: n.name, short: n.short, men: n.men || b.men, cost: n.cost, upkeep: n.upkeep || b.upkeep, morale: n.morale || b.morale, power: n.power || b.power, nation: f, desc: n.desc }, n.needs ? { needs: n.needs } : (b.needs ? {} : {}));
+    if (!n.needs && b.needs) delete NAP.UNITS[n.id].needs;
+  }
   NAP.BUILDINGS = {
     market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
     barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },
@@ -1718,6 +1746,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (u.cls === 'cav' && ps.stables) c *= 0.9;
     return Math.round(c * NAP.perk(ps.owner, 'cost'));
   };
+  // march pace by composition: all-mounted armies are fast (two provinces a turn), an army with a siege train crawls (one province every other turn)
+  C.pace = (a) => (a.units.some((u) => u.type === 'siege') ? 'slow' : a.units.length && a.units.every((u) => U[u.type].cls === 'cav' || u.type === 'hart') ? 'fast' : 'normal');
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
     S.armies.push(a);
@@ -1953,6 +1983,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
+    if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';
     if (u.needs && !ps[u.needs]) return 'Requires ' + NAP.BUILDINGS[u.needs].name;
     if (fs.gold < C.unitCost(pid, type)) return 'Not enough gold';
     if (fs.manpower < u.men) return 'Not enough manpower';
@@ -2444,6 +2475,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   // -------------------------------------------------------------------- turn processing
   async function stepArmy(a, second) {
     if (!S.armies.includes(a) || !a.path.length) return;
+    const pace = C.pace(a);
+    if (pace === 'slow' && !second) { a.slowT = (a.slowT || 0) + 1; if (a.slowT % 2 === 1) return; }
     a.moved = true;
     const dest = a.path[0];
     if (!canEnter(a.owner, dest) || !nbrs(a.owner, a.prov).includes(dest)) { a.path = []; return; }
@@ -2465,10 +2498,10 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // relief army breaks siege
       S.provinces[dest].siege = null;
     }
-    if (a.forced && !second && a.path.length && S.armies.includes(a)) {
+    if ((a.forced || pace === 'fast') && !second && a.path.length && S.armies.includes(a)) {
       const nxt = a.path[0];
       if (!S.armies.some((x) => x.prov === nxt && atWar(x.owner, a.owner)) && S.provinces[dest].owner !== 'x') {
-        applyCasualties([a], 0.03); a.forcedMarch = true;
+        if (a.forced) { applyCasualties([a], 0.03); a.forcedMarch = true; }
         await stepArmy(a, true);
       }
     }
@@ -2500,7 +2533,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (!atWar(f, ps.owner)) continue;
       if (S.armies.some((a) => a.prov === p.id && atWar(a.owner, f))) continue; // contested
       const arty = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'art').length, 0);
-      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
+      const heavy = mine.reduce((s, a) => s + a.units.filter((u) => u.type === 'siege').length, 0);
+      const power = (arty >= 2 ? 2 : 1) + (arty >= 5 ? 1 : 0) + Math.min(4, Math.ceil(heavy * 1.5)) + (mine.some((a) => a.staff === 'gunner' || a.staff === 'engineer') ? 1 : 0);
       if (!ps.siege || ps.siege.by !== f) ps.siege = { by: f, progress: power };
       else ps.siege.progress += power;
       if (ps.siege.progress > ps.fort) captureProvince(p.id, f);
@@ -2717,7 +2751,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.38, light: 0.12, grenadier: 0.07, guard: 0.03, hussar: 0.08, lancer: 0.04, cuirass: 0.07, art: 0.15, hart: 0.03 };
+  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.02 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -2745,6 +2779,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const nMilitia = () => (counts.militia || 0) / Math.max(1, total);
     const evening = () => en.length > 0 && myMen < foeMen * 0.95 && nMilitia() < 0.33 && fs.gold >= 150;
     const want = Object.assign({}, WANT);
+    for (const n of (NAP.NATIONAL && NAP.NATIONAL[f]) || []) want[n.id] = 0.08;
     let guard = 0;
     while (guard++ < 5) {
       want.militia = evening() ? 0.4 : 0;
@@ -3590,8 +3625,20 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     guard:   { range: 150, fire: 0.0085, melee: 0.0075, speed: 24, turn: 1.6, forms: ['line', 'column', 'square'] },
     hussar:  { range: 0,   fire: 0,      melee: 0.0066, speed: 74, turn: 3.0, forms: ['line'] },
     cuirass: { range: 0,   fire: 0,      melee: 0.0090, speed: 58, turn: 2.6, forms: ['line'] },
-    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] }
+    art:     { range: 480, fire: 0,      melee: 0.0010, speed: 11, turn: 1.0, forms: ['line'] },
+    rifle:   { range: 168, fire: 0.0047, melee: 0.0026, speed: 32, turn: 2.2, forms: ['skirmish', 'line', 'column', 'square'], light: true },
+    dragoon: { range: 100, fire: 0.0030, melee: 0.0058, speed: 62, turn: 2.6, forms: ['line'] },
+    siege:   { range: 570, fire: 0,      melee: 0.0008, speed: 7,  turn: 0.8, forms: ['line'], artMul: 1.25 }
   };
+  BT.light.light = true; BT.militia.mil = true; BT.lancer.lance = true; BT.cuirass.heavy = true;
+  // national regiments: the base type with a few small tweaks
+  {
+    const tw = { voltigeur: { fire: 0.0047, range: 160 }, highlander: { fire: 0.0042, melee: 0.0050, range: 130 }, cossack: { melee: 0.0050, speed: 76, pursuer: true },
+      grenzer: { fire: 0.0040 }, landwehr: { fire: 0.0036, melee: 0.0030, range: 125 }, guerrilla: { fire: 0.0042, range: 170 }, janissary: { fire: 0.0040, melee: 0.0052, range: 130 },
+      sipahi: { melee: 0.0052, speed: 68 }, cacador: { fire: 0.0049, range: 170 }, finnjager: { fire: 0.0046, range: 172 }, marine: { fire: 0.0048, melee: 0.0040, range: 138 },
+      partisan: { fire: 0.0040 }, chevau: { melee: 0.0062, speed: 72 } };
+    for (const f of Object.keys(NAP.NATIONAL || {})) for (const n of NAP.NATIONAL[f]) BT[n.id] = Object.assign({}, BT[n.base], tw[n.id] || {});
+  }
   const FORM_SPEED = { line: 0.85, column: 1.25, square: 0.35, skirmish: 1.1 };
   const FORM_FIRE = { line: 1.0, column: 0.3, square: 0.5, skirmish: 0.55 };
   const FORM_TAKE = { line: 1.0, column: 1.3, square: 1.0, skirmish: 0.5 };
@@ -3742,7 +3789,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (base.cls === 'cav') u.shockMul = (tr.includes('cavalry') ? 1.15 : 1) * (staff.includes('horse') ? 1.10 : 1) * NAP.perk(src.faction, 'cav');
       if (base.cls === 'art') u.fireMul *= NAP.perk(src.faction, 'art');
       u.morale = u.baseMorale;
-      if (u.type === 'light') u.formation = 'skirmish';
+      if (BT[u.type].light) u.formation = 'skirmish';
       [u.w, u.d] = dims(u);
       return u;
     }
@@ -4011,7 +4058,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         u.facing = turnToward(u.facing, Math.atan2(ay, ax), 3 * dt);
         u.fatigue = Math.min(100, u.fatigue + 1.0 * dt);
         // pursuit by cavalry
-        for (const e of en) if (e.cls === 'cav' && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 24) this.damage(u, e.men * 0.03 * dt, e, 0.2);
+        for (const e of en) if (e.cls === 'cav' && e.state !== 'routing' && Math.hypot(e.x - u.x, e.y - u.y) < 24) this.damage(u, e.men * 0.03 * (BT[e.type].pursuer ? 1.6 : 1) * dt, e, 0.2);
         // rally
         const close = ne && Math.hypot(ne.x - u.x, ne.y - u.y);
         u.morale += (!ne || close > 220 ? 3.2 : 0.2) * dt;
@@ -4151,7 +4198,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         // impact of charge
         if (u.charging && !u.impacted && u.state !== 'routing') {
           u.impacted = true; u.cooldown = 5; this.snd('charge', 1.2, u.x, u.y);
-          const shock = u.cls === 'cav' ? (u.type === 'lancer' ? 1.05 : 0.8) : 0.22;
+          const shock = u.cls === 'cav' ? (BT[u.type].lance ? 1.05 : 0.8) : 0.22;
           const tf = melee.state === 'routing' ? 2.2 : 1;
           // cavalry live on angles and weakness: a steady line met head-on shrugs the charge off, a flank or rear hit (or a shaken enemy) is devastating
           let angF = 1, moraleF = 1;
@@ -4214,7 +4261,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
                 const guns = u.men / 80;
                 const base = guns * 5.5 * (1 - 0.6 * d / maxRange) * (d < 100 ? 2.2 : 1);
                 const vuln = tgt.cls === 'cav' ? 1.1 : tgt.cls === 'art' ? 0.8 : (FORM_ART_VULN[tgt.formation] || 1);
-                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.artFire * (1 - u.fatigue / 300);
+                cas = base * vuln * ex * tt.cover * mor * u.fireMul * aura * this.wx.artFire * (1 - u.fatigue / 300) * (bt.artMul || 1);
               } else {
                 const acc = 0.45 + 0.55 * (1 - d / maxRange);
                 const vuln = tgt.cls === 'cav' ? 0.95 : tgt.cls === 'art' ? 0.8 : 1;
@@ -4278,7 +4325,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       // objective play: send units to capture, and keep one unit holding each captured point
       const tasked = new Set();
       if (this.objs && this.objs.length) {
-        let cand = my.filter((u) => (u.type === 'light' || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
+        let cand = my.filter((u) => (BT[u.type].light || BT[u.type].mil || u.type === 'militia') && !u.reserve && u.state !== 'routing' && u.formation !== 'square');
         if (!cand.length && mode === 'defend') cand = my.filter((u) => u.cls === 'inf' && !u.reserve && u.state !== 'routing' && u.formation !== 'square').slice(0, 1);
         const quota = mode === 'defend' ? 2 : 1, used = new Set();
         let n = 0;
@@ -4315,7 +4362,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
           if (this.t > 50 || frontBad || d < 175) { u.reserve = false; }
           else { u.order = null; continue; }
         }
-        if (u.cls === 'inf' && u.type === 'light' && goAttack && u.formation !== 'square') {
+        if (u.cls === 'inf' && BT[u.type].light && goAttack && u.formation !== 'square') {
           const dir = s === 0 ? 1 : -1;
           const cavThreat = en.some((c) => c.cls === 'cav' && c.state !== 'routing' && c.charging && Math.hypot(c.x - u.x, c.y - u.y) < 170);
           if (cavThreat || d < 48) {
@@ -4340,7 +4387,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
             continue;
           }
           // choose formation by distance
-          const wantF = d > 240 ? (u.type === 'light' ? 'skirmish' : 'column') : (u.type === 'light' ? 'skirmish' : 'line');
+          const wantF = d > 240 ? (BT[u.type].light ? 'skirmish' : 'column') : (BT[u.type].light ? 'skirmish' : 'line');
           if (u.formation !== wantF && !u.wantForm && !u.order?.charge) {
             if (!(wantF === 'column' && u.formation === 'line' && d < 300)) this.setFormation(u, wantF);
           }
@@ -4395,7 +4442,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
             if (c.state === 'routing') sc *= 2.4;
             if (c.formation === 'square') sc *= 0.12;
             if (c.formation === 'column') sc *= 1.4;
-            if (c.cls === 'cav') sc *= u.type === 'cuirass' ? 0.9 : 0.5;
+            if (c.cls === 'cav') sc *= BT[u.type].heavy ? 0.9 : 0.5;
             const ex = this.exposure(c, u);
             sc *= ex;
             if (c.cls === 'inf' && ex === 1 && c.formation === 'line' && c.morale > 55) sc *= 0.12; // never head-on into a steady line
@@ -6025,8 +6072,8 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         return `<button class="ubtn${err ? ' locked' : ''}" data-rec="${t}" data-tip="${esc(unitTip(t, ps, err, cost))}"><span>${lock ? '\u{1F512} ' : ''}${u.name} <small class="muted">(${u.men})</small></span><span>${lock ? 'needs ' + NAP.BUILDINGS[u.needs].name : cost + 'g \u00B7 ' + u.time + 't'}</span></button>`;
       };
       html += `<div class="sec" data-fold="recruit"><h4>Recruit <span class="qm" data-tip="Raise regiments here. Standard troops are always available; elite troops need a building in this province. Hover a unit for its role and stats.">?</span></h4>`;
-      html += Object.keys(U).filter((t) => !U[t].needs).map(unitRow).join('');
-      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs).map(unitRow).join('');
+      html += Object.keys(U).filter((t) => !U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
+      html += `<div class="subh">Elite troops (need buildings)</div>` + Object.keys(U).filter((t) => U[t].needs && (!U[t].nation || U[t].nation === owner)).map(unitRow).join('');
       if (ps.queue.length) html += `<div class="queue">In training: ${ps.queue.map((q) => U[q.type].short + ' (' + q.left + ')').join(', ')}</div>`;
       html += `</div><div class="sec" data-fold="build"><h4>Construction <span class="qm" data-tip="Buildings are permanent upgrades to this province. Hover each one to see what it does and which troops it unlocks.">?</span></h4>`;
       for (const b of Object.keys(NAP.BUILDINGS)) {
@@ -6102,6 +6149,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     if (g) html += `<div class="gen"><b>★ ${esc(g.name)}</b> <span class="muted">Lv${g.lvl}</span><br>ATK ${g.atk} · DEF ${g.def} · LEAD ${g.lead} <span class="muted">— ${esc(g.trait)}</span><br>${(g.traits || []).map((t) => `<span class="tag peace" data-tip="${esc(NAP.TRAITS[t].desc)}">${esc(NAP.TRAITS[t].name)}</span>`).join(' ')} <span class="${(g.loyalty || 70) < 40 ? 'bad' : 'muted'}" data-tip="Loyalty rises with commands and victories. Idle or overlooked generals grow bitter and may retire.">Loyalty ${Math.round(g.loyalty || 70)}</span></div>`;
     else html += `<div class="gen muted">No general appointed</div>`;
     html += `<div class="kv"><span>Strength</span><b>${fmt(C.armyMen(a))} men</b></div>`;
+    { const pc = C.pace(a); html += `<div class="kv"><span>March pace</span><b class="${pc === 'fast' ? 'good' : pc === 'slow' ? 'warn' : ''}" data-tip="${pc === 'fast' ? 'All mounted: two provinces a turn.' : pc === 'slow' ? 'A siege train: one province every other turn.' : 'One province a turn.'}">${pc === 'fast' ? 'Fast (cavalry)' : pc === 'slow' ? 'Slow (siege train)' : 'Normal'}</b></div>`; }
     const dpt = C.supplyDepth(a);
     html += `<div class="kv"><span>Fatigue</span><b class="${(a.fatigue || 0) > 50 ? 'bad' : (a.fatigue || 0) > 20 ? 'warn' : ''}">${Math.round(a.fatigue || 0)}%</b></div><div class="kv"><span>Supply</span><b class="${dpt >= 2 ? 'bad' : dpt === 1 ? 'warn' : 'good'}">${dpt === 0 ? 'At home' : dpt === 1 ? 'Foraging' : dpt === 2 ? 'Strained' : 'Cut off'}</b></div>`;
     if (a.path.length) html += `<div class="kv"><span>Destination</span><b>${esc(NAP.world.byId[a.path[a.path.length - 1]].name)} (${a.path.length})</b></div>`;
