@@ -1127,7 +1127,7 @@
   }
 
   // -------------------------------------------------------------------- AI
-  const WANT = { line: 0.34, light: 0.09, rifle: 0.05, grenadier: 0.07, guard: 0.03, hussar: 0.07, lancer: 0.03, dragoon: 0.04, cuirass: 0.06, art: 0.14, hart: 0.03, siege: 0.01 };
+  const WANT = { line: 0.38, light: 0.12, rifle: 0.02, grenadier: 0.07, guard: 0.03, hussar: 0.08, lancer: 0.04, dragoon: 0.02, cuirass: 0.07, art: 0.15, hart: 0.03, siege: 0.005 };
   function threatDist(f, pid, enemies) {
     // Distance from province to nearest enemy-owned province
     const r = C.bfsAll(f, pid, 5).dist;
@@ -1155,7 +1155,7 @@
     const nMilitia = () => (counts.militia || 0) / Math.max(1, total);
     const evening = () => en.length > 0 && myMen < foeMen * 0.95 && nMilitia() < 0.33 && fs.gold >= 150;
     const want = Object.assign({}, WANT);
-    for (const n of (NAP.NATIONAL && NAP.NATIONAL[f]) || []) want[n.id] = 0.08;
+    for (const n of (NAP.NATIONAL && NAP.NATIONAL[f]) || []) want[n.id] = 0.04;
     let guard = 0;
     while (guard++ < 5) {
       want.militia = evening() ? 0.4 : 0;
