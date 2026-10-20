@@ -724,11 +724,11 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
                  desc:'Picked, taller veterans. Harder hitting and steadier than line infantry.' },
     guard:     { name:'Guard Infantry',   short:'Guard',    men:700, cost:230, upkeep:6, time:2, cls:'inf', power:1.75, morale:100, speed:22, w:62, d:12, needs:'academy',
                  desc:'The finest infantry a nation fields. Excellent fire and melee, almost never break.' },
-    hussar:    { name:'Light Cavalry',    short:'Hussar',   men:250, cost:105, upkeep:4, time:1, cls:'cav', power:1.4,  morale:66,  speed:72, w:50, d:10,
+    hussar:    { name:'Light Cavalry',    short:'Light Cav',   men:250, cost:105, upkeep:4, time:1, cls:'cav', power:1.4,  morale:66,  speed:72, w:50, d:10,
                  desc:'Fast scouts and flankers. Good for chasing routers and hitting artillery.' },
     lancer:    { name:'Lancers',          short:'Lancer',   men:250, cost:125, upkeep:4, time:1, cls:'cav', power:1.6,  morale:70,  speed:66, w:50, d:10, needs:'stables',
                  desc:'Shock cavalry whose lances give a devastating first charge, weaker in a long melee.' },
-    cuirass:   { name:'Heavy Cavalry',    short:'Cuirass',  men:250, cost:150, upkeep:5, time:2, cls:'cav', power:1.9,  morale:76,  speed:58, w:50, d:10, needs:'stables',
+    cuirass:   { name:'Heavy Cavalry',    short:'Heavy Cav',  men:250, cost:150, upkeep:5, time:2, cls:'cav', power:1.9,  morale:76,  speed:58, w:50, d:10, needs:'stables',
                  desc:'Armoured horsemen who break infantry lines and win long melees.' },
     art:       { name:'Artillery Battery',short:'Guns',     men:80,  cost:140, upkeep:4, time:1, cls:'art', power:5.0,  morale:62,  speed:12, w:30, d:14,
                  desc:'Long-range cannon: devastating against columns and squares, vulnerable if caught alone.' },
@@ -1784,9 +1784,12 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
   };
   // march pace by composition: all-mounted armies are fast (two provinces a turn), an army with a siege train crawls (one province every other turn)
   C.pace = (a) => (a.units.some((u) => u.type === 'siege') ? 'slow' : a.units.length && a.units.every((u) => U[u.type].cls === 'cav' || u.type === 'hart') ? 'fast' : 'normal');
+  // display order inside an army: line infantry, then light infantry / rifles, then artillery, then cavalry
+  C.unitRank = (t) => { const u = U[t], bt = NAP.BT && NAP.BT[t]; return u.cls === 'inf' ? ((bt && bt.light) || t === 'light' || t === 'rifle' ? 1 : 0) : u.cls === 'art' ? 2 : 3; };
+  C.sortUnits = (a) => { a.units = a.units.map((u, i) => [u, i]).sort((x, y) => C.unitRank(x[0].type) - C.unitRank(y[0].type) || x[1] - y[1]).map((x) => x[0]); return a; };
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
-    S.armies.push(a);
+    S.armies.push(a); C.sortUnits(a);
     return a;
   };
   function deriveTraits(g) {
@@ -2022,7 +2025,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
   C.mergeArmies = function (a, b) {
     if (a.owner !== b.owner || a.prov !== b.prov) return false;
     if (a.units.length + b.units.length > MAX_STACK) return false;
-    a.units.push(...b.units);
+    a.units.push(...b.units); C.sortUnits(a);
     if (!a.general && b.general) { a.general = b.general; S.generals[b.general].assigned = a.id; b.general = null; }
     removeArmy(b);
     return true;
@@ -5652,8 +5655,9 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     }
 
     drawRoster() {
+      const rk = (u) => (u.cls === 'inf' ? (BT[u.type].light ? 1 : 0) : u.cls === 'art' ? 2 : 3);
       const el = this.root.querySelector('#b-roster'); if (!el || el.classList.contains('hide')) return;
-      const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || a.cls.localeCompare(b.cls) || a.id - b.id);
+      const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || rk(a) - rk(b) || a.id - b.id);
       const rows = mine.map((u) => {
         const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : this.wavering(u) ? '<b class="rr">wavering!</b>' : (u.order && u.order.back) ? '<b class="rm2">falling back</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
         const nm = gen ? '\u2605 ' + esc2(u.name) : `${NAP.UNITS[u.type].short} ${Math.round(u.men)}`;
@@ -6469,6 +6473,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
         const rc = C.reinforceCost(a), rerr = C.reinforceCheck(a), full = a.units.reduce((n, u) => n + u.max, 0), cur = a.units.reduce((n, u) => n + u.men, 0);
         html += `<div class="reinf"><b>Losses:</b> ${fmt(rc.men)} men missing (${Math.round(cur / full * 100)}% strength).<br><span class="muted">Recover them by <b>reinforcing</b> (instant, costs gold and manpower) or by <b>resting</b> in friendly territory without moving (about 15% of each regiment per turn, costs manpower only).</span><div class="row"><button data-act="reinforce" ${rerr ? 'disabled' : ''} data-tip="${esc(rerr || `Refills every regiment now: about ${rc.gold} gold and ${rc.men} manpower. Partial if you cannot afford it all.`)}">Reinforce now (${rc.gold}g, ${fmt(rc.men)} men)</button></div></div>`;
       }
+    C.sortUnits(a);
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
       html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.canUpgrade(u) ? ' <span class="good" title="Ready to upgrade to Line Infantry">\u25B2</span>' : ''}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;

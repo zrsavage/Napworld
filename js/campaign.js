@@ -124,9 +124,12 @@
   };
   // march pace by composition: all-mounted armies are fast (two provinces a turn), an army with a siege train crawls (one province every other turn)
   C.pace = (a) => (a.units.some((u) => u.type === 'siege') ? 'slow' : a.units.length && a.units.every((u) => U[u.type].cls === 'cav' || u.type === 'hart') ? 'fast' : 'normal');
+  // display order inside an army: line infantry, then light infantry / rifles, then artillery, then cavalry
+  C.unitRank = (t) => { const u = U[t], bt = NAP.BT && NAP.BT[t]; return u.cls === 'inf' ? ((bt && bt.light) || t === 'light' || t === 'rifle' ? 1 : 0) : u.cls === 'art' ? 2 : 3; };
+  C.sortUnits = (a) => { a.units = a.units.map((u, i) => [u, i]).sort((x, y) => C.unitRank(x[0].type) - C.unitRank(y[0].type) || x[1] - y[1]).map((x) => x[0]); return a; };
   C.makeArmy = function (owner, prov, units) {
     const a = { id: S.nextArmy++, owner, prov, units, general: null, path: [], from: prov, moved: false };
-    S.armies.push(a);
+    S.armies.push(a); C.sortUnits(a);
     return a;
   };
   function deriveTraits(g) {
@@ -362,7 +365,7 @@
   C.mergeArmies = function (a, b) {
     if (a.owner !== b.owner || a.prov !== b.prov) return false;
     if (a.units.length + b.units.length > MAX_STACK) return false;
-    a.units.push(...b.units);
+    a.units.push(...b.units); C.sortUnits(a);
     if (!a.general && b.general) { a.general = b.general; S.generals[b.general].assigned = a.id; b.general = null; }
     removeArmy(b);
     return true;

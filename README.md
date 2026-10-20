@@ -223,3 +223,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Mode prompt and shorter sea hops
 - **Begin the Campaign** now asks first: **Easy mode** (the default button: simple rules, advisor, hints, odds; short map, no naval) or **Advanced mode** (everything, then the usual length and naval questions). The nation-select checkbox is gone.
 - Armies could previously cross the whole Atlantic in one move between any two ports of a sea. Sea links are now capped at 220 map px (the Channel, Baltic straits, Adriatic, Sicily and similar short crossings); a long voyage hops from port to port, one crossing per turn. 292 sea links became about 134.
+
+### Naming and army order
+- Heavy cavalry is "Heavy Cavalry" / "Heavy Cav" everywhere (no more Cuirass in some places), and light cavalry is "Light Cavalry" / "Light Cav".
+- Regiments inside an army (and in the battle roster) are listed line infantry first, then light infantry / rifles, then artillery, then cavalry.

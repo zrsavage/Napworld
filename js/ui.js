@@ -512,6 +512,7 @@
         const rc = C.reinforceCost(a), rerr = C.reinforceCheck(a), full = a.units.reduce((n, u) => n + u.max, 0), cur = a.units.reduce((n, u) => n + u.men, 0);
         html += `<div class="reinf"><b>Losses:</b> ${fmt(rc.men)} men missing (${Math.round(cur / full * 100)}% strength).<br><span class="muted">Recover them by <b>reinforcing</b> (instant, costs gold and manpower) or by <b>resting</b> in friendly territory without moving (about 15% of each regiment per turn, costs manpower only).</span><div class="row"><button data-act="reinforce" ${rerr ? 'disabled' : ''} data-tip="${esc(rerr || `Refills every regiment now: about ${rc.gold} gold and ${rc.men} manpower. Partial if you cannot afford it all.`)}">Reinforce now (${rc.gold}g, ${fmt(rc.men)} men)</button></div></div>`;
       }
+    C.sortUnits(a);
     html += `<div style="margin-top:6px">`;
     a.units.forEach((u, i) => {
       html += `<div class="unit"><input type="checkbox" data-u="${i}" ${mine ? '' : 'disabled'}><span>${U[u.type].name}${C.canUpgrade(u) ? ' <span class="good" title="Ready to upgrade to Line Infantry">\u25B2</span>' : ''}${C.vetOf(u) ? ' <span class="gold">' + '\u2605'.repeat(C.vetOf(u)) + '</span>' : ''}</span><span style="text-align:right">${u.men}/${u.max}</span><div class="bar"><i style="width:${Math.round(u.men / u.max * 100)}%"></i></div></div>`;

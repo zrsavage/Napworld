@@ -1914,8 +1914,9 @@
     }
 
     drawRoster() {
+      const rk = (u) => (u.cls === 'inf' ? (BT[u.type].light ? 1 : 0) : u.cls === 'art' ? 2 : 3);
       const el = this.root.querySelector('#b-roster'); if (!el || el.classList.contains('hide')) return;
-      const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || a.cls.localeCompare(b.cls) || a.id - b.id);
+      const mine = this.units.filter((u) => u.side === 0 && (u.cls === 'gen' ? !u.dead : this.alive(u))).sort((a, b) => (b.cls === 'gen') - (a.cls === 'gen') || rk(a) - rk(b) || a.id - b.id);
       const rows = mine.map((u) => {
         const gen = u.cls === 'gen', mp = clamp(u.morale / u.baseMorale, 0, 1), st = u.state === 'routing' ? '<b class="rr">ROUTING</b>' : this.wavering(u) ? '<b class="rr">wavering!</b>' : (u.order && u.order.back) ? '<b class="rm2">falling back</b>' : u.status ? `<b class="rf">${u.status}</b>` : u.state === 'fighting' ? '<b class="rm2">melee</b>' : u.mv ? '<span>marching</span>' : '';
         const nm = gen ? '\u2605 ' + esc2(u.name) : `${NAP.UNITS[u.type].short} ${Math.round(u.men)}`;
