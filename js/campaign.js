@@ -384,11 +384,14 @@
   // Easy mode (simple rules): the player's choices shrink to line infantry, cavalry and artillery, and the buildings to Market (money) and Barracks (recruiting)
   C.SIMPLE_UNITS = ['line', 'hussar', 'art'];
   C.SIMPLE_BUILDS = ['market', 'barracks'];
+  // regiments of a type a nation owns, including those still in training (for per-nation limits such as the Guard)
+  C.countType = (f, t) => S.armies.filter((a) => a.owner === f).reduce((n, a) => n + a.units.filter((u) => u.type === t).length, 0) + C.provincesOf(f).reduce((n, p) => n + S.provinces[p.id].queue.filter((q) => q.type === t).length, 0);
   C.isSimple = (f) => !!S.simple && f === S.player;
   C.recruitCheck = function (pid, type) {
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (C.isSimple(f) && !C.SIMPLE_UNITS.includes(type)) return 'Not used in Easy mode';
     if ((ps.disrupt || 0) > 0) return 'Rebels hold the countryside';
+    if (u.limit && C.countType(f, type) >= u.limit) return `Limit reached: at most ${u.limit} ${u.short} regiments per nation`;
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
     if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';

@@ -723,8 +723,8 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
                  desc:'Skirmishers who screen the line, harass the enemy and move quickly. Fragile in a straight fight.' },
     grenadier: { name:'Grenadiers',       short:'Grenadier',men:700, cost:150, upkeep:4, time:1, cls:'inf', power:1.35, morale:84,  speed:22, w:64, d:12, needs:'barracks',
                  desc:'Picked, taller veterans. Harder hitting and steadier than line infantry.' },
-    guard:     { name:'Guard Infantry',   short:'Guard',    men:700, cost:230, upkeep:6, time:2, cls:'inf', power:1.75, morale:100, speed:22, w:62, d:12, needs:'academy',
-                 desc:'The finest infantry a nation fields. Excellent fire and melee, almost never break.' },
+    guard:     { name:'Guard Infantry',   short:'Guard',    men:700, cost:230, upkeep:6, time:2, cls:'inf', power:1.75, morale:100, speed:22, w:62, d:12, needs:'academy', limit:10,
+                 desc:'The finest infantry a nation fields. Excellent fire and melee, almost never break. No nation may field more than 10 regiments of them.' },
     hussar:    { name:'Light Cavalry',    short:'Light Cav',   men:250, cost:105, upkeep:4, time:1, cls:'cav', power:1.4,  morale:66,  speed:72, w:50, d:10,
                  desc:'Fast scouts and flankers. Good for chasing routers and hitting artillery.' },
     lancer:    { name:'Lancers',          short:'Lancer',   men:250, cost:125, upkeep:4, time:1, cls:'cav', power:1.6,  morale:70,  speed:66, w:50, d:10, needs:'stables',
@@ -2048,11 +2048,14 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
   // Easy mode (simple rules): the player's choices shrink to line infantry, cavalry and artillery, and the buildings to Market (money) and Barracks (recruiting)
   C.SIMPLE_UNITS = ['line', 'hussar', 'art'];
   C.SIMPLE_BUILDS = ['market', 'barracks'];
+  // regiments of a type a nation owns, including those still in training (for per-nation limits such as the Guard)
+  C.countType = (f, t) => S.armies.filter((a) => a.owner === f).reduce((n, a) => n + a.units.filter((u) => u.type === t).length, 0) + C.provincesOf(f).reduce((n, p) => n + S.provinces[p.id].queue.filter((q) => q.type === t).length, 0);
   C.isSimple = (f) => !!S.simple && f === S.player;
   C.recruitCheck = function (pid, type) {
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (C.isSimple(f) && !C.SIMPLE_UNITS.includes(type)) return 'Not used in Easy mode';
     if ((ps.disrupt || 0) > 0) return 'Rebels hold the countryside';
+    if (u.limit && C.countType(f, type) >= u.limit) return `Limit reached: at most ${u.limit} ${u.short} regiments per nation`;
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
     if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';
@@ -6399,6 +6402,7 @@ body.learnsimple #topbar #b-wars, body.learnsimple #topbar #b-arm, body.learnsim
     const melee = Math.max(1, Math.round((bt.melee || 0) / 0.009 * 5));
     let h = `<b>${u.name}</b><br>${u.desc}<br><span class="ttk">Men ${u.men} \u00B7 Cost ${cost}g \u00B7 Upkeep ${u.upkeep}/turn \u00B7 Trains in ${u.time} turn${u.time > 1 ? 's' : ''}</span>`;
     h += `<br><span class="ttk">Firepower ${dots(fire, 5)} \u00B7 Melee ${dots(melee, 5)} \u00B7 Morale ${u.morale} \u00B7 Speed ${u.speed}</span>`;
+    if (u.limit) h += `<br>Limit: <b>${C.countType(ps.owner, t)} / ${u.limit}</b> regiments per nation.`;
     if (u.needs) h += `<br>${ps[u.needs] ? '\u2714' : '\u{1F512}'} Needs a <b>${NAP.BUILDINGS[u.needs].name}</b> in this province.`;
     if (ps.academy) h += '<br>\u2605 Raised as veterans (Military Academy).';
     if (u.cls === 'art' && ps.arsenal) h += '<br>Arsenal: 20% cheaper.'; if (u.cls === 'cav' && ps.stables) h += '<br>Stables: 10% cheaper.';

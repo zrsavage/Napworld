@@ -239,3 +239,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Rebels from unrest, and a third economy tier
 - The **Rebels** are now a general mechanic, not just a Spanish event: any province with **60%+ unrest** and no army in it can spawn a guerrilla band (chance grows with unrest, up to 10 bands at once, each lasting about 10 turns). Bands are at war with that province's owner only, cannot be traded or allied with, raid undefended provinces of that owner (income x0.4, no recruiting, unrest +5 a turn) and fight its troops; AI armies chase bands they can crush. Any army in the province keeps the rebels from rising. At 100% unrest the province still revolts and is lost. The 1808 Spanish uprising raises Spanish unrest and spawns extra bands.
 - **Third level** of both economy chains: **Imperial Bank** (needs Exchange, +50% income) and **Recruitment Bureau** (needs Conscription Office, +50% manpower). Not available in Easy mode.
+
+### Guard limit
+- No nation may hold more than **10 regiments of Guard Infantry** (armies plus those in training). Applies to the player and the AI; the unit tooltip shows your current count against the limit.
