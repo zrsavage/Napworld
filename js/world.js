@@ -494,6 +494,7 @@
         ctx.fillStyle = FLAG_TEXT[a.owner] || '#fff';
         ctx.font = `bold ${9 * sc}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(a.units.length, 0, 0.5);
+        if (a.junta) { ctx.save(); ctx.setLineDash([3, 2]); ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 2; ctx.strokeRect(-mw / 2 - 2, -mh / 2 - 2, mw + 4, mh + 4); ctx.fillStyle = '#ff8a1a'; ctx.beginPath(); ctx.moveTo(-mw / 2 - 2, -mh / 2 - 2); ctx.lineTo(-mw / 2 + 5 * sc, -mh / 2 - 9 * sc); ctx.lineTo(-mw / 2 + 9 * sc, -mh / 2 - 2); ctx.fill(); ctx.restore(); }
         if (a.general) { ctx.fillStyle = '#ffd700'; ctx.font = `${8 * sc}px sans-serif`; ctx.fillText('★', mw / 2, -mh / 2); }
         if (a.owner === state.player && a.path && a.path.length) { ctx.fillStyle = '#fff'; ctx.fillText('→', mw / 2 + 4 * sc, 0); }
         ctx.restore();

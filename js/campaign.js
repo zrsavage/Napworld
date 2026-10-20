@@ -1574,19 +1574,24 @@
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',
-      text: 'The people of Madrid rise against the French. Juntas form across Spain; guerrilla bands harass the occupiers.',
+      text: 'The people of Madrid rise against the French. Juntas form across Spain and make common cause with Britain and Portugal; guerrilla bands (marked with an amber edge) harass the occupiers.',
       cond: () => alive('france') && alive('spain'),
       run: () => {
         if (allied('france', 'spain') && S.player !== 'spain') { delete S.allies[pkey('france', 'spain')]; sameWar('spain', 'france', 'Peninsular uprising'); }
+        // Spain changes sides: the juntas make peace with Britain and Portugal and ally with them against France
+        if (S.player !== 'spain' && alive('spain')) {
+          for (const o of ['portugal', 'britain']) { if (!alive(o)) continue; if (atWar('spain', o)) makePeace('spain', o); if (!allied('spain', o)) makeAlliance('spain', o); }
+          plog('Spain changes sides! The juntas make peace with Britain and Portugal and take up arms against the French. Look for the amber-edged guerrilla bands.', 'good', ['spain', 'france', 'britain', 'portugal']);
+        }
         for (const p of W().provs.filter((x) => x.owner === 'spain' || x.owner === 'portugal')) {
           const ps = S.provinces[p.id], owner = p.owner;
-          if (ps.owner === owner) { if (S.player !== owner) spawnUnits(owner, p.id, 'line:2 light:1'); continue; }
+          if (ps.owner === owner) { if (S.player !== owner) { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:3 line:1' : 'line:2 light:1'); if (owner === 'spain') g.junta = true; } continue; }
           const occupier = ps.owner;
           if (occupier === 'france' || allied(occupier, 'france')) {
             if (!S.armies.some((a) => a.prov === p.id && a.owner === occupier && C.armyPower(a) > 8000)) {
               for (const a of S.armies.filter((x) => x.prov === p.id && x.owner === occupier)) removeArmy(a);
               ps.owner = owner; ps.siege = null;
-              spawnUnits(owner, p.id, 'line:3 light:2');
+              { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:4 line:2' : 'line:3 light:2'); if (owner === 'spain') g.junta = true; }
             }
           }
         }

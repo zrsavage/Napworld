@@ -1590,6 +1590,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.fillStyle = FLAG_TEXT[a.owner] || '#fff';
         ctx.font = `bold ${9 * sc}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(a.units.length, 0, 0.5);
+        if (a.junta) { ctx.save(); ctx.setLineDash([3, 2]); ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 2; ctx.strokeRect(-mw / 2 - 2, -mh / 2 - 2, mw + 4, mh + 4); ctx.fillStyle = '#ff8a1a'; ctx.beginPath(); ctx.moveTo(-mw / 2 - 2, -mh / 2 - 2); ctx.lineTo(-mw / 2 + 5 * sc, -mh / 2 - 9 * sc); ctx.lineTo(-mw / 2 + 9 * sc, -mh / 2 - 2); ctx.fill(); ctx.restore(); }
         if (a.general) { ctx.fillStyle = '#ffd700'; ctx.font = `${8 * sc}px sans-serif`; ctx.fillText('★', mw / 2, -mh / 2); }
         if (a.owner === state.player && a.path && a.path.length) { ctx.fillStyle = '#fff'; ctx.fillText('→', mw / 2 + 4 * sc, 0); }
         ctx.restore();
@@ -3228,19 +3229,24 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',
-      text: 'The people of Madrid rise against the French. Juntas form across Spain; guerrilla bands harass the occupiers.',
+      text: 'The people of Madrid rise against the French. Juntas form across Spain and make common cause with Britain and Portugal; guerrilla bands (marked with an amber edge) harass the occupiers.',
       cond: () => alive('france') && alive('spain'),
       run: () => {
         if (allied('france', 'spain') && S.player !== 'spain') { delete S.allies[pkey('france', 'spain')]; sameWar('spain', 'france', 'Peninsular uprising'); }
+        // Spain changes sides: the juntas make peace with Britain and Portugal and ally with them against France
+        if (S.player !== 'spain' && alive('spain')) {
+          for (const o of ['portugal', 'britain']) { if (!alive(o)) continue; if (atWar('spain', o)) makePeace('spain', o); if (!allied('spain', o)) makeAlliance('spain', o); }
+          plog('Spain changes sides! The juntas make peace with Britain and Portugal and take up arms against the French. Look for the amber-edged guerrilla bands.', 'good', ['spain', 'france', 'britain', 'portugal']);
+        }
         for (const p of W().provs.filter((x) => x.owner === 'spain' || x.owner === 'portugal')) {
           const ps = S.provinces[p.id], owner = p.owner;
-          if (ps.owner === owner) { if (S.player !== owner) spawnUnits(owner, p.id, 'line:2 light:1'); continue; }
+          if (ps.owner === owner) { if (S.player !== owner) { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:3 line:1' : 'line:2 light:1'); if (owner === 'spain') g.junta = true; } continue; }
           const occupier = ps.owner;
           if (occupier === 'france' || allied(occupier, 'france')) {
             if (!S.armies.some((a) => a.prov === p.id && a.owner === occupier && C.armyPower(a) > 8000)) {
               for (const a of S.armies.filter((x) => x.prov === p.id && x.owner === occupier)) removeArmy(a);
               ps.owner = owner; ps.siege = null;
-              spawnUnits(owner, p.id, 'line:3 light:2');
+              { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:4 line:2' : 'line:3 light:2'); if (owner === 'spain') g.junta = true; }
             }
           }
         }
