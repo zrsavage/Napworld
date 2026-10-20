@@ -232,5 +232,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - Portugal now gets a head start like Bavaria: +50% gold, +2,200 manpower, a Market and Barracks in each province, an Arsenal and a fort in Lisbon.
 - The *Wellesley Takes Command* event (April 1808) now actually sends a British expeditionary army (about 11 regiments) to Lisbon, if Portugal still holds it and is not Britain's enemy.
 
-### The Spanish uprising
-- In May 1808 Spain now **changes sides**: the juntas make peace with Britain and Portugal, ally with them against France, and rise as **guerrilla bands** (new Guerrilla regiments) drawn with an amber dashed edge and a flame on the map, so they read as insurgents rather than more Spanish line troops.
+### The Spanish Rebels
+- In May 1808 a hidden faction, the **Spanish Rebels**, rises (amber dashed edge and flame on their map markers). Spain does **not** change sides: it stays France's ally. The rebels are at war with Spain only, cannot be traded with or allied with, and have no provinces. Bands of Guerrillas appear in Spanish provinces (up to 7 at once, each lasting about 10 turns until 1813), raid Spanish provinces that have no army (income x0.4, no recruiting, unrest up) and fight Spanish troops; Spanish AI armies chase bands they can crush.
+- Portugal's own uprising against French occupiers is unchanged.

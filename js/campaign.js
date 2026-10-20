@@ -205,7 +205,7 @@
   C.armyMen = (a) => a.units.reduce((s, u) => s + u.men, 0);
   const factionPower = (f) => C.armiesOf(f).reduce((s, a) => s + C.armyPower(a), 0);
   C.factionPower = factionPower;
-  const wars = (f) => Object.keys(S.wars).filter((k) => k.split('|').includes(f)).map((k) => k.split('|').find((x) => x !== f));
+  const wars = (f) => Object.keys(S.wars).filter((k) => k.split('|').includes(f)).map((k) => k.split('|').find((x) => x !== f)).filter((x) => x !== 'rebels' || f === 'rebels');
   C.warsOf = wars;
   const alliesOf = (f) => Object.keys(S.allies).filter((k) => k.split('|').includes(f)).map((k) => k.split('|').find((x) => x !== f));
   C.alliesOf = alliesOf;
@@ -213,7 +213,7 @@
 
   C.provIncome = function (ps) {
     const d = C.def(ps.id);
-    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0));
+    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0)) * ((ps.disrupt || 0) > 0 ? 0.4 : 1);
     if (ps.siege) v *= 0.1;
     if (ps.blockade) v *= 0.5 + Math.min(0.35, 0.15 * C.runners(ps.id));
     if (ps.foraged) v *= 0.3;
@@ -388,6 +388,7 @@
   C.recruitCheck = function (pid, type) {
     const ps = S.provinces[pid], f = ps.owner, fs = S.factions[f], u = U[type];
     if (C.isSimple(f) && !C.SIMPLE_UNITS.includes(type)) return 'Not used in Easy mode';
+    if ((ps.disrupt || 0) > 0) return 'Rebels hold the countryside';
     if (ps.siege) return 'Province is besieged';
     if (ps.queue.length >= 3) return 'Recruitment queue is full';
     if (u.nation && u.nation !== f) return 'Only the ' + F(u.nation).adj + ' can raise these';
@@ -1511,6 +1512,54 @@
   function coalition(members, target, label) {
     members.forEach((m) => { if (m !== target && alive(m) && alive(target) && !atWar(m, target) && !allied(m, target) && m !== S.player) sameWar(m, target, label); });
   }
+  // ---- Spanish Rebels (1808-1813): a hidden faction of guerrilla bands at war with Spain only. No diplomacy; they raid and fight.
+  function rebelBand(pid) {
+    const a = spawnUnits('rebels', pid, 'guerrilla:3'); a.junta = true; a.age = 0;
+    plog(`A rebel guerrilla band rises in ${C.def(pid).name}.`, 'bad', ['spain', 'france', 'portugal', 'britain']);
+    return a;
+  }
+  function spawnRebelBand() {
+    const held = new Set(C.armiesOf('rebels').map((a) => a.prov));
+    const cands = W().provs.filter((p) => S.provinces[p.id].owner === 'spain' && !held.has(p.id) && !S.armies.some((a) => a.prov === p.id && atWar(a.owner, 'spain') && a.owner !== 'rebels'));
+    if (!cands.length) return;
+    const near = (p) => S.armies.some((a) => a.owner === 'spain' && (a.prov === p.id || p.adj.some((i) => W().provs[i].id === a.prov)));
+    const pool = cands.filter(near); const pick = (pool.length ? pool : cands)[Math.floor(rnd() * (pool.length || cands.length))];
+    rebelBand(pick.id);
+  }
+  async function rebelPhase() {
+    if (!S.rebels || !S.rebels.on) return;
+    for (const p of Object.values(S.provinces)) if ((p.disrupt || 0) > 0) p.disrupt--;
+    const rb = C.armiesOf('rebels');
+    if (!S.factions.spain.alive || S.year > 1813) { for (const a of rb) removeArmy(a); S.rebels.on = false; delete S.wars[pkey('rebels', 'spain')]; return; }
+    if (rb.length < 7 && rnd() < 0.3) spawnRebelBand();
+    const menOf = (a) => C.armyMen(a);
+    for (const a of C.armiesOf('rebels').slice()) {
+      if (!S.armies.includes(a)) continue;
+      a.age = (a.age || 0) + 1;
+      if (a.age > 10) { plog(`The rebel band in ${C.def(a.prov).name} disperses into the hills.`, 'info', ['spain']); removeArmy(a); continue; }
+      const here = S.provinces[a.prov];
+      if (here.owner === 'spain' && !S.armies.some((x) => x.prov === a.prov && x.owner === 'spain')) { // raiding: income cut, unrest up
+        if (!(here.disrupt > 0)) plog(`Rebels raid ${C.def(a.prov).name}: income and recruiting disrupted.`, 'bad', ['spain']);
+        here.disrupt = 4; here.unrest = Math.min(100, (here.unrest || 0) + 6);
+      }
+      if (a.path.length) { await stepArmy(a); continue; }
+      let best = null, bs = -9;
+      for (const q of C.neighbors('rebels', a.prov)) {
+        if (C.isSea(a.prov, q) || S.provinces[q].owner !== 'spain') continue;
+        const foes = S.armies.filter((x) => x.prov === q && x.owner === 'spain'), fm = foes.reduce((n, x) => n + menOf(x), 0);
+        if (fm > menOf(a) * 2.5) continue;
+        const sc = (fm ? 2 : 1) + rnd();
+        if (sc > bs) { bs = sc; best = q; }
+      }
+      if (best) { a.path = [best]; await stepArmy(a); }
+    }
+    // Spanish field armies chase nearby bands they can crush
+    for (const sa of C.armiesOf('spain')) {
+      if (sa.path.length || sa.owner === S.player || sa.units.length < 3 || rnd() > 0.35) continue;
+      const tgt = C.armiesOf('rebels').find((r) => C.neighbors('spain', sa.prov).includes(r.prov) && !C.isSea(sa.prov, r.prov) && menOf(r) * 1.5 < menOf(sa));
+      if (tgt) sa.path = [tgt.prov];
+    }
+  }
   function spawnUnits(f, pid, spec) {
     const units = parseSpec(spec);
     const a = C.makeArmy(f, pid, units);
@@ -1574,28 +1623,23 @@
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',
-      text: 'The people of Madrid rise against the French. Juntas form across Spain and make common cause with Britain and Portugal; guerrilla bands (marked with an amber edge) harass the occupiers.',
-      cond: () => alive('france') && alive('spain'),
+      text: 'The people of Madrid rise against the French occupation and the Spanish crown that bowed to it. Juntas form across Spain: a new faction, the Spanish Rebels, takes the field. They cannot be bargained with, and they raid Spanish provinces and fight Spanish troops, tying down the army.',
+      cond: () => alive('spain'),
       run: () => {
-        if (allied('france', 'spain') && S.player !== 'spain') { delete S.allies[pkey('france', 'spain')]; sameWar('spain', 'france', 'Peninsular uprising'); }
-        // Spain changes sides: the juntas make peace with Britain and Portugal and ally with them against France
-        if (S.player !== 'spain' && alive('spain')) {
-          for (const o of ['portugal', 'britain']) { if (!alive(o)) continue; if (atWar('spain', o)) makePeace('spain', o); if (!allied('spain', o)) makeAlliance('spain', o); }
-          plog('Spain changes sides! The juntas make peace with Britain and Portugal and take up arms against the French. Look for the amber-edged guerrilla bands.', 'good', ['spain', 'france', 'britain', 'portugal']);
-        }
-        for (const p of W().provs.filter((x) => x.owner === 'spain' || x.owner === 'portugal')) {
-          const ps = S.provinces[p.id], owner = p.owner;
-          if (ps.owner === owner) { if (S.player !== owner) { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:3 line:1' : 'line:2 light:1'); if (owner === 'spain') g.junta = true; } continue; }
+        S.rebels = { on: true };
+        S.wars[pkey('rebels', 'spain')] = { since: S.turn, exh: 0, s: {}, goal: { by: null, type: 'none' } };
+        rebelBand('madrid'); for (let k = 0; k < 4; k++) spawnRebelBand();
+        for (const p of W().provs.filter((x) => x.owner === 'portugal')) { // Portugal rises against French occupiers as before
+          const ps = S.provinces[p.id], owner = 'portugal';
+          if (ps.owner === owner) { if (S.player !== owner) spawnUnits(owner, p.id, 'line:2 light:1'); continue; }
           const occupier = ps.owner;
           if (occupier === 'france' || allied(occupier, 'france')) {
             if (!S.armies.some((a) => a.prov === p.id && a.owner === occupier && C.armyPower(a) > 8000)) {
               for (const a of S.armies.filter((x) => x.prov === p.id && x.owner === occupier)) removeArmy(a);
-              ps.owner = owner; ps.siege = null;
-              { const g = spawnUnits(owner, p.id, owner === 'spain' ? 'guerrilla:4 line:2' : 'line:3 light:2'); if (owner === 'spain') g.junta = true; }
+              ps.owner = owner; ps.siege = null; spawnUnits(owner, p.id, 'line:3 light:2');
             }
           }
         }
-        S.factions.spain.gold += 300;
         NAP.recolor(S);
       }
     },
@@ -2006,6 +2050,7 @@
         if (moves.length) await H().phase({ f, moves });
       }
     }
+    await rebelPhase();
     navalPhase();
     pursuit();
     // minor faction sieges (they never move) - none

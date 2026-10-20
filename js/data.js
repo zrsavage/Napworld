@@ -290,6 +290,7 @@
                 desc:'A Bourbon kingdom in southern Italy, caught between French ambition and British gold.' },
     bavaria:  { name:'Bavaria & Allies',   adj:'Bavarian',  color:'#69b7e8', leader:'Maximilian I Joseph', gold:500, aggr:0.3, morale:1.0, fire:1.0, playable:true,
                 desc:'Small German states drifting into the French orbit, standing between Austria and the Rhine.' },
+    rebels:   { name:'Spanish Rebels',     adj:'Rebel',     color:'#e0792a', leader:'The Juntas', gold:0, aggr:1, morale:1.0, fire:0.95, playable:false, desc:'Guerrilla bands that rose against the Spanish crown in 1808. They cannot be traded or allied with; they raid Spanish provinces and fight Spanish troops.' },
     minor:    { name:'Neutral States',     adj:'Neutral',   color:'#948f7c', leader:'—', gold:200, aggr:0, morale:0.9, fire:0.9, playable:false,
                 desc:'Switzerland, the Papal States, Sardinia and the Barbary regencies.' }
   };
