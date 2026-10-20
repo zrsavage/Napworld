@@ -227,3 +227,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Naming and army order
 - Heavy cavalry is "Heavy Cavalry" / "Heavy Cav" everywhere (no more Cuirass in some places), and light cavalry is "Light Cavalry" / "Light Cav".
 - Regiments inside an army (and in the battle roster) are listed line infantry first, then light infantry / rifles, then artillery, then cavalry.
+
+### Portugal and the Peninsula
+- Portugal now gets a head start like Bavaria: +50% gold, +2,200 manpower, a Market and Barracks in each province, an Arsenal and a fort in Lisbon.
+- The *Wellesley Takes Command* event (April 1808) now actually sends a British expeditionary army (about 11 regiments) to Lisbon, if Portugal still holds it and is not Britain's enemy.

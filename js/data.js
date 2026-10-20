@@ -428,7 +428,7 @@
   for (const f in NAP.PERKS) { NAP.FACTIONS[f].morale = +NAP.perk(f, 'morale').toFixed(3); NAP.FACTIONS[f].fire = +NAP.perk(f, 'fire').toFixed(3); }
 
   // Starting help for the weakest nation: extra gold and manpower, a market and barracks in every province, an academy and a fort in the capital
-  NAP.START_BONUS = { bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
+  NAP.START_BONUS = { portugal: { goldMul: 1.5, manpower: 2200, all: ['market', 'barracks'], capital: ['arsenal'], capFort: 1 }, bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
   NAP.NATION_GUIDE = {
     russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
     britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },

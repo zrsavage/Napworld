@@ -826,7 +826,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   for (const f in NAP.PERKS) { NAP.FACTIONS[f].morale = +NAP.perk(f, 'morale').toFixed(3); NAP.FACTIONS[f].fire = +NAP.perk(f, 'fire').toFixed(3); }
 
   // Starting help for the weakest nation: extra gold and manpower, a market and barracks in every province, an academy and a fort in the capital
-  NAP.START_BONUS = { bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
+  NAP.START_BONUS = { portugal: { goldMul: 1.5, manpower: 2200, all: ['market', 'barracks'], capital: ['arsenal'], capFort: 1 }, bavaria: { goldMul: 1.6, manpower: 2500, all: ['market', 'barracks'], capital: ['academy', 'stables', 'arsenal'], capFort: 1 } };
   NAP.NATION_GUIDE = {
     russia:   { tier:'Beginner', rank:1, ribbon:'Best first pick', war:false, why:'Huge manpower and 15 provinces, far from the first fighting. Nobody can reach you for months, and Russian winters hurt invaders far more than you.', tips:['Spend early gold on Markets, then Barracks.','Your ally Austria meets France first.','Let enemy armies bleed on your deep territory, then counter-attack.'] },
     britain:  { tier:'Easy', rank:2, ribbon:'Relaxed start', war:true, why:'The richest treasury and a safe island. Few battles at first, so it is a gentle way to learn the economy and diplomacy.', tips:['Britain automatically subsidises its allies with gold.','Armies of up to 12 regiments can sail between ports.','Build Markets in every province.'] },
@@ -3215,8 +3215,16 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     },
     {
       id: 'wellesley', y: 1808, m: 4, title: 'Wellesley Takes Command',
-      text: 'Sir Arthur Wellesley, victor of India, is given command of a British army for the Peninsula.',
-      run: () => { /* generals arrive by year anyway */ }
+      text: 'Sir Arthur Wellesley, victor of India, is given command of a British army for the Peninsula. A British expeditionary force sails for Lisbon.',
+      run: () => {
+        // the British land in Portugal (if it still stands and is not Britain's enemy): the Peninsular War's anchor
+        if (!alive('britain') || !alive('portugal') || S.provinces.lisbon.owner !== 'portugal' || atWar('britain', 'portugal')) return;
+        if (S.armies.some((a) => a.prov === 'lisbon' && atWar(a.owner, 'britain'))) return;
+        const army = C.makeArmy('britain', 'lisbon', parseSpec('line:6 light:1 rifle:1 hussar:1 art:2'));
+        const g = Object.values(S.generals).find((x) => x.name === 'Arthur Wellesley' && x.alive);
+        if (g) { g.arrived = true; const pl = S.pool.britain, i = pl.indexOf(g.id); if (i >= 0) pl.splice(i, 1); if (!g.assigned) C.assignGeneral(army, g.id); }
+        plog('A British expeditionary army lands at Lisbon under Wellesley.', 'good', ['britain', 'portugal']);
+      }
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',

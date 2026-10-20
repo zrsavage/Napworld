@@ -1561,8 +1561,16 @@
     },
     {
       id: 'wellesley', y: 1808, m: 4, title: 'Wellesley Takes Command',
-      text: 'Sir Arthur Wellesley, victor of India, is given command of a British army for the Peninsula.',
-      run: () => { /* generals arrive by year anyway */ }
+      text: 'Sir Arthur Wellesley, victor of India, is given command of a British army for the Peninsula. A British expeditionary force sails for Lisbon.',
+      run: () => {
+        // the British land in Portugal (if it still stands and is not Britain's enemy): the Peninsular War's anchor
+        if (!alive('britain') || !alive('portugal') || S.provinces.lisbon.owner !== 'portugal' || atWar('britain', 'portugal')) return;
+        if (S.armies.some((a) => a.prov === 'lisbon' && atWar(a.owner, 'britain'))) return;
+        const army = C.makeArmy('britain', 'lisbon', parseSpec('line:6 light:1 rifle:1 hussar:1 art:2'));
+        const g = Object.values(S.generals).find((x) => x.name === 'Arthur Wellesley' && x.alive);
+        if (g) { g.arrived = true; const pl = S.pool.britain, i = pl.indexOf(g.id); if (i >= 0) pl.splice(i, 1); if (!g.assigned) C.assignGeneral(army, g.id); }
+        plog('A British expeditionary army lands at Lisbon under Wellesley.', 'good', ['britain', 'portugal']);
+      }
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',
