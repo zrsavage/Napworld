@@ -290,7 +290,7 @@
                 desc:'A Bourbon kingdom in southern Italy, caught between French ambition and British gold.' },
     bavaria:  { name:'Bavaria & Allies',   adj:'Bavarian',  color:'#69b7e8', leader:'Maximilian I Joseph', gold:500, aggr:0.3, morale:1.0, fire:1.0, playable:true,
                 desc:'Small German states drifting into the French orbit, standing between Austria and the Rhine.' },
-    rebels:   { name:'Spanish Rebels',     adj:'Rebel',     color:'#e0792a', leader:'The Juntas', gold:0, aggr:1, morale:1.0, fire:0.95, playable:false, desc:'Guerrilla bands that rose against the Spanish crown in 1808. They cannot be traded or allied with; they raid Spanish provinces and fight Spanish troops.' },
+    rebels:   { name:'Rebels',            adj:'Rebel',     color:'#e0792a', leader:'The Juntas', gold:0, aggr:1, morale:1.0, fire:0.95, playable:false, desc:'Guerrilla bands raised by unrest. They cannot be traded or allied with; they raid the provinces of the nation they rose against and fight its troops.' },
     minor:    { name:'Neutral States',     adj:'Neutral',   color:'#948f7c', leader:'—', gold:200, aggr:0, morale:0.9, fire:0.9, playable:false,
                 desc:'Switzerland, the Papal States, Sardinia and the Barbary regencies.' }
   };
@@ -364,6 +364,8 @@
     market:   { name:'Market',          cost:220, time:3, max:1, desc:'+50% province income.' },
     barracks: { name:'Barracks',        cost:260, time:3, max:1, desc:'+50% manpower growth. Unlocks Grenadiers here.' },
     bank:     { name:'Exchange',        cost:380, time:4, max:1, req:'market', desc:'Needs a Market. A further +50% province income.' },
+    imperial: { name:'Imperial Bank',    cost:520, time:5, max:1, req:'bank', desc:'Needs an Exchange. A third and final +50% province income.' },
+    bureau:   { name:'Recruitment Bureau', cost:540, time:5, max:1, req:'depot', desc:'Needs a Conscription Office. A third and final +50% manpower growth.' },
     depot:    { name:'Conscription Office', cost:400, time:4, max:1, req:'barracks', desc:'Needs Barracks. A further +50% manpower growth.' },
     stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
     arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },

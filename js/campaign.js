@@ -213,7 +213,7 @@
 
   C.provIncome = function (ps) {
     const d = C.def(ps.id);
-    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0)) * ((ps.disrupt || 0) > 0 ? 0.4 : 1);
+    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0) + 0.5 * (ps.imperial || 0)) * ((ps.disrupt || 0) > 0 ? 0.4 : 1);
     if (ps.siege) v *= 0.1;
     if (ps.blockade) v *= 0.5 + Math.min(0.35, 0.15 * C.runners(ps.id));
     if (ps.foraged) v *= 0.3;
@@ -288,7 +288,7 @@
   };
   C.manpowerGain = function (f) {
     let v = 0;
-    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks + 0.5 * (ps.depot || 0)) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
+    for (const p of C.provincesOf(f)) { const ps = S.provinces[p.id]; if (!ps.siege) v += C.def(p.id).manpower * MP_K * (1 + 0.5 * ps.barracks + 0.5 * (ps.depot || 0) + 0.5 * (ps.bureau || 0)) * ({ levy: 1.5 }[ps.policy] || 1) * ((ps.unrest || 0) >= 60 ? 0.5 : 1); }
     return Math.round(v * NAP.perk(f, 'manpower'));
   };
   C.manpowerCap = (f) => 6000 + C.provincesOf(f).length * 500;
@@ -1003,9 +1003,11 @@
     if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
-    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy', 'bank', 'depot']) if (rnd() < 0.45) ps[b] = 0;
+    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau']) if (rnd() < 0.45) ps[b] = 0;
     if (!ps.barracks) { ps.academy = 0; ps.depot = 0; }
+    if (!ps.depot) ps.bureau = 0;
     if (!ps.market) ps.bank = 0;
+    if (!ps.bank) ps.imperial = 0;
     plog(`${F(f).name} captures ${d.name} from ${F(old).name}!`, f === S.player ? 'good' : 'bad', [f, old]);
     if (f !== S.player && old !== S.player) C.log(`${d.name} falls to ${F(f).adj} forces.`, 'capture-minor');
     if (S.factions[old].cap === pid && old !== 'minor') {
@@ -1092,6 +1094,7 @@
     for (const p of C.provincesOf(f)) {
       const ps = S.provinces[p.id];
       if (ps.siege) out.push({ kind: 'siege', sev: 3, prov: p.id, text: `${p.name} is under siege` });
+      if ((ps.disrupt || 0) > 0) out.push({ kind: 'rebels', sev: 2, prov: p.id, text: `Rebels hold the countryside around ${p.name}: income and recruiting are cut. Send troops` });
       if ((ps.unrest || 0) >= 60) out.push({ kind: 'unrest', sev: 3, prov: p.id, text: `Unrest in ${p.name} is ${Math.round(ps.unrest)}%` });
     }
     for (const a of C.armiesOf(f)) { const full = a.units.reduce((n, u) => n + u.max, 0) || 1, cur = a.units.reduce((n, u) => n + u.men, 0); if (cur < full * 0.7 && !C.reinforceCheck(a) && !a.path.length) out.push({ kind: 'reinforce', sev: 1, army: a.id, prov: a.prov, text: `Army in ${C.def(a.prov).name} is at ${Math.round(cur / full * 100)}% strength: reinforce it` }); }
@@ -1291,6 +1294,8 @@
         if (ps.barracks && !ps.academy && fs.gold > 800) opts.push('academy');
         if (ps.market && !ps.bank && C.def(pick.id).income >= 4 && fs.gold > 900) opts.push('bank');
         if (ps.barracks && !ps.depot && C.def(pick.id).manpower >= 3 && fs.gold > 900) opts.push('depot');
+        if (ps.bank && !ps.imperial && C.def(pick.id).income >= 5 && fs.gold > 1500) opts.push('imperial');
+        if (ps.depot && !ps.bureau && C.def(pick.id).manpower >= 4 && fs.gold > 1500) opts.push('bureau');
         if (ps.fort < 2 && en.length && threatDist(f, pick.id, en) <= 2) opts.push('fort');
         if (opts.length) C.build(pick.id, opts[Math.floor(rnd() * opts.length)]);
       }
@@ -1512,53 +1517,66 @@
   function coalition(members, target, label) {
     members.forEach((m) => { if (m !== target && alive(m) && alive(target) && !atWar(m, target) && !allied(m, target) && m !== S.player) sameWar(m, target, label); });
   }
-  // ---- Spanish Rebels (1808-1813): a hidden faction of guerrilla bands at war with Spain only. No diplomacy; they raid and fight.
-  function rebelBand(pid) {
-    const a = spawnUnits('rebels', pid, 'guerrilla:3'); a.junta = true; a.age = 0;
-    plog(`A rebel guerrilla band rises in ${C.def(pid).name}.`, 'bad', ['spain', 'france', 'portugal', 'britain']);
+  // ---- Rebels: a hidden faction (no diplomacy, no provinces). Provinces with too much unrest spawn guerrilla bands that are at war with
+  // the province's owner: they raid undefended provinces (income cut, no recruiting, unrest up) and fight the owner's troops.
+  function rebelWar(owner) { const k = pkey('rebels', owner); if (!S.wars[k]) S.wars[k] = { since: S.turn, exh: 0, s: {}, goal: { by: null, type: 'none' } }; }
+  function rebelBand(pid, why) {
+    const owner = S.provinces[pid].owner; rebelWar(owner);
+    const a = spawnUnits('rebels', pid, 'guerrilla:3'); a.junta = true; a.age = 0; a.vs = owner;
+    plog(why || `Unrest boils over in ${C.def(pid).name}: a rebel guerrilla band takes to the hills.`, 'bad', [owner]);
     return a;
   }
-  function spawnRebelBand() {
+  function spawnRebelBand(owner, why) {
     const held = new Set(C.armiesOf('rebels').map((a) => a.prov));
-    const cands = W().provs.filter((p) => S.provinces[p.id].owner === 'spain' && !held.has(p.id) && !S.armies.some((a) => a.prov === p.id && atWar(a.owner, 'spain') && a.owner !== 'rebels'));
+    const cands = W().provs.filter((p) => S.provinces[p.id].owner === owner && !held.has(p.id) && !S.armies.some((a) => a.prov === p.id && a.owner !== 'rebels' && atWar(a.owner, owner)));
     if (!cands.length) return;
-    const near = (p) => S.armies.some((a) => a.owner === 'spain' && (a.prov === p.id || p.adj.some((i) => W().provs[i].id === a.prov)));
+    const near = (p) => S.armies.some((a) => a.owner === owner && (a.prov === p.id || p.adj.some((i) => W().provs[i].id === a.prov)));
     const pool = cands.filter(near); const pick = (pool.length ? pool : cands)[Math.floor(rnd() * (pool.length || cands.length))];
-    rebelBand(pick.id);
+    rebelBand(pick.id, why);
   }
   async function rebelPhase() {
-    if (!S.rebels || !S.rebels.on) return;
     for (const p of Object.values(S.provinces)) if ((p.disrupt || 0) > 0) p.disrupt--;
-    const rb = C.armiesOf('rebels');
-    if (!S.factions.spain.alive || S.year > 1813) { for (const a of rb) removeArmy(a); S.rebels.on = false; delete S.wars[pkey('rebels', 'spain')]; return; }
-    if (rb.length < 7 && rnd() < 0.3) spawnRebelBand();
     const menOf = (a) => C.armyMen(a);
+    // unrest breeds rebels
+    const live = C.armiesOf('rebels');
+    if (live.length < 10) {
+      for (const p of W().provs) {
+        const ps = S.provinces[p.id];
+        if (ps.owner === 'minor' || !S.factions[ps.owner].alive || (ps.unrest || 0) < 60 || ps.siege) continue;
+        if (S.armies.some((a) => a.prov === p.id)) continue; // any army in the province keeps the lid on
+        if (rnd() < 0.05 + ((ps.unrest || 0) - 60) * 0.008) { rebelBand(p.id); if (C.armiesOf('rebels').length >= 10) break; }
+      }
+    }
     for (const a of C.armiesOf('rebels').slice()) {
       if (!S.armies.includes(a)) continue;
+      const vs = a.vs;
+      if (!vs || !S.factions[vs].alive) { removeArmy(a); continue; }
       a.age = (a.age || 0) + 1;
-      if (a.age > 10) { plog(`The rebel band in ${C.def(a.prov).name} disperses into the hills.`, 'info', ['spain']); removeArmy(a); continue; }
+      if (a.age > 10) { plog(`The rebel band in ${C.def(a.prov).name} disperses into the hills.`, 'info', [vs]); removeArmy(a); continue; }
       const here = S.provinces[a.prov];
-      if (here.owner === 'spain' && !S.armies.some((x) => x.prov === a.prov && x.owner === 'spain')) { // raiding: income cut, unrest up
-        if (!(here.disrupt > 0)) plog(`Rebels raid ${C.def(a.prov).name}: income and recruiting disrupted.`, 'bad', ['spain']);
-        here.disrupt = 4; here.unrest = Math.min(100, (here.unrest || 0) + 6);
+      if (here.owner === vs && !S.armies.some((x) => x.prov === a.prov && x.owner === vs)) { // raiding: income cut, unrest up
+        if (!(here.disrupt > 0)) plog(`Rebels raid ${C.def(a.prov).name}: income and recruiting disrupted.`, 'bad', [vs]);
+        here.disrupt = 4; here.unrest = Math.min(99, (here.unrest || 0) + 5);
       }
       if (a.path.length) { await stepArmy(a); continue; }
       let best = null, bs = -9;
       for (const q of C.neighbors('rebels', a.prov)) {
-        if (C.isSea(a.prov, q) || S.provinces[q].owner !== 'spain') continue;
-        const foes = S.armies.filter((x) => x.prov === q && x.owner === 'spain'), fm = foes.reduce((n, x) => n + menOf(x), 0);
+        if (C.isSea(a.prov, q) || S.provinces[q].owner !== vs) continue;
+        const foes = S.armies.filter((x) => x.prov === q && x.owner === vs), fm = foes.reduce((n, x) => n + menOf(x), 0);
         if (fm > menOf(a) * 2.5) continue;
         const sc = (fm ? 2 : 1) + rnd();
         if (sc > bs) { bs = sc; best = q; }
       }
       if (best) { a.path = [best]; await stepArmy(a); }
     }
-    // Spanish field armies chase nearby bands they can crush
-    for (const sa of C.armiesOf('spain')) {
-      if (sa.path.length || sa.owner === S.player || sa.units.length < 3 || rnd() > 0.35) continue;
-      const tgt = C.armiesOf('rebels').find((r) => C.neighbors('spain', sa.prov).includes(r.prov) && !C.isSea(sa.prov, r.prov) && menOf(r) * 1.5 < menOf(sa));
+    // the owner's AI field armies chase nearby bands they can crush
+    for (const sa of S.armies.slice()) {
+      if (sa.owner === 'rebels' || sa.owner === S.player || sa.path.length || sa.units.length < 3 || rnd() > 0.35 || !atWar(sa.owner, 'rebels')) continue;
+      const tgt = C.armiesOf('rebels').find((r) => C.neighbors(sa.owner, sa.prov).includes(r.prov) && !C.isSea(sa.prov, r.prov) && menOf(r) * 1.5 < menOf(sa));
       if (tgt) sa.path = [tgt.prov];
     }
+    // wars with rebels end once no band is left against that owner
+    for (const k of Object.keys(S.wars)) { if (!k.startsWith('rebels|')) continue; const o = k.split('|')[1]; if (!C.armiesOf('rebels').some((a) => a.vs === o)) delete S.wars[k]; }
   }
   function spawnUnits(f, pid, spec) {
     const units = parseSpec(spec);
@@ -1623,12 +1641,11 @@
     },
     {
       id: 'spain1808', y: 1808, m: 5, title: 'The Spanish Uprising',
-      text: 'The people of Madrid rise against the French occupation and the Spanish crown that bowed to it. Juntas form across Spain: a new faction, the Spanish Rebels, takes the field. They cannot be bargained with, and they raid Spanish provinces and fight Spanish troops, tying down the army.',
+      text: 'The people of Madrid rise against the French occupation and the Spanish crown that bowed to it. Juntas form across Spain: guerrilla bands (the Rebels, a faction you cannot bargain with) raid Spanish provinces and fight Spanish troops, tying down the army.',
       cond: () => alive('spain'),
       run: () => {
-        S.rebels = { on: true };
-        S.wars[pkey('rebels', 'spain')] = { since: S.turn, exh: 0, s: {}, goal: { by: null, type: 'none' } };
-        rebelBand('madrid'); for (let k = 0; k < 4; k++) spawnRebelBand();
+        for (const p of W().provs) if (S.provinces[p.id].owner === 'spain') S.provinces[p.id].unrest = Math.min(90, (S.provinces[p.id].unrest || 0) + 20);
+        rebelBand('madrid', 'The Madrid rising: rebel bands take the field across Spain.'); for (let k = 0; k < 4; k++) spawnRebelBand('spain', 'A rebel guerrilla band rises against the Spanish crown.');
         for (const p of W().provs.filter((x) => x.owner === 'portugal')) { // Portugal rises against French occupiers as before
           const ps = S.provinces[p.id], owner = 'portugal';
           if (ps.owner === owner) { if (S.player !== owner) spawnUnits(owner, p.id, 'line:2 light:1'); continue; }
@@ -2098,7 +2115,7 @@
     const v = d.version || 1;
     if (v > C.VERSION) throw new Error('This save was made by a newer version of the game.');
     for (const ps of Object.values(d.provinces)) {
-      for (const k of ['stables', 'arsenal', 'academy', 'bank', 'depot']) if (ps[k] === undefined) ps[k] = 0;
+      for (const k of ['stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau']) if (ps[k] === undefined) ps[k] = 0;
       if (ps.unrest === undefined) ps.unrest = 0;
       if (!ps.policy) ps.policy = 'balanced';
       ps.foraged = false;
