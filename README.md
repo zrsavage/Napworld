@@ -246,3 +246,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 ### Garrisons and rallies
 - Local militia now only appear in **fortified** provinces: 2 militia regiments per fort level, plus 1 line regiment at level 2 and 2 at level 3. An unfortified province raises nothing.
 - A general can **rally** his army at most **3 times per battle** (the button shows 3/3, 2/3...). Applies to the AI as well.
+
+### Painted artwork
+- Eight oil-painting style images, generated with an image model (Z-Image Turbo on Hugging Face) and stored in `assets/img/` as small WebP files (about 350 KB in total), now dress the game: a **title-screen painting** (the marching silhouettes still walk across the foreground), **event pictures** (war councils / coronations, treaties, winter, revolt, harvest, coalitions, disasters) in the event pop-ups, and a **victory / defeat banner** on battle reports and the campaign end screen. `tools/build_single.py` inlines them as data URIs, so the single-file build stays self-contained. Event kinds without a painting (naval) keep the old drawn illustration.

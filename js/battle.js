@@ -1970,7 +1970,7 @@
       const gl = this.genDead[0] ? '<span class="bad">Your general was killed.</span> ' : '';
       const gl2 = this.genDead[1] ? '<span class="good">The enemy general was killed.</span>' : '';
       const sd = this.spec.sides;
-      b.innerHTML = `<h2 class="${win ? 'good' : 'bad'}">${win ? 'Victory!' : 'Defeat'}</h2>
+      b.innerHTML = `<img class="repart" src="${NAP.IMG[win ? 'victory' : 'defeat']}" alt=""><h2 class="${win ? 'good' : 'bad'}">${win ? 'Victory!' : 'Defeat'}</h2>
         <p>Battle of ${this.spec.provName} \u00B7 ${m}:${String(sc).padStart(2, '0')} \u00B7 Your losses <b>${Math.round(cas[0])}</b> \u00B7 Enemy losses <b>${Math.round(cas[1])}</b><br>Objectives (victory points): <b>${this.vp[0]}</b> \u2013 <b>${this.vp[1]}</b>${this.endReason ? ' \u00B7 ' + this.endReason : ''}<br>${gl}${gl2}</p>
         <div class="rep-cols"><div><h4 style="color:${NAP.FACTIONS[sd[0].faction].color}">${NAP.FACTIONS[sd[0].faction].name}</h4>${tbl(0)}</div><div><h4>${NAP.FACTIONS[sd[1].faction].name}</h4>${tbl(1)}</div></div>
         <p style="margin-top:12px"><button id="b-replay">&#9654; Watch replay</button> <button id="b-cont" class="primary">Continue</button></p>`;

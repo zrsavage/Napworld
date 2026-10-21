@@ -10,8 +10,17 @@ root = pathlib.Path(__file__).resolve().parent.parent
 index = (root / 'index.html').read_text(encoding='utf8')
 css = (root / 'css' / 'style.css').read_text(encoding='utf8')
 
+import base64
+def inline_images(text):
+    def rep(m):
+        f = root / m.group(0)
+        if not f.exists(): return m.group(0)
+        return 'data:image/webp;base64,' + base64.b64encode(f.read_bytes()).decode()
+    return re.sub(r'assets/img/[A-Za-z0-9_]+\.webp', rep, text)
+
 scripts = re.findall(r'<script src="([^"]+)"></script>', index)
-js = '\n'.join('/* ---- %s ---- */\n%s' % (s, (root / s).read_text(encoding='utf8').replace('</script', '<\\/script')) for s in scripts)
+js = inline_images('\n'.join('/* ---- %s ---- */\n%s' % (s, (root / s).read_text(encoding='utf8').replace('</script', '<\\/script')) for s in scripts))
+css = inline_images(css)
 
 body = re.search(r'<body>(.*?)<script src=', index, re.S).group(1).strip()
 title = 'Savage Napoleonic War Simulation'

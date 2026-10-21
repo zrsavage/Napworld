@@ -17,6 +17,7 @@
   function flag(x, y, color) { return `<g><rect x="${x}" y="${y}" width="2" height="44" fill="#3a2a1a"/><path d="M${x + 2} ${y} h30 l-8 8 l8 8 h-30z" fill="${color}" stroke="#2a1a0a" stroke-width="1"/></g>`; }
   G.eventArt = function (ev) {
     const kind = ev.art || ART_BY_ID[ev.id] || 'war';
+    if (NAP.IMG && NAP.IMG[kind]) return `<img class="evart evimg" src="${NAP.IMG[kind]}" alt="" loading="eager">`;
     const [c0, c1] = SKY[kind] || SKY.war;
     let body = '';
     if (kind === 'war') body = `<circle cx="310" cy="58" r="22" fill="#f6d27a" opacity=".85"/><ellipse cx="90" cy="70" rx="70" ry="18" fill="#3a2a22" opacity=".55"/><ellipse cx="250" cy="62" rx="60" ry="14" fill="#3a2a22" opacity=".45"/>${soldiers(8, 70, 118, '#1c1814', 1)}${soldiers(6, 250, 118, '#1c1814', 1)}${flag(205, 74, '#c23a3a')}`;

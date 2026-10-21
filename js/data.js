@@ -228,6 +228,7 @@
   ];
   const LONG_MOVE = { scotland: { name: 'Lowland Scotland', lon: -3.7, lat: 55.9 }, northengland: { lon: -2.7, lat: 54.5 }, andalusia: { lon: -5.9, lat: 37.4 },
     anatolia_w: { lon: 31.0, lat: 39.2 }, serbia: { name: 'Serbia', lon: 20.7, lat: 44.2 }, norway_s: { name: 'Oslo & Telemark', lon: 9.8, lat: 59.8 }, paris: { name: 'Paris' } };
+  NAP.IMG = { title: 'assets/img/title.webp', war: 'assets/img/title.webp', crown: 'assets/img/council.webp', treaty: 'assets/img/treaty.webp', winter: 'assets/img/winter.webp', revolt: 'assets/img/revolt.webp', boon: 'assets/img/boon.webp', flags: 'assets/img/flags.webp', disaster: 'assets/img/disaster.webp', council: 'assets/img/council.webp', victory: 'assets/img/title.webp', defeat: 'assets/img/winter.webp' };
   NAP.lengthMode = 'short';
   NAP.SEA_HOP = 220; // longest single sea crossing an army can make in one turn (longer voyages take several hops)
   NAP.defsFor = function (mode) {

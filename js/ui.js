@@ -130,19 +130,12 @@
         <radialGradient id="vig" cx=".5" cy=".45" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".7"/></radialGradient>
         <filter id="bl"><feGaussianBlur stdDeviation="14"/></filter>
       </defs>
-      <rect width="1600" height="900" fill="url(#sky)"/>
-      <circle cx="1130" cy="640" r="320" fill="url(#sun)"/>
-      ${Array.from({ length: 70 }, () => `<circle cx="${(rnd() * 1600).toFixed(0)}" cy="${(rnd() * 330).toFixed(0)}" r="${(rnd() * 1.3 + 0.3).toFixed(1)}" fill="#fff" opacity="${(rnd() * 0.6 + 0.2).toFixed(2)}"/>`).join('')}
-      <g class="drift">${smoke(260, 560, 170, 0.5)}${smoke(640, 620, 220, 0.42)}${smoke(1040, 560, 190, 0.38)}${smoke(1400, 600, 210, 0.45)}${smoke(820, 470, 150, 0.2)}</g>
-      <path d="${path(640, 140, 53, 1)}" fill="#4a3a52"/>
-      <path d="${path(700, 120, 41, 2.4)}" fill="#33283f"/>
-      ${men(700, 120, 41, 2.4, 70, 0.42, '#2a2034', 4, 7)}
-      <path d="${path(770, 160, 63, 4)}" fill="#241b30"/>
-      ${men(770, 160, 63, 4, 56, 0.66, '#17111f', 4, 11)}
-      <path d="${path(840, 190, 47, 0.5)}" fill="#120d19"/>
-      ${men(840, 190, 47, 0.5, 40, 1.0, '#0b0710', 5, 17)}
-      <g transform="translate(250 ${(ridge(250, 840, 190, 47, 0.5) - 6).toFixed(0)})" fill="#08050c"><rect x="-40" y="-26" width="86" height="10" rx="4" transform="rotate(-8)"/><circle cx="-6" cy="-10" r="19"/><circle cx="-6" cy="-10" r="5" fill="#241b30"/><rect x="-32" y="-8" width="64" height="5"/><path d="M-60 -2 l30 -8 l0 10 z"/></g>
-      <g transform="translate(1210 ${(ridge(1210, 840, 190, 47, 0.5) - 4).toFixed(0)})" fill="#08050c"><rect x="-4" y="-130" width="3" height="130"/><path class="flagwave" d="M-1 -130 q26 -10 50 0 q-10 14 0 28 q-26 -10 -50 0 z" fill="#7a1c24"/><ellipse cx="-72" cy="-52" rx="30" ry="15"/><rect x="-92" y="-38" width="5" height="40"/><rect x="-60" y="-38" width="5" height="40"/><rect x="-100" y="-40" width="52" height="8"/><path d="M-48 -62 q18 -24 34 -4 l-14 14 z"/><circle cx="-60" cy="-86" r="7"/><rect x="-65" y="-80" width="10" height="24" rx="3"/></g>
+      <path d="${path(830, 160, 63, 4)}" fill="#1a1322" opacity=".92"/>
+      ${men(830, 160, 63, 4, 56, 0.5, '#100b17', 4, 11)}
+      <path d="${path(878, 190, 47, 0.5)}" fill="#0b0710"/>
+      ${men(878, 190, 47, 0.5, 40, 0.8, '#06040a', 5, 17)}
+      <g transform="translate(250 ${(ridge(250, 878, 190, 47, 0.5) - 6).toFixed(0)})" fill="#08050c"><rect x="-40" y="-26" width="86" height="10" rx="4" transform="rotate(-8)"/><circle cx="-6" cy="-10" r="19"/><circle cx="-6" cy="-10" r="5" fill="#241b30"/><rect x="-32" y="-8" width="64" height="5"/><path d="M-60 -2 l30 -8 l0 10 z"/></g>
+      <g transform="translate(1210 ${(ridge(1210, 878, 190, 47, 0.5) - 4).toFixed(0)})" fill="#08050c"><rect x="-4" y="-130" width="3" height="130"/><path class="flagwave" d="M-1 -130 q26 -10 50 0 q-10 14 0 28 q-26 -10 -50 0 z" fill="#7a1c24"/><ellipse cx="-72" cy="-52" rx="30" ry="15"/><rect x="-92" y="-38" width="5" height="40"/><rect x="-60" y="-38" width="5" height="40"/><rect x="-100" y="-40" width="52" height="8"/><path d="M-48 -62 q18 -24 34 -4 l-14 14 z"/><circle cx="-60" cy="-86" r="7"/><rect x="-65" y="-80" width="10" height="24" rx="3"/></g>
       <rect width="1600" height="900" fill="url(#vig)"/></svg>`;
   }
   // the columns march across the ridges (left to right, far ranks slower); legs swing and the men bob
@@ -171,7 +164,7 @@
     $('#game').hidden = true; $('#battle').hidden = true;
     const has = !!lsGet(SAVE_KEY), hasAuto = !!lsGet(AUTOSAVE_KEY);
     $('#start').className = 'title';
-    $('#start').innerHTML = `${titleArt()}<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="orn"><i></i><span>&#9876;</span><i></i></div><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
+    $('#start').innerHTML = `<div class="titlepaint" style="background-image:url(${NAP.IMG.title})"></div>${titleArt()}<div class="titlebox"><h1>Savage Napoleonic<br>War Simulation</h1><div class="orn"><i></i><span>&#9876;</span><i></i></div><div class="sub">Europe, 1805 &mdash; the Emperor's ambition, the old order's last stand</div>
       <div class="menu">
         ${hasAuto ? '<button id="autobtn" class="primary">Continue</button>' : ''}
         <button id="newbtn" ${hasAuto ? '' : 'class="primary"'}>New campaign</button>
@@ -332,7 +325,7 @@
 
   async function showEnd(v) {
     const s = S();
-    const html = `<h2>${v.won ? 'Victory' : 'The End'}</h2><div class="body"><p style="font-size:16px">${esc(v.reason)}</p>
+    const html = `<img class="evart evimg" src="${NAP.IMG[v.won ? 'victory' : 'defeat']}" alt=""><h2>${v.won ? 'Victory' : 'The End'}</h2><div class="body"><p style="font-size:16px">${esc(v.reason)}</p>
       <p class="muted">Final standing after ${s.turn} turns (${C.dateStr()}).</p></div>
       <div class="foot">${v.ended || v.won ? '<button data-r="cont">Keep playing</button>' : ''}<button class="primary" data-r="menu">Main menu</button></div>`;
     const r = await modal(html, 'event');
