@@ -5209,6 +5209,39 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
 
     // Individual soldiers: the block thins out, shrinks and frays as men fall
+    // True-to-strength drawing: one top-down figure for every soldier in the regiment (500 men = 500 figures), only for what is on screen
+    drawMen(ctx, u, w, d, fc, sk, r, wh, routing) {
+      const nAll = Math.min(900, Math.ceil(u.max)), keep = clamp(u.men / u.max, 0, 1);
+      if (u.men < 1) return;
+      const form = u.formation, t = this.t, age = t - (u.volleyT === undefined ? -9 : u.volleyT), cav = u.cls === 'cav';
+      const rows = form === 'skirmish' ? 0 : clamp(Math.round(Math.sqrt(nAll * d / Math.max(w, 1))), 1, nAll), cols = rows ? Math.ceil(nAll / rows) : 0;
+      const sp = Math.sqrt(w * d / Math.max(1, nAll * keep)), sz = clamp(sp * (cav ? 2.1 : 2.4), 1.8, cav ? 13 : 9.5);
+      const f = u.facing, cf = Math.cos(f), sf = Math.sin(f), hw = this.canvas.width / sk / 2 + 8, hh = this.canvas.height / sk / 2 + 8, cx = this.cam.x, cy = this.cam.y;
+      const moraleF = clamp(u.morale / u.baseMorale, 0, 1), loose = (1 - r) * 0.5 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
+      const base = tint(fc.color, Math.round(wh * 5) / 5), worn = tint('#505050', Math.round(wh * 5) / 5);
+      const mv = u.mv && !routing;
+      for (let j = 0; j < nAll; j++) {
+        const h1 = Math.sin((j + 1) * 12.9898 + u.id * 7.13) * 43758.5453, a1 = h1 - Math.floor(h1);
+        const h2 = Math.sin((j + 1) * 78.233 + u.id * 3.1) * 12345.6789, a2 = h2 - Math.floor(h2);
+        const h3 = Math.sin((j + 1) * 39.346 + u.id * 1.7) * 9871.331, a3 = h3 - Math.floor(h3);
+        if (a3 > keep) continue; // fallen or missing
+        let x, y, rk = 0;
+        if (rows) { rk = j % rows; const cl = (j / rows) | 0; x = -d / 2 + (rk + 0.5) / rows * d + (a1 - 0.5) * loose * sp; y = -w / 2 + (cl + 0.5) / cols * w + (a2 - 0.5) * loose * sp; }
+        else { x = -d / 2 + a1 * d; y = -w / 2 + a2 * w; }
+        const wx = u.x + x * cf - y * sf, wy = u.y + x * sf + y * cf;
+        if (wx < cx - hw || wx > cx + hw || wy < cy - hh || wy > cy + hh) continue; // off screen
+        if (mv) { const ph = t * (cav ? 11 : 6.5) + j * 1.9; x += Math.sin(ph) * 0.12; }
+        const fr = rows ? rk >= rows - 2 : true, fa = age - a2 * 0.4;
+        let pose = 'stand';
+        if (routing) pose = 'march';
+        else if (u.state === 'fighting') pose = 'melee';
+        else if (age >= 0 && age < 0.5 && fr && fa > -0.1) pose = fa >= 0 && fa < 0.16 ? 'fire' : 'aim';
+        else if (!cav && !u.mv && u.target && fr && u.reload < 1.4 && u.reload > 0) pose = 'aim';
+        else if (u.mv) pose = u.charging ? 'charge' : 'march';
+        const img = soldierSprite(a3 < 0.1 * keep && r < 0.6 ? worn : base, pose, u.type, u.cls, (a1 * 4) | 0);
+        ctx.drawImage(img, x - sz * 0.375, y - sz * 0.375, sz, sz * 0.875);
+      }
+    }
     drawFigures(ctx, u, w, d, fc, sk, r, sel, wh) {
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
       const wob = (routing ? 1.6 : 0) + (1 - moraleF) * 1.1;          // nervous shuffling
@@ -5222,6 +5255,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.strokeRect(-d / 2 - 2.5, -w / 2 - 2.5, d + 5, w + 5); ctx.restore();
       }
       if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail); }
+      else if (sprites && sk > 3.2) { this.drawMen(ctx, u, w, d, fc, sk, r, wh, routing); }
       else {
         const per = u.cls === 'cav' ? 10 : 16, maxF = u.cls === 'cav' ? 26 : 50;
         const nVis = clamp(Math.ceil(u.men / per), 1, maxF);
