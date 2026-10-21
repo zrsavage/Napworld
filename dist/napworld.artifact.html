@@ -3936,12 +3936,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     const base = NAP.UNITS[u.type];
     const f = u.formation, n = clamp(u.men / base.men, 0.1, 1), sq = Math.sqrt(n);
     if (u.cls === 'inf') {
-      if (f === 'line') return [base.w * (0.28 + 0.72 * sq) + 14, 11];
+      if (f === 'line') return [base.w * (0.8 + 0.2 * sq) + 14, 3.5 + 7.5 * n]; // casualties thin the ranks from the rear: the line keeps its frontage
       if (f === 'column') return [24, 22 + 40 * sq];
       if (f === 'square') { const e = 40 * (0.42 + 0.58 * sq); return [e, e]; }
       return [base.w * (0.35 + 0.65 * sq) + 30, 20];
     }
-    if (u.cls === 'cav') return [14 + 36 * sq, 11];
+    if (u.cls === 'cav') return [14 + 36 * (0.7 + 0.3 * sq), 4 + 7 * n];
     return [14 + 16 * sq, 14];
   }
 
@@ -5214,24 +5214,31 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       const nAll = Math.min(900, Math.ceil(u.max)), keep = clamp(u.men / u.max, 0, 1);
       if (u.men < 1) return;
       const form = u.formation, t = this.t, age = t - (u.volleyT === undefined ? -9 : u.volleyT), cav = u.cls === 'cav';
-      const rows = form === 'skirmish' ? 0 : clamp(Math.round(Math.sqrt(nAll * d / Math.max(w, 1))), 1, nAll), cols = rows ? Math.ceil(nAll / rows) : 0;
-      const sp = Math.sqrt(w * d / Math.max(1, nAll * keep)), sz = clamp(sp * (cav ? 2.1 : 2.4), 1.8, cav ? 13 : 9.5);
+      const [w0, d0] = dims({ type: u.type, cls: u.cls, formation: form, men: u.max }); // the regiment's full-strength footprint fixes the grid
+      const ranked = form === 'line' || form === 'column' || cav; // these lose their rear ranks first; squares and skirmishers thin out evenly
+      const rows = form === 'skirmish' ? 0 : clamp(Math.round(Math.sqrt(nAll * d0 / Math.max(w0, 1))), 1, nAll), cols = rows ? Math.ceil(nAll / rows) : 0;
+      const sp = Math.sqrt(w0 * d0 / nAll), sz = clamp(sp * (cav ? 2.1 : 2.4), 1.8, cav ? 13 : 9.5), rowSp = rows ? d0 / rows : 0, colSp = cols ? w0 / cols : 0;
+      const vr = keep * rows, fullR = Math.floor(vr), partR = vr - fullR;
       const f = u.facing, cf = Math.cos(f), sf = Math.sin(f), hw = this.canvas.width / sk / 2 + 8, hh = this.canvas.height / sk / 2 + 8, cx = this.cam.x, cy = this.cam.y;
-      const moraleF = clamp(u.morale / u.baseMorale, 0, 1), loose = (1 - r) * 0.5 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
+      const moraleF = clamp(u.morale / u.baseMorale, 0, 1), loose = (1 - r) * 0.3 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
       const base = tint(fc.color, Math.round(wh * 5) / 5), worn = tint('#505050', Math.round(wh * 5) / 5);
       const mv = u.mv && !routing;
       for (let j = 0; j < nAll; j++) {
         const h1 = Math.sin((j + 1) * 12.9898 + u.id * 7.13) * 43758.5453, a1 = h1 - Math.floor(h1);
         const h2 = Math.sin((j + 1) * 78.233 + u.id * 3.1) * 12345.6789, a2 = h2 - Math.floor(h2);
         const h3 = Math.sin((j + 1) * 39.346 + u.id * 1.7) * 9871.331, a3 = h3 - Math.floor(h3);
-        if (a3 > keep) continue; // fallen or missing
-        let x, y, rk = 0;
-        if (rows) { rk = j % rows; const cl = (j / rows) | 0; x = -d / 2 + (rk + 0.5) / rows * d + (a1 - 0.5) * loose * sp; y = -w / 2 + (cl + 0.5) / cols * w + (a2 - 0.5) * loose * sp; }
-        else { x = -d / 2 + a1 * d; y = -w / 2 + a2 * w; }
+        let x, y, rf = 0;
+        if (rows) {
+          rf = rows - 1 - (j % rows); // 0 = front rank
+          if (ranked) { if (rf > fullR || (rf === fullR && a3 > partR)) continue; } else if (a3 > keep) continue;
+          const cl = (j / rows) | 0;
+          x = d / 2 - (rf + 0.5) * rowSp + (a1 - 0.5) * loose * sp; y = (cl + 0.5 - cols / 2) * colSp + (a2 - 0.5) * loose * sp;
+          if (!ranked) { x = -d / 2 + (1 - (rf + 0.5) / rows) * d + (a1 - 0.5) * loose * sp; y = -w / 2 + (cl + 0.5) / cols * w + (a2 - 0.5) * loose * sp; }
+        } else { if (a3 > keep) continue; x = -d / 2 + a1 * d; y = -w / 2 + a2 * w; }
         const wx = u.x + x * cf - y * sf, wy = u.y + x * sf + y * cf;
         if (wx < cx - hw || wx > cx + hw || wy < cy - hh || wy > cy + hh) continue; // off screen
         if (mv) { const ph = t * (cav ? 11 : 6.5) + j * 1.9; x += Math.sin(ph) * 0.12; }
-        const fr = rows ? rk >= rows - 2 : true, fa = age - a2 * 0.4;
+        const fr = rows ? rf <= 1 : true, fa = age - a2 * 0.4;
         let pose = 'stand';
         if (routing) pose = 'march';
         else if (u.state === 'fighting') pose = 'melee';
@@ -5254,7 +5261,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
         ctx.save(); ctx.globalAlpha = Math.min(1, 0.25 + wh * 0.9); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6 + wh * 2.4; ctx.shadowColor = '#fff'; ctx.shadowBlur = 6 + wh * 10;
         ctx.strokeRect(-d / 2 - 2.5, -w / 2 - 2.5, d + 5, w + 5); ctx.restore();
       }
-      if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail); }
+      if (u.cls === 'art') { this.drawGuns(ctx, u, w, d, fc, K, r, detail, sk); }
       else if (sprites && sk > 3.2) { this.drawMen(ctx, u, w, d, fc, sk, r, wh, routing); }
       else {
         const per = u.cls === 'cav' ? 10 : 16, maxF = u.cls === 'cav' ? 26 : 50;
@@ -5324,20 +5331,63 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       if (sel) { ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1.4, 2 / Math.max(0.6, sk)); ctx.setLineDash([5, 3]); ctx.strokeRect(-d / 2 - 3, -w / 2 - 3, d + 6, w + 6); ctx.setLineDash([]); }
     }
 
-    drawGuns(ctx, u, w, d, fc, K, r, detail) {
-      const guns = clamp(Math.ceil(u.men / 10), 1, 8), crew = clamp(Math.ceil(u.men / 8), 1, 10);
-      const span = Math.max(w, 18);
-      for (let g = 0; g < guns; g++) {
-        const y = guns === 1 ? 0 : -span / 2 + (g + 0.5) / guns * span + (K[g][1] - 0.5) * (1 - r) * 4;
-        const x = -2 + (K[g][2] - 0.5) * (1 - r) * 3;
-        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, TAU); ctx.fill();
-        ctx.fillRect(x, y - 0.8, 8, 1.6);
-        ctx.fillStyle = fc.color; ctx.fillRect(x - 5, y - 1.3, 3, 2.6);
-        if (detail) { ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 0.5; ctx.strokeRect(x - 5, y - 1.3, 3, 2.6); }
-      }
-      for (let c = 0; c < crew; c++) {
-        const k = K[40 + c]; ctx.fillStyle = fc.color;
-        ctx.fillRect(-7 - k[0] * 5, -span / 2 + k[1] * span, 2, 2);
+    // A battery seen from above: bronze barrels on wooden carriages with spoked wheels, gunners in the nation's coat, powder caissons,
+    // recoil, flash and smoke when it fires, and wrecked guns as the battery is shot to pieces.
+    drawGuns(ctx, u, w, d, fc, K, r, detail, sk) {
+      const guns = clamp(Math.ceil(u.men / 10), 1, 8), t = this.t, age = t - (u.volleyT === undefined ? -9 : u.volleyT);
+      const span = Math.max(w, guns * 4.4), siege = u.type === 'siege', horse = u.type === 'hart', S = siege ? 1.3 : horse ? 0.88 : 1, rich = detail && sk > 3;
+      const nat = tint(fc.color, 0), coat = nat;
+      const lost = guns < Math.ceil(u.max / 10) ? Math.ceil(u.max / 10) - guns : 0; // guns already destroyed: wrecks stay in the line
+      const slots = guns + Math.min(lost, 3);
+      for (let g = 0; g < slots; g++) {
+        const y = slots === 1 ? 0 : -span / 2 + (g + 0.5) / slots * span, wreck = g >= guns;
+        const ga = age - g * 0.05, rec = !wreck && ga >= 0 && ga < 0.5 ? Math.sin(Math.min(1, ga / 0.5) * Math.PI) * 1.4 * S : 0;
+        const x = 1.2 - rec + (K[g % 40][2] - 0.5) * (1 - r) * 1.5;
+        if (!detail) { // far zoom: compact silhouette
+          ctx.fillStyle = wreck ? '#2a2420' : '#111'; ctx.beginPath(); ctx.arc(x, y, 2.2, 0, TAU); ctx.fill(); ctx.fillRect(x, y - 0.8, 7, 1.6);
+          ctx.fillStyle = fc.color; ctx.fillRect(x - 5, y - 1.3, 3, 2.6); continue;
+        }
+        ctx.save(); ctx.translate(x, y); if (wreck) ctx.rotate(0.35 + K[g % 40][1] * 0.4);
+        // shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0.4, 0.7, 5.4 * S, 2.1 * S, 0, 0, TAU); ctx.fill();
+        // trail (the carriage tail) with a stripe in the nation colour and a spade
+        ctx.strokeStyle = wreck ? '#2c241c' : '#4b3622'; ctx.lineWidth = 0.95 * S; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-5.4 * S, 0); ctx.lineTo(-0.4 * S, 0); ctx.stroke();
+        if (!wreck) { ctx.strokeStyle = nat; ctx.lineWidth = 0.28 * S; ctx.beginPath(); ctx.moveTo(-5 * S, 0); ctx.lineTo(-1 * S, 0); ctx.stroke(); }
+        ctx.fillStyle = '#2a1c10'; ctx.fillRect(-5.9 * S, -0.7 * S, 0.7 * S, 1.4 * S);
+        // wheels seen edge-on from above, with iron tyres and a visible hub
+        for (const sg of [-1, 1]) {
+          const wy = sg * 1.65 * S;
+          ctx.fillStyle = wreck ? '#2e2620' : '#5a3d22'; ctx.fillRect(-1.05 * S, wy - 0.3 * S, 2.1 * S, 0.6 * S);
+          ctx.strokeStyle = wreck ? '#555' : '#9a9a9a'; ctx.lineWidth = 0.14 * S; ctx.strokeRect(-1.05 * S, wy - 0.3 * S, 2.1 * S, 0.6 * S);
+          if (rich) { ctx.fillStyle = '#c8b070'; ctx.fillRect(-0.15 * S, wy - 0.18 * S, 0.3 * S, 0.36 * S); }
+        }
+        ctx.strokeStyle = '#2a1c10'; ctx.lineWidth = 0.3 * S; ctx.beginPath(); ctx.moveTo(0, -1.65 * S); ctx.lineTo(0, 1.65 * S); ctx.stroke(); // axle
+        // carriage cheeks
+        ctx.fillStyle = wreck ? '#2e2620' : '#6b4a2a'; ctx.fillRect(-1.5 * S, -1.05 * S, 3 * S, 0.5 * S); ctx.fillRect(-1.5 * S, 0.55 * S, 3 * S, 0.5 * S);
+        // barrel: tapered tube, breech knob, muzzle swell
+        const bz = wreck ? '#3a3026' : siege ? '#3a3a42' : horse ? '#9a7a3a' : '#8a6a30', hi = wreck ? '#5a4a3a' : siege ? '#6a6a74' : '#d6b45a';
+        ctx.fillStyle = bz; ctx.beginPath(); ctx.moveTo(-1.8 * S, -0.62 * S); ctx.lineTo(3.8 * S, -0.5 * S); ctx.lineTo(4.9 * S, -0.78 * S); ctx.lineTo(4.9 * S, 0.78 * S); ctx.lineTo(3.8 * S, 0.5 * S); ctx.lineTo(-1.8 * S, 0.62 * S); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.arc(-2 * S, 0, 0.62 * S, 0, TAU); ctx.fill();
+        ctx.strokeStyle = hi; ctx.lineWidth = 0.2 * S; ctx.beginPath(); ctx.moveTo(-1.5 * S, -0.3 * S); ctx.lineTo(4.6 * S, -0.4 * S); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 0.14; ctx.stroke();
+        ctx.fillStyle = '#0c0a08'; ctx.beginPath(); ctx.ellipse(4.95 * S, 0, 0.18 * S, 0.5 * S, 0, 0, TAU); ctx.fill(); // bore
+        ctx.restore();
+        if (wreck) continue;
+        // crew: three gunners around the piece, stepping back as it fires
+        const step = ga >= 0 && ga < 0.35 ? -0.9 * S : 0;
+        const men = [[-3.6 * S + step, -2.1 * S], [-3.6 * S + step, 2.1 * S], [-5.6 * S + step, 0.2 * S]];
+        men.forEach((m, i) => {
+          const mx = x + m[0], my = y + m[1]; ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(mx + 0.2, my + 0.25, 0.6, 0.95, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = coat; ctx.beginPath(); ctx.ellipse(mx, my, 0.55 * S, 0.95 * S, 0, 0, TAU); ctx.fill();
+          ctx.fillStyle = '#17120e'; ctx.beginPath(); ctx.arc(mx + 0.05, my, 0.5 * S, 0, TAU); ctx.fill();
+          if (rich && i === 1) { ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = 0.22; ctx.beginPath(); ctx.moveTo(mx + 0.4, my - 0.2); ctx.lineTo(mx + 3.2 * S, my - 1.3 * S); ctx.stroke(); ctx.fillStyle = '#cfcfcf'; ctx.fillRect(mx + 3.0 * S, my - 1.55 * S, 0.5 * S, 0.5 * S); } // rammer
+        });
+        // shot pile and the odd powder chest
+        ctx.fillStyle = '#1b1b1d'; for (const [ox, oy] of [[-2.6, -3.1], [-2.0, -3.15], [-2.3, -3.65]]) { ctx.beginPath(); ctx.arc(x + ox * S, y + oy * S, 0.34 * S, 0, TAU); ctx.fill(); }
+        if (g % 2 === 0) { ctx.fillStyle = '#3d4a2c'; ctx.fillRect(x - 7.6 * S, y + 2.9 * S, 2.1 * S, 1.2 * S); ctx.fillStyle = nat; ctx.fillRect(x - 7.6 * S, y + 3.35 * S, 2.1 * S, 0.3 * S); }
+        // muzzle flash and drifting smoke
+        if (ga >= 0 && ga < 0.14) { const fl = 1 - ga / 0.14, mx = x + 5 * S; ctx.fillStyle = `rgba(255,${200 + 40 * fl | 0},110,${0.95 * fl})`; ctx.beginPath(); for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = (k % 2 ? 1.1 : 2.6) * S * (0.8 + 0.4 * fl); ctx.lineTo(mx + Math.cos(a) * rr + 0.6, y + Math.sin(a) * rr * 0.7); } ctx.closePath(); ctx.fill(); }
+        if (ga >= 0 && ga < 1.6) { const q = ga / 1.6; ctx.fillStyle = `rgba(225,222,215,${0.32 * (1 - q)})`; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x + 5.4 * S + q * (3 + k * 1.6), y + (k - 1) * q * 1.4, (0.8 + q * 1.9) * S * (1 - k * 0.15), 0, TAU); ctx.fill(); } }
       }
     }
 
