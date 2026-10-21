@@ -747,7 +747,7 @@
         <h4 style="margin:6px 0 0">Special orders</h4>
         <div class="genrow"><span><b>Lightning march</b><br><small class="muted">Campaign: his army moves two provinces this turn with no losses. Cooldown 8 turns.</small></span>${mine ? `<button data-r="light" ${lc ? 'disabled' : ''} data-tip="${esc(lc || 'Ready')}">${lc ? esc(lc) : 'Order'}</button>` : ''}</div>
         <div class="genrow"><span><b>Inspire</b><br><small class="muted">Battle (key I): units near him gain +15 morale and +10% fire for 20 s, at some risk to him. 90 s cooldown.</small></span></div>
-        <div class="genrow"><span><b>Rally</b><br><small class="muted">Battle (key R): restores order to routing units near him. 35 s cooldown.</small></span></div>
+        <div class="genrow"><span><b>Rally</b><br><small class="muted">Battle (key R): restores order to routing units near him. 35 s cooldown, three times per battle at most.</small></span></div>
         </div><div class="foot"><button data-r="x">Close</button></div>`;
       const r = await modal(html, 'wide');
       if (!r || r === 'x') break;

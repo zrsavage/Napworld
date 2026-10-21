@@ -74,7 +74,7 @@
       this.cam = { x: FW / 2, y: FH / 2, z: 1 }; this.zt = 1; this.zAnchor = null;
       this.keys = {};
       this.nextId = 1;
-      this.rallyCd = [0, 0]; this.inspCd = 0;
+      this.rallyCd = [0, 0]; this.inspCd = 0; this.rallyUses = [0, 0];
       this.initialMen = [0, 0];
       this.deadGen = [];
       this.genDead = [false, false]; this.noGen = [false, false];
@@ -884,14 +884,14 @@
 
     tryRally(s) {
       const g = this.general(s);
-      if (!g || g.dead || this.rallyCd[s] > 0 || (this.pursuit && s === 1)) return false;
+      if (!g || g.dead || this.rallyCd[s] > 0 || (this.pursuit && s === 1) || this.rallyUses[s] >= 3) return false;
       let n = 0;
       for (const u of this.units) {
         if (u.side === s && u.cls !== 'gen' && this.alive(u) && u.state === 'routing' && Math.hypot(u.x - g.x, u.y - g.y) < 280) {
           u.morale = Math.max(u.morale, 48); u.state = 'idle'; u.order = null; u.routT = 0; n++;
         }
       }
-      if (n) { this.rallyCd[s] = this.rallyBase[s]; this.msg(`${g.name} rallies ${n} unit${n > 1 ? 's' : ''}!`); return true; }
+      if (n) { this.rallyUses[s]++; this.rallyCd[s] = this.rallyBase[s]; this.msg(`${g.name} rallies ${n} unit${n > 1 ? 's' : ''}!`); return true; }
       return false;
     }
 
@@ -1517,7 +1517,7 @@
             <button data-f="skirmish" data-tip="<b>Skirmish</b> (key F4)<br>Loose order: hard to hit, quick, weak in melee. Light infantry only.">Skirmish <kbd>F4</kbd></button>
             <button data-a="charge" data-tip="<b>Charge</b> (key C)<br>Order selected infantry or cavalry to run down the nearest enemy. Cavalry hit hardest in the first impact; squares shrug it off.">Charge <kbd>C</kbd></button>
             <button data-a="fallback" data-tip="<b>Fall Back</b> (key B)<br>Selected regiments step back about 240 px, away from the nearest enemy and still facing them. They break contact in good order (only a few men lost, and flank pressure bites much less while they go) instead of turning and routing. Cavalry just ride clear.">Fall Back <kbd>B</kbd></button><button data-a="hold" data-tip="<b>Hold / Free</b> (key G)<br><b>Hold</b> (default): a regiment stays on its spot and only fires at what comes into range. <b>Free</b>: it may step forward to engage an enemy just out of range. Toggles the selected regiments; FREE shows above them.">Hold/Free <kbd>G</kbd></button><button data-a="halt" data-tip="<b>Halt</b> (key H)<br>Cancel orders: the unit stops and fires at will.">Halt <kbd>H</kbd></button>
-            <button data-a="inspire" id="b-insp" data-tip="<b>Inspire</b> (key I)<br>Your general rides the line: units near him gain +15 morale and +10% fire for 20 seconds. He is exposed to fire while doing it. 90 second cooldown.">Inspire <kbd>I</kbd></button><button data-a="prio" id="b-prio" data-tip="<b>Gun target priority</b> (key T)<br>Cycles the selected artillery between: nearest, infantry first, counter-battery (enemy guns first) and cavalry first.">Targets <kbd>T</kbd></button><button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown.">Rally <kbd>R</kbd></button>
+            <button data-a="inspire" id="b-insp" data-tip="<b>Inspire</b> (key I)<br>Your general rides the line: units near him gain +15 morale and +10% fire for 20 seconds. He is exposed to fire while doing it. 90 second cooldown.">Inspire <kbd>I</kbd></button><button data-a="prio" id="b-prio" data-tip="<b>Gun target priority</b> (key T)<br>Cycles the selected artillery between: nearest, infantry first, counter-battery (enemy guns first) and cavalry first.">Targets <kbd>T</kbd></button><button data-a="rally" id="b-rally" data-tip="<b>Rally</b> (key R)<br>Your general restores order to routing units within his aura. 35 second cooldown, and only 3 times per battle.">Rally <kbd>R</kbd></button>
             <span class="b-sep"></span>
             <span class="b-deployonly"><select id="b-slot" data-tip="Layout slot"><option value="1">Layout 1</option><option value="2">Layout 2</option><option value="3">Layout 3</option></select><button data-a="savelay" data-tip="Save where your regiments are standing now (positions, facing and formations) in this slot.">Save</button><button data-a="loadlay" data-tip="Re-apply a saved layout to your regiments of the same types.">Load</button></span>
             <button data-a="pause" id="b-pause">&#9654; Start <kbd>Space</kbd></button>
@@ -1787,7 +1787,7 @@
       this.msg(toFree ? 'Free: regiments may step up to engage' : 'Hold position: regiments stand and fire');
     }
     halt() { this.selectedUnits().forEach((u) => { u.order = null; u.target = null; }); }
-    rally() { if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
+    rally() { if (this.rallyUses[0] >= 3) { this.msg('Your general has rallied the army three times: no more'); return; } if (!this.tryRally(0)) this.msg(this.rallyCd[0] > 0 ? `Rally ready in ${Math.ceil(this.rallyCd[0])}s` : 'No routing units near the general.'); }
     saveGroup(n) {
       const us = this.selectedUnits().filter((u) => this.alive(u)); if (!us.length) return;
       for (const u of this.units) if (u.grp === n) u.grp = 0;
@@ -1956,7 +1956,7 @@
       const feed = r.querySelector('#b-feed');
       const html = this.msgs.filter((m) => this.t - m.t < 12).map((m) => `<div>${m.text}</div>`).join('');
       if (feed.dataset.h !== html) { feed.innerHTML = html; feed.dataset.h = html; }
-      r.querySelector('#b-rally').textContent = this.rallyCd[0] > 0 ? `Rally (${Math.ceil(this.rallyCd[0])}s)` : 'Rally';
+      r.querySelector('#b-rally').textContent = this.rallyUses[0] >= 3 ? 'Rally (used up)' : (this.rallyCd[0] > 0 ? `Rally (${Math.ceil(this.rallyCd[0])}s)` : 'Rally') + ` ${3 - this.rallyUses[0]}/3`;
       if (this.sel.size === 1 && !this.over && Math.floor(this.t * 4) !== this._lastInfo) { this._lastInfo = Math.floor(this.t * 4); this.updateInfo(); }
     }
 

@@ -905,14 +905,16 @@
   // -------------------------------------------------------------------- turn processing
   // Local militia: when an enemy marches into (or besieges) a province that has no defending army, the people rise and fight
   function spawnGarrison(pid) {
-    const ps = S.provinces[pid], d = C.def(pid);
-    const n = clamp(Math.round(d.manpower * 0.6 + (ps.fort || 0) * 0.8), 1, 4);
-    const units = Array.from({ length: n }, () => ({ type: 'militia', men: 560, max: 560, xp: 0, vet: 0 }));
+    // only fortified provinces can raise a garrison: 2 militia per fort level, plus line infantry from level 2 (1 at level 2, 2 at level 3)
+    const ps = S.provinces[pid], d = C.def(pid), L = Math.min(3, ps.fort || 0);
+    const units = [];
+    for (let k = 0; k < 2 * L; k++) units.push({ type: 'militia', men: 560, max: 560, xp: 0, vet: 0 });
+    for (let k = 0; k < Math.max(0, L - 1); k++) units.push({ type: 'line', men: 800, max: 800, xp: 0, vet: 0 });
     const g = C.makeArmy(ps.owner, pid, units); g.garrison = true; ps.garrisoned = true;
-    plog(`The people of ${d.name} take up arms: ${n} regiments of local militia.`, 'info', [ps.owner]);
+    plog(`The garrison of ${d.name} turns out: ${units.length} regiments (fort level ${L}).`, 'info', [ps.owner]);
     return g;
   }
-  const needsGarrison = (att, pid) => { const ps = S.provinces[pid]; return ps.owner !== att.owner && !allied(att.owner, ps.owner) && atWar(att.owner, ps.owner) && !ps.garrisoned && !S.armies.some((x) => x.prov === pid && atWar(x.owner, att.owner)); };
+  const needsGarrison = (att, pid) => { const ps = S.provinces[pid]; return ps.owner !== att.owner && !allied(att.owner, ps.owner) && atWar(att.owner, ps.owner) && (ps.fort || 0) >= 1 && !ps.garrisoned && !S.armies.some((x) => x.prov === pid && atWar(x.owner, att.owner)); };
   async function stepArmy(a, second) {
     if (!S.armies.includes(a) || !a.path.length) return;
     const pace = C.pace(a), lightning = !!a.lightning;

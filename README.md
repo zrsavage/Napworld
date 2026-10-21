@@ -242,3 +242,7 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Guard limit
 - No nation may hold more than **10 regiments of Guard Infantry** (armies plus those in training). Applies to the player and the AI; the unit tooltip shows your current count against the limit.
+
+### Garrisons and rallies
+- Local militia now only appear in **fortified** provinces: 2 militia regiments per fort level, plus 1 line regiment at level 2 and 2 at level 3. An unfortified province raises nothing.
+- A general can **rally** his army at most **3 times per battle** (the button shows 3/3, 2/3...). Applies to the AI as well.
