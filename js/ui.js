@@ -27,7 +27,7 @@
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { sprites: true, easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -761,6 +761,7 @@
       <label>Volume <span id="set-volv">${st.volume}%</span><input type="range" id="set-vol" min="0" max="100" step="5" value="${st.volume}"></label>
       <label>Starting battle speed<select id="set-bsp">${[0.25, 0.5, 1, 2].map((v) => `<option value="${v}" ${v === st.battleSpeed ? 'selected' : ''}>${v === 0.25 ? '\u00BCx' : v === 0.5 ? '\u00BDx (default)' : v + 'x'}</option>`).join('')}</select></label>
             <label class="chk" data-tip="Adds an advisor panel with suggested next steps, first-time hint cards, a battle odds preview, plain-language battle results, extra warnings before ending a turn, and a simpler top bar for the first turns. It never changes how hard the game is."><input type="checkbox" id="set-learn" ${st.learn ? 'checked' : ''}> <b>Learning aids</b>: advisor, hint cards, battle odds, extra warnings</label>
+      <label class="chk" data-tip="When you zoom in on a battle, every soldier is drawn as a small top-down figure (standing, marching, aiming, firing, bayonet) instead of a coloured square."><input type="checkbox" id="set-spr" ${st.sprites !== false ? 'checked' : ''}> Detailed soldier figures when zoomed in</label>
       <label class="chk"><input type="checkbox" id="set-hold" ${st.holdDefault ? 'checked' : ''}> New battles start with every regiment on <b>hold position</b></label>
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
@@ -774,6 +775,7 @@
     $$('set-vol').oninput = (e) => { st.volume = +e.target.value; $$('set-volv').textContent = st.volume + '%'; commit(); };
     $$('set-bsp').onchange = (e) => { st.battleSpeed = +e.target.value; commit(); };
     $$('set-learn').onchange = (e) => { st.learn = e.target.checked; commit(); if (S()) refresh(); };
+    $$('set-spr').onchange = (e) => { st.sprites = e.target.checked; commit(); };
     $$('set-hold').onchange = (e) => { st.holdDefault = e.target.checked; commit(); };
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
     $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };

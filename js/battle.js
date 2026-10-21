@@ -49,6 +49,62 @@
     return (tintCache[key] = `rgb(${Math.round(r + (255 - r) * k)},${Math.round(g + (255 - g) * k)},${Math.round(b + (255 - b) * k)})`);
   }
 
+  // ---- top-down soldier sprites (drawn once, cached): standing, marching, aiming, firing and bayonet poses facing right
+  const SPR = new Map();
+  const HAT = { guard: { r: 3.5, col: '#161010', plume: '#c33', gold: true }, grenadier: { r: 3.0, col: '#1a1a1a', plume: '#c33' }, light: { r: 2.5, col: '#1c2218', plume: '#3a8a3a' }, rifle: { r: 2.5, col: '#15201a', plume: '#2f7a3a' }, militia: { r: 2.6, col: '#4a3a2a', plume: '#b9a47a' } };
+  function lighten(c, k) { const m = /rgb\((\d+),(\d+),(\d+)\)/.exec(c); if (m) return `rgb(${Math.min(255, +m[1] + k)},${Math.min(255, +m[2] + k)},${Math.min(255, +m[3] + k)})`; return c; }
+  function paintInf(g, coat, pose, hat, v) {
+    const dark = '#1a1410', steel = '#cfd3d8', skin = '#d8b090', belt = '#ece6d4';
+    g.lineCap = 'round';
+    g.fillStyle = 'rgba(0,0,0,0.30)'; g.beginPath(); g.ellipse(12.8, 12.8, 3.6, 7, 0, 0, 6.3); g.fill();                 // soft ground shadow
+    const arm = (x0, y0, x1, y1) => { g.strokeStyle = coat; g.lineWidth = 2.4; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.fillStyle = skin; g.beginPath(); g.arc(x1, y1, 1.15, 0, 6.3); g.fill(); };
+    const musket = (x0, y0, x1, y1) => { g.strokeStyle = '#6a4a2a'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.strokeStyle = dark; g.lineWidth = 0.8; g.beginPath(); g.moveTo(x0 + (x1 - x0) * 0.55, y0 + (y1 - y0) * 0.55); g.lineTo(x1, y1); g.stroke(); };
+    if (pose === 'stand') { arm(12, 5.2, 14.4, 8.2); arm(12, 18.8, 14.4, 15.8); musket(15.5, 7.5, 15.5, 16.5); }
+    else if (pose === 'march') { arm(12, 5.2, 13.6, 7.6); arm(12, 18.8, 15, 14); musket(9, 18.5, 20.5, 7.2); g.fillStyle = steel; g.beginPath(); g.arc(21.4, 6.4, 0.7, 0, 6.3); g.fill(); }
+    else if (pose === 'aim' || pose === 'fire') { musket(8.5, 13.4, 23, 11.2); arm(12, 5.4, 18, 10.6); arm(12, 18.6, 15.4, 13.8); }
+    else { musket(8, 12.6, 21, 12); g.strokeStyle = steel; g.lineWidth = 1; g.beginPath(); g.moveTo(21, 12); g.lineTo(25, 12); g.stroke(); arm(12, 5.4, 17, 10.8); arm(12, 18.6, 14.5, 13.4); }
+    // coat: shoulders seen from above, with crossed white belts
+    g.fillStyle = coat; g.beginPath(); g.ellipse(12, 12, 3.3, 6.5, 0, 0, 6.3); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 0.6; g.stroke();
+    g.strokeStyle = belt; g.lineWidth = 1; g.beginPath(); g.moveTo(10, 7); g.lineTo(14.5, 16.8); g.moveTo(10, 17); g.lineTo(14.5, 7.2); g.stroke();
+    // head: the shako seen from above
+    const h = hat || { r: 2.7, col: '#1a1a1a', plume: '#d9d9d0' };
+    g.fillStyle = h.col; g.beginPath(); g.arc(12.2, 12, h.r, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 0.5; g.stroke();
+    g.fillStyle = h.plume; g.beginPath(); g.arc(11.6, 12, 0.95, 0, 6.3); g.fill();
+    if (h.gold) { g.fillStyle = '#e8c04a'; g.beginPath(); g.arc(13.6, 12, 0.8, 0, 6.3); g.fill(); }
+    if (pose === 'fire') { g.fillStyle = 'rgba(255,230,140,0.95)'; g.beginPath(); g.moveTo(23, 11.2); g.lineTo(27, 8.8); g.lineTo(25.6, 11.2); g.lineTo(27.6, 13.4); g.closePath(); g.fill(); g.fillStyle = 'rgba(235,235,235,0.55)'; g.beginPath(); g.arc(25.5, 11.4, 1.8, 0, 6.3); g.fill(); }
+  }
+  function paintCav(g, coat, pose, type, v) {
+    const horses = ['#6a3e22', '#2a1c14', '#8a8a86', '#8a5a30'], horse = horses[v % 4], dark = '#1a1410', steel = '#e6e9ee';
+    g.lineCap = 'round';
+    g.fillStyle = 'rgba(0,0,0,0.30)'; g.beginPath(); g.ellipse(13.5, 14, 8.2, 4.2, 0, 0, 6.3); g.fill();
+    const gallop = pose === 'charge' || pose === 'march';
+    g.fillStyle = horse; g.beginPath(); g.ellipse(11, 12, 6.6, 3.6, 0, 0, 6.3); g.fill();                       // body
+    g.beginPath(); g.ellipse(18.4, 12, 2.9, 1.8, 0, 0, 6.3); g.fill();                                            // head
+    g.strokeStyle = horse; g.lineWidth = 2.4; g.beginPath(); g.moveTo(15, 12); g.lineTo(18, 12); g.stroke();      // neck
+    g.strokeStyle = dark; g.lineWidth = 1.1; g.beginPath(); g.moveTo(4.8, 12); g.quadraticCurveTo(2, 12 + (gallop ? 2 : 0), 1.2, 13.4); g.stroke(); // tail
+    g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 0.9; for (const [x, y] of [[14, 8.2], [14, 15.8], [8, 8.4], [8, 15.6]]) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + (gallop ? 2.2 : 0.8), y + (y < 12 ? -1.2 : 1.2)); g.stroke(); } // legs
+    // rider
+    g.fillStyle = coat; g.beginPath(); g.ellipse(11, 12, 2.4, 4.4, 0, 0, 6.3); g.fill(); g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 0.5; g.stroke();
+    const hel = type === 'cuirass' ? { col: '#b9c0c8', crest: '#222' } : { col: '#1c1c1c', crest: '#d8d8c8' };
+    g.fillStyle = hel.col; g.beginPath(); g.arc(11.4, 12, 2.3, 0, 6.3); g.fill(); g.fillStyle = hel.crest; g.beginPath(); g.arc(10.8, 12, 0.9, 0, 6.3); g.fill();
+    if (type === 'cuirass') { g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = 0.6; g.beginPath(); g.ellipse(11, 12, 2.4, 4.4, 0, -0.9, 0.9); g.stroke(); }
+    // sabre / lance
+    g.strokeStyle = steel; g.lineWidth = 1; g.beginPath();
+    if (type === 'lancer') { g.strokeStyle = '#8a6a3a'; g.lineWidth = 1.2; g.moveTo(8, 15); g.lineTo(pose === 'charge' ? 27 : 24, 10); g.stroke(); g.strokeStyle = steel; g.beginPath(); g.moveTo(pose === 'charge' ? 27 : 24, 10); g.lineTo(pose === 'charge' ? 29 : 26, 9.4); }
+    else if (pose === 'charge' || pose === 'melee') { g.moveTo(12.5, 8.4); g.lineTo(21.5, 5.6); }
+    else { g.moveTo(12.5, 8.6); g.lineTo(16.5, 4.4); }
+    g.stroke();
+  }
+  function soldierSprite(coat, pose, type, cls, v) {
+    const key = coat + '|' + pose + '|' + type + '|' + v;
+    let c = SPR.get(key); if (c) return c;
+    c = document.createElement('canvas'); c.width = 64; c.height = 56;
+    const g = c.getContext('2d'); g.scale(2, 2);
+    if (cls === 'cav') paintCav(g, coat, pose, type, v); else paintInf(g, coat, pose, HAT[type], v);
+    SPR.set(key, c); return c;
+  }
+
   function dims(u) {
     const base = NAP.UNITS[u.type];
     const f = u.formation, n = clamp(u.men / base.men, 0.1, 1), sq = Math.sqrt(n);
@@ -1330,7 +1386,7 @@
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
       const wob = (routing ? 1.6 : 0) + (1 - moraleF) * 1.1;          // nervous shuffling
       const frayed = (1 - r) * 3.2 + (1 - moraleF) * 1.4 + (routing ? 2.5 : 0); // looseness of the ranks
-      const detail = sk > 2.2;
+      const detail = sk > 2.2, sprites = sk > 2.6 && !(NAP.settings && NAP.settings.sprites === false);
       // faint hull so the unit still reads as one body (fades as it dies)
       ctx.fillStyle = tint(fc.color, wh); ctx.globalAlpha *= 0.16 + 0.14 * r + 0.25 * wh;
       ctx.fillRect(-d / 2, -w / 2, d, w); ctx.globalAlpha = u.state === 'routing' ? 0.82 : 1;
@@ -1366,6 +1422,20 @@
             x -= (1 - age / 0.45) * 1.3;
             const fr = ranks ? rk === ranks - 1 : true, fa = age - K[j][2] * 0.4;
             if (fr && fa >= 0 && fa < 0.12) { ctx.fillStyle = 'rgba(255,232,150,0.95)'; ctx.beginPath(); ctx.arc(x + fs + 1.4, y, 1.6, 0, TAU); ctx.fill(); }
+          }
+          if (sprites) { // detailed top-down soldier: pose follows what the regiment is doing
+            const fr = ranks ? rk === ranks - 1 : true, fa = age - K[j][2] * 0.4;
+            let pose = 'stand';
+            if (routing) pose = 'march';
+            else if (u.state === 'fighting') pose = 'melee';
+            else if (age >= 0 && age < 0.5 && fr && fa > -0.1) pose = fa >= 0 && fa < 0.16 ? 'fire' : 'aim';
+            else if (u.cls !== 'cav' && !u.mv && u.target && fr && u.reload < 1.4 && u.reload > 0) pose = 'aim';
+            else if (u.mv) pose = u.charging ? 'charge' : 'march';
+            else if (u.cls === 'cav' && u.state === 'fighting') pose = 'melee';
+            const coat = tint(k[3] < 0.1 && r < 0.6 ? '#505050' : fc.color, Math.round(wh * 5) / 5), v = Math.floor(k[3] * 4) % 4;
+            const img = soldierSprite(coat, pose, u.type, u.cls, v), sz = u.cls === 'cav' ? 13 : 9.5, jr = (k[1] - 0.5) * 0.35;
+            ctx.save(); ctx.translate(x, y); if (jr) ctx.rotate(jr); ctx.drawImage(img, -sz * 0.375, -sz * 0.375, sz, sz * 0.875); ctx.restore();
+            continue;
           }
           ctx.fillStyle = 'rgba(0,0,0,0.55)';
           if (u.cls === 'cav') ctx.fillRect(x - fs * 0.9, y - fs * 0.5, fs * 1.8 + 0.8, fs + 0.8); else ctx.fillRect(x - fs / 2 - 0.4, y - fs / 2 - 0.4, fs + 0.8, fs + 0.8);
@@ -2034,5 +2104,5 @@
     return new Promise((resolve) => { NAP.currentBattle = new Battle(spec, root, resolve); });
   };
   NAP.Battle = Battle;
-  NAP.BT = BT;
+  NAP.BT = BT; NAP.soldierSprite = soldierSprite;
 })();
