@@ -1396,6 +1396,12 @@
       const moraleF = clamp(u.morale / u.baseMorale, 0, 1), loose = (1 - r) * 0.3 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
       const base = tint(fc.color, Math.round(wh * 5) / 5), worn = tint('#505050', Math.round(wh * 5) / 5);
       const mv = u.mv && !routing;
+      // casualties fall at the FRONT and the men behind step up to close the gap (so the line keeps its face and the rear thins out)
+      const evs = (u._loss = u._loss || []);
+      if (u._pm === undefined) u._pm = u.men;
+      if (rows && u.men < u._pm - 0.5) { const nEv = Math.min(8, Math.ceil((u._pm - u.men) / Math.max(1, u.max / 120))); for (let q = 0; q < nEv; q++) evs.push({ t, cl: (Math.random() * cols) | 0, a: Math.random() * 6.28 }); if (evs.length > 60) evs.splice(0, evs.length - 60); }
+      u._pm = u.men;
+      const lastT = {}; for (let q = evs.length - 1; q >= 0; q--) { if (t - evs[q].t > 2.5) { evs.splice(q, 1); continue; } if (lastT[evs[q].cl] === undefined || evs[q].t > lastT[evs[q].cl]) lastT[evs[q].cl] = evs[q].t; }
       for (let j = 0; j < nAll; j++) {
         const h1 = Math.sin((j + 1) * 12.9898 + u.id * 7.13) * 43758.5453, a1 = h1 - Math.floor(h1);
         const h2 = Math.sin((j + 1) * 78.233 + u.id * 3.1) * 12345.6789, a2 = h2 - Math.floor(h2);
@@ -1411,6 +1417,7 @@
         const wx = u.x + x * cf - y * sf, wy = u.y + x * sf + y * cf;
         if (wx < cx - hw || wx > cx + hw || wy < cy - hh || wy > cy + hh) continue; // off screen
         if (mv) { const ph = t * (cav ? 11 : 6.5) + j * 1.9; x += Math.sin(ph) * 0.12; }
+        if (rows && ranked) { const lt = lastT[(j / rows) | 0]; if (lt !== undefined) x -= (1 - Math.min(1, (t - lt) / 0.9)) * rowSp; } // stepping up into the gap
         const fr = rows ? rf <= 1 : true, fa = age - a2 * 0.4;
         let pose = 'stand';
         if (routing) pose = 'march';
@@ -1421,6 +1428,8 @@
         const img = soldierSprite(a3 < 0.1 * keep && r < 0.6 ? worn : base, pose, u.type, u.cls, (a1 * 4) | 0);
         ctx.drawImage(img, x - sz * 0.375, y - sz * 0.375, sz, sz * 0.875);
       }
+      // the fallen lie where the front rank stood, fading after a moment
+      if (rows) for (const e of evs) { const ag = t - e.t; if (ag < 0 || ag > 2.5) continue; ctx.save(); ctx.globalAlpha = 0.65 * (1 - ag / 2.5); ctx.translate(d / 2 - 0.5 * rowSp + (e.a - 3.1) * 0.05, (e.cl + 0.5 - cols / 2) * colSp); ctx.rotate(e.a); ctx.drawImage(soldierSprite(base, 'stand', u.type, u.cls, 0), -sz * 0.375, -sz * 0.375, sz, sz * 0.875); ctx.restore(); }
     }
     drawFigures(ctx, u, w, d, fc, sk, r, sel, wh) {
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';
