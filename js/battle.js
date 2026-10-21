@@ -1384,24 +1384,45 @@
     // Individual soldiers: the block thins out, shrinks and frays as men fall
     // True-to-strength drawing: one top-down figure for every soldier in the regiment (500 men = 500 figures), only for what is on screen
     drawMen(ctx, u, w, d, fc, sk, r, wh, routing) {
-      const nAll = Math.min(900, Math.ceil(u.max)), keep = clamp(u.men / u.max, 0, 1);
       if (u.men < 1) return;
+      const nAll = Math.min(900, Math.ceil(u.max)), keep = clamp(u.men / u.max, 0, 1);
       const form = u.formation, t = this.t, age = t - (u.volleyT === undefined ? -9 : u.volleyT), cav = u.cls === 'cav';
       const [w0, d0] = dims({ type: u.type, cls: u.cls, formation: form, men: u.max }); // the regiment's full-strength footprint fixes the grid
       const ranked = form === 'line' || form === 'column' || cav; // these lose their rear ranks first; squares and skirmishers thin out evenly
       const rows = form === 'skirmish' ? 0 : clamp(Math.round(Math.sqrt(nAll * d0 / Math.max(w0, 1))), 1, nAll), cols = rows ? Math.ceil(nAll / rows) : 0;
-      const sp = Math.sqrt(w0 * d0 / nAll), sz = clamp(sp * (cav ? 2.1 : 2.4), 1.8, cav ? 13 : 9.5), rowSp = rows ? d0 / rows : 0, colSp = cols ? w0 / cols : 0;
-      const vr = keep * rows, fullR = Math.floor(vr), partR = vr - fullR;
-      const f = u.facing, cf = Math.cos(f), sf = Math.sin(f), hw = this.canvas.width / sk / 2 + 8, hh = this.canvas.height / sk / 2 + 8, cx = this.cam.x, cy = this.cam.y;
-      const moraleF = clamp(u.morale / u.baseMorale, 0, 1), loose = (1 - r) * 0.3 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
-      const base = tint(fc.color, Math.round(wh * 5) / 5), worn = tint('#505050', Math.round(wh * 5) / 5);
-      const mv = u.mv && !routing;
+      // off screen: nothing to draw
+      const hw = this.canvas.width / sk / 2 + w0 / 2 + d0 / 2 + 6, hh = this.canvas.height / sk / 2 + w0 / 2 + d0 / 2 + 6;
+      if (Math.abs(u.x - this.cam.x) > hw || Math.abs(u.y - this.cam.y) > hh) return;
       // casualties fall at the FRONT and the men behind step up to close the gap (so the line keeps its face and the rear thins out)
       const evs = (u._loss = u._loss || []);
       if (u._pm === undefined) u._pm = u.men;
       if (rows && u.men < u._pm - 0.5) { const nEv = Math.min(8, Math.ceil((u._pm - u.men) / Math.max(1, u.max / 120))); for (let q = 0; q < nEv; q++) evs.push({ t, cl: (Math.random() * cols) | 0, a: Math.random() * 6.28 }); if (evs.length > 60) evs.splice(0, evs.length - 60); }
       u._pm = u.men;
-      const lastT = {}; for (let q = evs.length - 1; q >= 0; q--) { if (t - evs[q].t > 2.5) { evs.splice(q, 1); continue; } if (lastT[evs[q].cl] === undefined || evs[q].t > lastT[evs[q].cl]) lastT[evs[q].cl] = evs[q].t; }
+      for (let q = evs.length - 1; q >= 0; q--) if (t - evs[q].t > 2.5) evs.splice(q, 1);
+      // The whole regiment is painted into an offscreen picture that is only repainted when something visible changes (a few times a second
+      // while it fights or moves, never while it stands still); every frame just blits that picture.
+      const scale = sk < 4.5 ? 4 : sk < 6.5 ? 6 : sk < 9 ? 8 : 10;
+      const busy = evs.length || u.mv || u.state === 'fighting' || routing || age < 0.8 || (u.target && u.reload < 1.5);
+      const moraleF = clamp(u.morale / u.baseMorale, 0, 1);
+      const sig = `${Math.round(keep * 120)}|${form}|${scale}|${busy ? Math.floor(t * 8) : 0}|${Math.round(wh * 5)}|${routing ? 1 : 0}|${Math.round(moraleF * 8)}|${fc.color}`;
+      const pad = 7, bw = d0 + pad * 2, bh = w0 + pad * 2;
+      let rc = u._rc;
+      if (!rc || rc.sig !== sig || rc.bw !== bw || rc.bh !== bh) {
+        if (!rc || rc.cv.width !== Math.ceil(bw * scale) || rc.cv.height !== Math.ceil(bh * scale)) { rc = u._rc = { cv: document.createElement('canvas') }; rc.cv.width = Math.ceil(bw * scale); rc.cv.height = Math.ceil(bh * scale); }
+        rc.sig = sig; rc.bw = bw; rc.bh = bh;
+        const g = rc.cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, rc.cv.width, rc.cv.height); g.setTransform(scale, 0, 0, scale, bw * scale / 2, bh * scale / 2);
+        this.paintMen(g, u, w, d, fc, r, wh, routing, { nAll, keep, form, t, age, cav, w0, d0, ranked, rows, cols, evs, moraleF });
+      }
+      ctx.drawImage(rc.cv, -bw / 2, -bh / 2, bw, bh);
+    }
+    paintMen(g, u, w, d, fc, r, wh, routing, q) {
+      const { nAll, keep, t, age, cav, w0, d0, ranked, rows, cols, evs, moraleF } = q;
+      const sp = Math.sqrt(w0 * d0 / nAll), sz = clamp(sp * (cav ? 2.1 : 2.4), 1.8, cav ? 13 : 9.5), rowSp = rows ? d0 / rows : 0, colSp = cols ? w0 / cols : 0;
+      const vr = keep * rows, fullR = Math.floor(vr), partR = vr - fullR;
+      const loose = (1 - r) * 0.3 + (1 - moraleF) * 0.3 + (routing ? 0.6 : 0.12);
+      const base = tint(fc.color, Math.round(wh * 5) / 5), worn = tint('#505050', Math.round(wh * 5) / 5);
+      const mv = u.mv && !routing, lastT = {};
+      for (const e of evs) if (lastT[e.cl] === undefined || e.t > lastT[e.cl]) lastT[e.cl] = e.t;
       for (let j = 0; j < nAll; j++) {
         const h1 = Math.sin((j + 1) * 12.9898 + u.id * 7.13) * 43758.5453, a1 = h1 - Math.floor(h1);
         const h2 = Math.sin((j + 1) * 78.233 + u.id * 3.1) * 12345.6789, a2 = h2 - Math.floor(h2);
@@ -1414,8 +1435,6 @@
           x = d / 2 - (rf + 0.5) * rowSp + (a1 - 0.5) * loose * sp; y = (cl + 0.5 - cols / 2) * colSp + (a2 - 0.5) * loose * sp;
           if (!ranked) { x = -d / 2 + (1 - (rf + 0.5) / rows) * d + (a1 - 0.5) * loose * sp; y = -w / 2 + (cl + 0.5) / cols * w + (a2 - 0.5) * loose * sp; }
         } else { if (a3 > keep) continue; x = -d / 2 + a1 * d; y = -w / 2 + a2 * w; }
-        const wx = u.x + x * cf - y * sf, wy = u.y + x * sf + y * cf;
-        if (wx < cx - hw || wx > cx + hw || wy < cy - hh || wy > cy + hh) continue; // off screen
         if (mv) { const ph = t * (cav ? 11 : 6.5) + j * 1.9; x += Math.sin(ph) * 0.12; }
         if (rows && ranked) { const lt = lastT[(j / rows) | 0]; if (lt !== undefined) x -= (1 - Math.min(1, (t - lt) / 0.9)) * rowSp; } // stepping up into the gap
         const fr = rows ? rf <= 1 : true, fa = age - a2 * 0.4;
@@ -1426,10 +1445,10 @@
         else if (!cav && !u.mv && u.target && fr && u.reload < 1.4 && u.reload > 0) pose = 'aim';
         else if (u.mv) pose = u.charging ? 'charge' : 'march';
         const img = soldierSprite(a3 < 0.1 * keep && r < 0.6 ? worn : base, pose, u.type, u.cls, (a1 * 4) | 0);
-        ctx.drawImage(img, x - sz * 0.375, y - sz * 0.375, sz, sz * 0.875);
+        g.drawImage(img, x - sz * 0.375, y - sz * 0.375, sz, sz * 0.875);
       }
       // the fallen lie where the front rank stood, fading after a moment
-      if (rows) for (const e of evs) { const ag = t - e.t; if (ag < 0 || ag > 2.5) continue; ctx.save(); ctx.globalAlpha = 0.65 * (1 - ag / 2.5); ctx.translate(d / 2 - 0.5 * rowSp + (e.a - 3.1) * 0.05, (e.cl + 0.5 - cols / 2) * colSp); ctx.rotate(e.a); ctx.drawImage(soldierSprite(base, 'stand', u.type, u.cls, 0), -sz * 0.375, -sz * 0.375, sz, sz * 0.875); ctx.restore(); }
+      if (rows) for (const e of evs) { const ag = t - e.t; if (ag < 0 || ag > 2.5) continue; g.save(); g.globalAlpha = 0.65 * (1 - ag / 2.5); g.translate(d / 2 - 0.5 * rowSp, (e.cl + 0.5 - cols / 2) * colSp); g.rotate(e.a); g.drawImage(soldierSprite(base, 'stand', u.type, u.cls, 0), -sz * 0.375, -sz * 0.375, sz, sz * 0.875); g.restore(); }
     }
     drawFigures(ctx, u, w, d, fc, sk, r, sel, wh) {
       const K = this.keys4(u), form = u.formation, moraleF = clamp(u.morale / u.baseMorale, 0, 1), routing = u.state === 'routing';

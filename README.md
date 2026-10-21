@@ -258,3 +258,6 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 - **Artillery** is drawn as proper batteries: bronze (or iron for siege guns) barrels on wooden carriages with trails, axles and spoked-wheel tyres, three gunners per piece in the nation's coat with a rammer, shot piles and powder caissons, recoil and a muzzle flash with drifting smoke when each gun fires (staggered along the battery), and wrecked guns left in the line as the battery is destroyed.
 - **Casualties thin a regiment from the back to the front**: line, column and cavalry formations lose their rear ranks first and keep their frontage and front rank, both in the drawn figures and in the formation's actual footprint (a line keeps about 80-100% of its width and gets shallower). Squares and skirmishers still thin out evenly.
 - Casualties now fall at the **front**: a fallen man is drawn lying where the front rank stood (fading after a couple of seconds) and the men behind in that file **step up** to close the gap, so the line's face stays intact and the rear ranks are what thin out.
+
+### Sprite performance
+Each regiment's men are painted into a cached offscreen picture that is repainted only when something changes (moving, fighting, firing, casualties; about 8 times a second), and off-screen regiments are skipped. Idle regiments cost one image blit per frame.
