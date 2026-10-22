@@ -266,3 +266,9 @@ Each regiment's men are painted into a cached offscreen picture that is repainte
 - The Diplomacy / Country Overview / Europe / Armies / Wars buttons are now one **Reports** button opening a tabbed window (My Nation, Europe, Armies, Wars, Diplomacy); keys O, A, W, D still work.
 - AI nations value retaking their own starting provinces far more, and may ship a detachment of up to 12 regiments across the sea for it even when their main army is too big to sail.
 - Lisbon and Morocco are linked by sea (`NAP.SEA_EXTRA`).
+
+### New buildings
+- **Military School** (needs Barracks): regiments raised here start with one veteran star; with an Academy as well, two.
+- **Foundry** (needs Arsenal): guns a further 20% cheaper and one turn faster.
+- **Hospital**: your or allied armies stationed there recover 20% strength per turn at no manpower cost.
+- **Customs House** (ports only, needs Market): +40% province income; blockades hurt it less. Works with naval warfare off.

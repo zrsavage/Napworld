@@ -372,6 +372,10 @@
     stables:  { name:'Stables',         cost:240, time:3, max:1, desc:'Unlocks Lancers and Heavy Cavalry here; cavalry cost 10% less.' },
     arsenal:  { name:'Arsenal',         cost:280, time:3, max:1, desc:'Unlocks Horse Artillery here; all guns cost 20% less.' },
     academy:  { name:'Military Academy',cost:360, time:4, max:1, req:'barracks', desc:'Unlocks Guard Infantry here. New regiments raised here start as veterans (+morale, +firepower).' },
+    school:   { name:'Military School', cost:300, time:3, max:1, req:'barracks', desc:'Needs Barracks. Regiments raised here start with one veteran star. With an Academy as well, they start with two.' },
+    foundry:  { name:'Foundry',         cost:380, time:4, max:1, req:'arsenal', desc:'Needs an Arsenal. Guns cost a further 20% less and are cast one turn faster.' },
+    hospital: { name:'Hospital',        cost:300, time:3, max:1, desc:'Armies stationed here (yours or an ally\'s) recover 20% of their strength each turn at no manpower cost, even after marching.' },
+    customs:  { name:'Customs House',   cost:340, time:4, max:1, req:'market', harbour:true, desc:'Ports only, needs a Market. +40% province income from sea trade; if the port is blockaded it loses less.' },
     shipyard: { name:'Shipyard',        cost:300, time:4, max:1, port:true, desc:'Ports only. Lets you build Ships of the Line and Frigates here.' },
     fort:     { name:'Fortifications',  cost:320, time:4, max:3, desc:'+1 fort level: longer sieges and a stronger garrison.' }
   };

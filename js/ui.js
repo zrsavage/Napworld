@@ -348,7 +348,7 @@
     const s = S(), ps = s.provinces[p.id], d = NAP.world.byId[p.id];
     let h = `<b>${p.capital ? '\u2605 ' : ''}${esc(p.name)}</b> \u2014 ${esc(F(ps.owner).adj)}<br><span class="ttk">${{ p: 'Plains', h: 'Hills', f: 'Forest', m: 'Mountains' }[p.terrain]}${p.port ? ' \u00B7 Port' : ''} \u00B7 Income ${fmt(C.provIncome(ps))} \u00B7 Manpower ${C.def(p.id).manpower}</span>`;
     if ((ps.unrest || 0) > 5) h += `<br><span class="${ps.unrest >= 60 ? 'bad' : 'warn'}">Unrest ${Math.round(ps.unrest)}%</span>`;
-    const bl = ['market', 'bank', 'imperial', 'barracks', 'depot', 'bureau', 'stables', 'arsenal', 'academy'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
+    const bl = ['market', 'bank', 'imperial', 'customs', 'barracks', 'depot', 'bureau', 'school', 'academy', 'stables', 'arsenal', 'foundry', 'hospital'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name); if (ps.fort) bl.push('Fort ' + ps.fort);
     if (bl.length) h += `<br><span class="ttk">${bl.join(', ')}</span>`;
     const ar = s.armies.filter((a) => a.prov === p.id); if (ar.length) h += '<br>' + ar.map((a) => `${esc(F(a.owner).adj)} army (${a.units.length} regts)`).join('<br>');
     const fh = (s.fleets || []).filter((x) => x.port === p.id); if (fh.length) h += '<br>' + fh.map((x) => `${esc(F(x.owner).adj)} fleet (${C.shipCount(x)} ships)`).join('<br>');
@@ -365,7 +365,7 @@
     h += `<br><span class="ttk">Firepower ${dots(fire, 5)} \u00B7 Melee ${dots(melee, 5)} \u00B7 Morale ${u.morale} \u00B7 Speed ${u.speed}</span>`;
     if (u.limit) h += `<br>Limit: <b>${C.countType(ps.owner, t)} / ${u.limit}</b> regiments per nation.`;
     if (u.needs) h += `<br>${ps[u.needs] ? '\u2714' : '\u{1F512}'} Needs a <b>${NAP.BUILDINGS[u.needs].name}</b> in this province.`;
-    if (ps.academy) h += '<br>\u2605 Raised as veterans (Military Academy).';
+    { const st = (ps.academy ? 1 : 0) + (ps.school ? 1 : 0); if (st) h += '<br>' + '\u2605'.repeat(st) + ' Raised as veterans (' + [ps.school && 'Military School', ps.academy && 'Military Academy'].filter(Boolean).join(' + ') + ').'; }
     if (u.cls === 'art' && ps.arsenal) h += '<br>Arsenal: 20% cheaper.'; if (u.cls === 'cav' && ps.stables) h += '<br>Stables: 10% cheaper.';
     if (err && !String(err).startsWith('Requires')) h += `<br><span class="bad">${err}</span>`;
     return h;
@@ -434,9 +434,9 @@
         const bd = NAP.BUILDINGS[b], built = b === 'fort' ? ps.fort >= bd.max : ps[b] >= 1, err = C.buildCheck(pid, b), reqMiss = err && /^Requires/.test(err), poor = err && !reqMiss && err !== 'Already built' && !built;
         return `<button class="ubtn${built ? ' done' : reqMiss ? ' locked' : err ? ' poor' : ''}" data-bld="${b}" data-tip="${esc(buildingTip(b, ps, err))}"><span>${built && b !== 'fort' ? '✔ ' : reqMiss ? '\u{1F512} ' : ''}${bd.name}${b === 'fort' ? ' ' + ps.fort + '/' + bd.max : ''}</span><span>${built && b !== 'fort' ? 'built' : `<span class="${poor ? 'bad' : ''}">${bd.cost}g</span> · ${bd.time}t`}</span></button>`;
       };
-      const bAll = Object.keys(NAP.BUILDINGS).filter((b) => !(NAP.BUILDINGS[b].port && (!p.port || !s.naval)) && (!simple || C.SIMPLE_BUILDS.includes(b)));
+      const bAll = Object.keys(NAP.BUILDINGS).filter((b) => !(NAP.BUILDINGS[b].port && (!p.port || !s.naval)) && !(NAP.BUILDINGS[b].harbour && !p.port) && (!simple || C.SIMPLE_BUILDS.includes(b)));
       const bgrp = (title, ids) => { const l = ids.filter((b) => bAll.includes(b)); return l.length ? `<div class="subh">${title}</div>` + l.map(bRow).join('') : ''; };
-      let buildHTML = simple ? bgrp('Money', ['market']) + bgrp('Recruiting', ['barracks']) : bgrp('Economy', ['market', 'bank', 'imperial']) + bgrp('Military', ['barracks', 'depot', 'bureau', 'stables', 'arsenal', 'academy']) + bgrp('Defence', ['fort']) + bgrp('Naval', ['shipyard']);
+      let buildHTML = simple ? bgrp('Money', ['market']) + bgrp('Recruiting', ['barracks']) : bgrp('Economy', ['market', 'bank', 'imperial', 'customs']) + bgrp('Military', ['barracks', 'depot', 'bureau', 'school', 'academy', 'stables', 'arsenal', 'foundry', 'hospital']) + bgrp('Defence', ['fort']) + bgrp('Naval', ['shipyard']);
       if (ps.build) buildHTML += `<div class="queue">Building ${NAP.BUILDINGS[ps.build.type].name} (${ps.build.left} turns)${(ps.bq || []).map((q, i) => `<br>Next ${i + 1}: ${NAP.BUILDINGS[q].name} <a href="#" data-bqx="${i}" data-tip="Cancel and refund ${NAP.BUILDINGS[q].cost} gold">cancel</a>`).join('')}<br><span class="muted">Queue ${1 + (ps.bq || []).length}/${C.BUILD_QUEUE}</span></div>`;
       let navyHTML = '';
       if (p.port && s.naval) {
@@ -689,7 +689,7 @@
     const inc = C.factionIncome(me), up = C.factionUpkeep(me), shipUp = s.naval ? C.shipUpkeep(me) : 0, perk = NAP.PERKS[me];
     const provs = C.provincesOf(me).map((p) => ({ p, ps: s.provinces[p.id] })).sort((a, b) => C.provIncome(b.ps) - C.provIncome(a.ps));
     const arms = C.armiesOf(me), flts = s.naval ? C.fleetsOf(me) : [];
-    const bl = (ps) => ['market', 'bank', 'imperial', 'barracks', 'depot', 'bureau', 'stables', 'arsenal', 'academy', 'shipyard'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name.split(' ')[0]).concat(ps.fort ? ['Fort ' + ps.fort] : []).join(', ') || '\u2014';
+    const bl = (ps) => ['market', 'bank', 'imperial', 'customs', 'barracks', 'depot', 'bureau', 'school', 'academy', 'stables', 'arsenal', 'foundry', 'hospital', 'shipyard'].filter((b) => ps[b]).map((b) => NAP.BUILDINGS[b].name.split(' ')[0]).concat(ps.fort ? ['Fort ' + ps.fort] : []).join(', ') || '\u2014';
     const wars = C.warsOf(me).map((x) => F(x).adj), allies = Object.keys(s.factions).filter((x) => x !== me && x !== 'minor' && s.factions[x].alive && C.allied(me, x)).map((x) => F(x).adj);
     const tr = (k) => C.treatyPartners(k, me).map((x) => F(x).adj).join(', ') || '\u2014';
     const sup = (a) => { const d = C.supplyDepth(a); return d === 0 ? 'At home' : d === 1 ? 'Foraging' : d === 2 ? 'Strained' : 'Cut off'; };

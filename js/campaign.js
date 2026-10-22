@@ -119,6 +119,7 @@
     const u = U[type], ps = S.provinces[pid];
     let c = u.cost;
     if (u.cls === 'art' && ps.arsenal) c *= 0.8;
+    if (u.cls === 'art' && ps.foundry) c *= 0.8;
     if (u.cls === 'cav' && ps.stables) c *= 0.9;
     return Math.round(c * NAP.perk(ps.owner, 'cost'));
   };
@@ -213,9 +214,9 @@
 
   C.provIncome = function (ps) {
     const d = C.def(ps.id);
-    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0) + 0.5 * (ps.imperial || 0)) * ((ps.disrupt || 0) > 0 ? 0.4 : 1);
+    let v = d.income * INCOME_K * (1 + 0.5 * ps.market + 0.5 * (ps.bank || 0) + 0.5 * (ps.imperial || 0) + 0.4 * (ps.customs || 0)) * ((ps.disrupt || 0) > 0 ? 0.4 : 1);
     if (ps.siege) v *= 0.1;
-    if (ps.blockade) v *= 0.5 + Math.min(0.35, 0.15 * C.runners(ps.id));
+    if (ps.blockade) v *= (0.5 + Math.min(0.35, 0.15 * C.runners(ps.id))) * (ps.customs ? 1.2 : 1);
     if (ps.foraged) v *= 0.3;
     v *= ps.policy === 'scorch' ? 0 : ({ tax: 1.25, levy: 0.85, order: 0.85 }[ps.policy] || 1);
     const u = ps.unrest || 0;
@@ -406,7 +407,7 @@
     if (err) return err;
     const ps = S.provinces[pid], fs = S.factions[ps.owner], u = U[type];
     fs.gold -= C.unitCost(pid, type); fs.manpower -= u.men;
-    ps.queue.push({ type, left: u.time, vet: ps.academy ? 1 : 0 });
+    ps.queue.push({ type, left: Math.max(1, u.time - (u.cls === 'art' && ps.foundry ? 1 : 0)), vet: (ps.academy ? 1 : 0) + (ps.school ? 1 : 0) });
     return null;
   };
   C.BUILD_QUEUE = 3; // buildings under construction + waiting, per province
@@ -414,7 +415,7 @@
     const ps = S.provinces[pid], fs = S.factions[ps.owner], bd = NAP.BUILDINGS[b];
     if (C.isSimple(ps.owner) && !C.SIMPLE_BUILDS.includes(b)) return 'Not used in Easy mode';
     if (bd.port && !S.naval) return 'Naval warfare is switched off in this game';
-    if (bd.port && !W().byId[pid].port) return 'Needs a port';
+    if ((bd.port || bd.harbour) && !W().byId[pid].port) return 'Needs a port';
     const q = ps.bq || (ps.bq = []);
     if ((ps.build ? 1 : 0) + q.length >= C.BUILD_QUEUE) return 'Construction queue is full (' + C.BUILD_QUEUE + ')';
     if (ps.siege) return 'Province is besieged';
@@ -1008,8 +1009,10 @@
     if (rnd() < 0.5) ps.shipyard = 0;
     ps.unrest = d.owner === f ? 10 : 35;
     addScore(f, old, 10 + Math.round(d.income) + (d.capital ? 25 : 0));
-    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau']) if (rnd() < 0.45) ps[b] = 0;
-    if (!ps.barracks) { ps.academy = 0; ps.depot = 0; }
+    for (const b of ['market', 'barracks', 'stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau', 'school', 'foundry', 'hospital', 'customs']) if (rnd() < 0.45) ps[b] = 0;
+    if (!ps.barracks) { ps.academy = 0; ps.depot = 0; ps.school = 0; }
+    if (!ps.arsenal) ps.foundry = 0;
+    if (!ps.market) ps.customs = 0;
     if (!ps.depot) ps.bureau = 0;
     if (!ps.market) ps.bank = 0;
     if (!ps.bank) ps.imperial = 0;
@@ -1129,6 +1132,7 @@
       // marching fatigue
       if (a.moved) a.fatigue = Math.min(100, (a.fatigue || 0) + (a.forcedMarch ? 38 : 7) * (C.hasTrait(gen, 'logistician') ? 0.7 : 1)); else a.fatigue = Math.max(0, (a.fatigue || 0) - 25 - (a.staff === 'quartermaster' ? 10 : 0));
       a.moved = false; a.forcedMarch = false;
+      if (ps.hospital && home && (ps.owner === a.owner || allied(a.owner, ps.owner)) && a.units.some((u) => u.men < u.max)) for (const u of a.units) if (u.men < u.max) u.men = Math.min(u.max, u.men + Math.round(u.max * 0.2)); // hospital: free recovery
       if (loss > 0) {
         applyCasualties([a], loss);
         if (!a.units.length) { plog(`The ${F(a.owner).adj} army in ${d.name} has melted away from attrition!`, 'bad', [a.owner]); removeArmy(a); }
@@ -1297,6 +1301,10 @@
         if (!ps.stables && C.def(pick.id).income >= 3 && fs.gold > 500) opts.push('stables');
         if (!ps.arsenal && C.def(pick.id).income >= 4 && fs.gold > 550) opts.push('arsenal');
         if (ps.barracks && !ps.academy && fs.gold > 800) opts.push('academy');
+        if (ps.barracks && !ps.school && fs.gold > 650) opts.push('school');
+        if (ps.arsenal && !ps.foundry && fs.gold > 900) opts.push('foundry');
+        if (!ps.hospital && fs.gold > 700 && C.armiesOf(f).some((a) => a.prov === pick.id)) opts.push('hospital');
+        if (ps.market && !ps.customs && W().byId[pick.id].port && C.def(pick.id).income >= 4 && fs.gold > 800) opts.push('customs');
         if (ps.market && !ps.bank && C.def(pick.id).income >= 4 && fs.gold > 900) opts.push('bank');
         if (ps.barracks && !ps.depot && C.def(pick.id).manpower >= 3 && fs.gold > 900) opts.push('depot');
         if (ps.bank && !ps.imperial && C.def(pick.id).income >= 5 && fs.gold > 1500) opts.push('imperial');
@@ -2129,7 +2137,7 @@
     const v = d.version || 1;
     if (v > C.VERSION) throw new Error('This save was made by a newer version of the game.');
     for (const ps of Object.values(d.provinces)) {
-      for (const k of ['stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau']) if (ps[k] === undefined) ps[k] = 0;
+      for (const k of ['stables', 'arsenal', 'academy', 'bank', 'depot', 'imperial', 'bureau', 'school', 'foundry', 'hospital', 'customs']) if (ps[k] === undefined) ps[k] = 0;
       if (ps.unrest === undefined) ps.unrest = 0;
       if (!ps.policy) ps.policy = 'balanced';
       ps.foraged = false;
