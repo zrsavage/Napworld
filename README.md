@@ -272,3 +272,6 @@ Each regiment's men are painted into a cached offscreen picture that is repainte
 - **Foundry** (needs Arsenal): guns a further 20% cheaper and one turn faster.
 - **Hospital**: your or allied armies stationed there recover 20% strength per turn at no manpower cost.
 - **Customs House** (ports only, needs Market): +40% province income; blockades hurt it less. Works with naval warfare off.
+
+### Historical AI diplomacy
+`NAP.RIVALS` and `NAP.FRIENDS` (data.js) list, by year, which nations may drift into war with each other on their own and which never will and ally readily (e.g. Russia and Austria, Britain and Portugal). Random AI war declarations, and alliances formed against a common enemy, now follow those tables; scripted events (the coalitions, 1812...) are unchanged. Wars on neutral states are rarer. Settings has a "Historical AI diplomacy" switch (default on) to return to the free-for-all.

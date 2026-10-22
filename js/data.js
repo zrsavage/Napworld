@@ -298,6 +298,17 @@
   };
 
   // Treaties at game start
+  // Historical diplomacy for the AI: [a, b, from year, to year, weight]. RIVALS are the pairs that may drift into war on their own
+  // (weight = how readily); FRIENDS never start a war against each other and ally readily. Scripted events (coalitions, 1812...) ignore this.
+  NAP.RIVALS = [['france','britain',1805,1815,1], ['france','austria',1805,1815,.8], ['france','russia',1805,1815,.7], ['france','prussia',1806,1815,.8],
+    ['france','sweden',1805,1815,.4], ['france','portugal',1807,1814,.6], ['france','spain',1808,1814,.6], ['france','naples',1806,1806,.5],
+    ['britain','spain',1805,1808,.8], ['britain','denmark',1807,1814,.8], ['britain','naples',1806,1815,.6], ['britain','russia',1807,1811,.6],
+    ['britain','ottoman',1807,1809,.4], ['russia','ottoman',1805,1812,.8], ['russia','sweden',1805,1810,.6], ['austria','ottoman',1805,1815,.3],
+    ['austria','bavaria',1805,1809,.5], ['austria','naples',1805,1815,.4], ['sweden','denmark',1805,1814,.5], ['spain','portugal',1805,1807,.4]];
+  NAP.FRIENDS = [['france','spain',1805,1807], ['france','bavaria',1805,1813], ['france','denmark',1807,1813], ['france','naples',1807,1814], ['france','ottoman',1805,1815],
+    ['britain','portugal',1805,1815], ['britain','sweden',1805,1812], ['britain','austria',1805,1815], ['britain','russia',1805,1806], ['britain','russia',1812,1815],
+    ['britain','prussia',1806,1815], ['britain','spain',1808,1815], ['britain','ottoman',1805,1806], ['britain','ottoman',1810,1815], ['russia','austria',1805,1815],
+    ['russia','prussia',1805,1815], ['austria','prussia',1805,1815], ['spain','portugal',1808,1815], ['spain','naples',1805,1815], ['russia','sweden',1812,1815], ['sweden','prussia',1805,1815], ['sweden','austria',1805,1815]];
   NAP.START_WARS = [['britain','france'], ['britain','spain']];
   NAP.START_ALLIES = [['france','spain'], ['france','bavaria'], ['britain','portugal'], ['russia','austria'], ['britain','sweden']];
   // Base opinion modifiers

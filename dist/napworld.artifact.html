@@ -708,6 +708,17 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
   };
 
   // Treaties at game start
+  // Historical diplomacy for the AI: [a, b, from year, to year, weight]. RIVALS are the pairs that may drift into war on their own
+  // (weight = how readily); FRIENDS never start a war against each other and ally readily. Scripted events (coalitions, 1812...) ignore this.
+  NAP.RIVALS = [['france','britain',1805,1815,1], ['france','austria',1805,1815,.8], ['france','russia',1805,1815,.7], ['france','prussia',1806,1815,.8],
+    ['france','sweden',1805,1815,.4], ['france','portugal',1807,1814,.6], ['france','spain',1808,1814,.6], ['france','naples',1806,1806,.5],
+    ['britain','spain',1805,1808,.8], ['britain','denmark',1807,1814,.8], ['britain','naples',1806,1815,.6], ['britain','russia',1807,1811,.6],
+    ['britain','ottoman',1807,1809,.4], ['russia','ottoman',1805,1812,.8], ['russia','sweden',1805,1810,.6], ['austria','ottoman',1805,1815,.3],
+    ['austria','bavaria',1805,1809,.5], ['austria','naples',1805,1815,.4], ['sweden','denmark',1805,1814,.5], ['spain','portugal',1805,1807,.4]];
+  NAP.FRIENDS = [['france','spain',1805,1807], ['france','bavaria',1805,1813], ['france','denmark',1807,1813], ['france','naples',1807,1814], ['france','ottoman',1805,1815],
+    ['britain','portugal',1805,1815], ['britain','sweden',1805,1812], ['britain','austria',1805,1815], ['britain','russia',1805,1806], ['britain','russia',1812,1815],
+    ['britain','prussia',1806,1815], ['britain','spain',1808,1815], ['britain','ottoman',1805,1806], ['britain','ottoman',1810,1815], ['russia','austria',1805,1815],
+    ['russia','prussia',1805,1815], ['austria','prussia',1805,1815], ['spain','portugal',1808,1815], ['spain','naples',1805,1815], ['russia','sweden',1812,1815], ['sweden','prussia',1805,1815], ['sweden','austria',1805,1815]];
   NAP.START_WARS = [['britain','france'], ['britain','spain']];
   NAP.START_ALLIES = [['france','spain'], ['france','bavaria'], ['britain','portugal'], ['russia','austria'], ['britain','sweden']];
   // Base opinion modifiers
@@ -3003,6 +3014,12 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     }
   }
 
+  // historical diplomacy tables (NAP.RIVALS / NAP.FRIENDS), looked up by year
+  const yearNow = () => 1805 + Math.floor(S.turn / 12);
+  const pairHit = (list, a, b) => list.filter((r) => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a)).filter((r) => yearNow() >= r[2] && yearNow() <= r[3]);
+  C.rivalWeight = (a, b) => pairHit(NAP.RIVALS, a, b).reduce((m, r) => Math.max(m, r[4]), 0);
+  C.areFriends = (a, b) => pairHit(NAP.FRIENDS, a, b).length > 0;
+  C.histAI = true;
   function aiDiplomacy(f) {
     if (f === 'minor' || (f === S.player && !S.autoplay)) return;
     const aggr = F(f).aggr;
@@ -3023,7 +3040,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     for (const e of wars(f)) {
       for (const x of Object.keys(S.factions)) {
         if (x === f || x === e || x === 'minor' || !S.factions[x].alive || allied(f, x) || atWar(f, x)) continue;
-        if (atWar(x, e) && C.rel(f, x) > -10 && rnd() < 0.18) {
+        const hist = C.histAI && x !== 'minor', friend = C.areFriends(f, x), rival = C.rivalWeight(f, x) > 0;
+        if (hist && rival && !friend) continue; // historical rivals do not ally
+        if (atWar(x, e) && C.rel(f, x) > -10 && rnd() < (hist && friend ? 0.45 : 0.18)) {
           if (x === S.player) { if (!S.msgs.some((m) => m.type === 'alliance-offer' && m.from === f)) S.msgs.push({ type: 'alliance-offer', from: f }); }
           else makeAlliance(f, x);
         }
@@ -3062,6 +3081,9 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     for (const e of Object.keys(S.factions)) {
       if (e === f || !S.factions[e].alive || allied(f, e) || atWar(f, e)) continue;
       if (S.truce && S.truce[pkey(f, e)] > S.turn) continue;
+      let hw = 1;
+      if (C.histAI) { if (e === 'minor') hw = 0.35; else { if (C.areFriends(f, e)) continue; hw = C.rivalWeight(f, e); if (!hw) continue; } }
+      if (hw < 1 && rnd() > hw) continue;
       // neighbours?
       let near = false;
       for (const p of C.provincesOf(f)) {
@@ -6285,7 +6307,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { sprites: true, easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { sprites: true, easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true, histAI: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -6296,6 +6318,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     else { root.removeProperty('--f-body'); root.removeProperty('--f-head'); root.removeProperty('--f-title'); }
     NAP.teamRGB = st.cb ? ['86,180,233', '230,159,0'] : ['60,200,255', '255,80,70'];
     if (NAP.audio && NAP.audio.setVolume) NAP.audio.setVolume(st.volume / 100);
+    C.histAI = st.histAI !== false;
   }
   function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(NAP.settings)); localStorage.setItem('napworld-summary-off', NAP.settings.summary ? '0' : '1'); } catch (e) { /* ignore */ } }
 
@@ -7036,6 +7059,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
       <label class="chk"><input type="checkbox" id="set-auto" ${st.autosave ? 'checked' : ''}> Autosave after every turn</label>
+      <label class="chk"><input type="checkbox" id="set-hist" ${st.histAI !== false ? 'checked' : ''}> Historical AI diplomacy (nations pick historical rivals and friends; untick for a free-for-all)</label>
       <label class="chk"><input type="checkbox" id="set-sum" ${st.summary ? 'checked' : ''}> Show the end-of-turn report</label>
       </div><div class="foot"><button id="set-reset">Reset to defaults</button><button class="primary" data-r="x">Done</button></div>`;
     const p = modal(html, 'settings');
@@ -7050,6 +7074,7 @@ html, body { height: 100%; margin: 0; background: #14181f; color: #e8e2d0; }
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
     $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };
     $$('set-auto').onchange = (e) => { st.autosave = e.target.checked; commit(); };
+    $$('set-hist').onchange = (e) => { st.histAI = e.target.checked; commit(); };
     $$('set-sum').onchange = (e) => { st.summary = e.target.checked; commit(); };
     $$('set-reset').onclick = () => { Object.assign(st, SETDEF); commit(); const m = $('#modal'); m._resolve('x'); showSettings(); };
     await p;

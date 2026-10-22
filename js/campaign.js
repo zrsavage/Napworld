@@ -1326,6 +1326,12 @@
     }
   }
 
+  // historical diplomacy tables (NAP.RIVALS / NAP.FRIENDS), looked up by year
+  const yearNow = () => 1805 + Math.floor(S.turn / 12);
+  const pairHit = (list, a, b) => list.filter((r) => (r[0] === a && r[1] === b) || (r[0] === b && r[1] === a)).filter((r) => yearNow() >= r[2] && yearNow() <= r[3]);
+  C.rivalWeight = (a, b) => pairHit(NAP.RIVALS, a, b).reduce((m, r) => Math.max(m, r[4]), 0);
+  C.areFriends = (a, b) => pairHit(NAP.FRIENDS, a, b).length > 0;
+  C.histAI = true;
   function aiDiplomacy(f) {
     if (f === 'minor' || (f === S.player && !S.autoplay)) return;
     const aggr = F(f).aggr;
@@ -1346,7 +1352,9 @@
     for (const e of wars(f)) {
       for (const x of Object.keys(S.factions)) {
         if (x === f || x === e || x === 'minor' || !S.factions[x].alive || allied(f, x) || atWar(f, x)) continue;
-        if (atWar(x, e) && C.rel(f, x) > -10 && rnd() < 0.18) {
+        const hist = C.histAI && x !== 'minor', friend = C.areFriends(f, x), rival = C.rivalWeight(f, x) > 0;
+        if (hist && rival && !friend) continue; // historical rivals do not ally
+        if (atWar(x, e) && C.rel(f, x) > -10 && rnd() < (hist && friend ? 0.45 : 0.18)) {
           if (x === S.player) { if (!S.msgs.some((m) => m.type === 'alliance-offer' && m.from === f)) S.msgs.push({ type: 'alliance-offer', from: f }); }
           else makeAlliance(f, x);
         }
@@ -1385,6 +1393,9 @@
     for (const e of Object.keys(S.factions)) {
       if (e === f || !S.factions[e].alive || allied(f, e) || atWar(f, e)) continue;
       if (S.truce && S.truce[pkey(f, e)] > S.turn) continue;
+      let hw = 1;
+      if (C.histAI) { if (e === 'minor') hw = 0.35; else { if (C.areFriends(f, e)) continue; hw = C.rivalWeight(f, e); if (!hw) continue; } }
+      if (hw < 1 && rnd() > hw) continue;
       // neighbours?
       let near = false;
       for (const p of C.provincesOf(f)) {

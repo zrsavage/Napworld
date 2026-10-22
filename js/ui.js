@@ -27,7 +27,7 @@
     { id: 'georgia', name: 'Georgia (system serif)', f: 'Georgia' },
     { id: 'sans', name: 'Clean sans-serif (system)', f: "'Segoe UI', Helvetica, Arial" }
   ];
-  const SETDEF = { sprites: true, easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true };
+  const SETDEF = { sprites: true, easy: false, learn: false, font: 'default', volume: 80, battleSpeed: 0.5, tips: true, cb: false, autosave: true, summary: true, holdDefault: true, histAI: true };
   NAP.settings = Object.assign({}, SETDEF);
   try { Object.assign(NAP.settings, JSON.parse(localStorage.getItem(SET_KEY) || '{}')); } catch (e) { /* defaults */ }
   if (localStorage.getItem && lsGet('napworld-summary-off') === '1') NAP.settings.summary = false;
@@ -38,6 +38,7 @@
     else { root.removeProperty('--f-body'); root.removeProperty('--f-head'); root.removeProperty('--f-title'); }
     NAP.teamRGB = st.cb ? ['86,180,233', '230,159,0'] : ['60,200,255', '255,80,70'];
     if (NAP.audio && NAP.audio.setVolume) NAP.audio.setVolume(st.volume / 100);
+    C.histAI = st.histAI !== false;
   }
   function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(NAP.settings)); localStorage.setItem('napworld-summary-off', NAP.settings.summary ? '0' : '1'); } catch (e) { /* ignore */ } }
 
@@ -778,6 +779,7 @@
       <label class="chk"><input type="checkbox" id="set-tips" ${st.tips ? 'checked' : ''}> Show tooltips</label>
       <label class="chk"><input type="checkbox" id="set-cb" ${st.cb ? 'checked' : ''}> Colour-blind friendly battle colours (blue / orange)</label>
       <label class="chk"><input type="checkbox" id="set-auto" ${st.autosave ? 'checked' : ''}> Autosave after every turn</label>
+      <label class="chk"><input type="checkbox" id="set-hist" ${st.histAI !== false ? 'checked' : ''}> Historical AI diplomacy (nations pick historical rivals and friends; untick for a free-for-all)</label>
       <label class="chk"><input type="checkbox" id="set-sum" ${st.summary ? 'checked' : ''}> Show the end-of-turn report</label>
       </div><div class="foot"><button id="set-reset">Reset to defaults</button><button class="primary" data-r="x">Done</button></div>`;
     const p = modal(html, 'settings');
@@ -792,6 +794,7 @@
     $$('set-tips').onchange = (e) => { st.tips = e.target.checked; commit(); };
     $$('set-cb').onchange = (e) => { st.cb = e.target.checked; commit(); };
     $$('set-auto').onchange = (e) => { st.autosave = e.target.checked; commit(); };
+    $$('set-hist').onchange = (e) => { st.histAI = e.target.checked; commit(); };
     $$('set-sum').onchange = (e) => { st.summary = e.target.checked; commit(); };
     $$('set-reset').onclick = () => { Object.assign(st, SETDEF); commit(); const m = $('#modal'); m._resolve('x'); showSettings(); };
     await p;
