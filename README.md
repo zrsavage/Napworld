@@ -261,3 +261,8 @@ in `js/battle.js` (`BT`) and `js/data.js` (`UNITS`, `FACTIONS`).
 
 ### Sprite performance
 Each regiment's men are painted into a cached offscreen picture that is repainted only when something changes (moving, fighting, firing, casualties; about 8 times a second), and off-screen regiments are skipped. Idle regiments cost one image blit per frame.
+
+### Reports window, home-land retaking, Lisbon–Morocco
+- The Diplomacy / Country Overview / Europe / Armies / Wars buttons are now one **Reports** button opening a tabbed window (My Nation, Europe, Armies, Wars, Diplomacy); keys O, A, W, D still work.
+- AI nations value retaking their own starting provinces far more, and may ship a detachment of up to 12 regiments across the sea for it even when their main army is too big to sail.
+- Lisbon and Morocco are linked by sea (`NAP.SEA_EXTRA`).

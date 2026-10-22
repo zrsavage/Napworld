@@ -1458,7 +1458,7 @@
           val = 2 + qd.income / 2 + (qd.capital ? 5 : 0) + (S.factions[q.owner].cap === id ? 3 : 0);
           val -= q.fort * (a.units.filter((u) => u.type === 'art').length >= 2 ? 0.8 : 1.6);
           if (q.siege && q.siege.by === f) val += 1;
-          if (qd.owner === f) val += 4; // our own land: retake it
+          if (qd.owner === f) val += 9; // our own land: retaking it is the first priority
           if (!enemiesThere.length && q.fort === 0) val += 2; // unguarded
           if (claimed.has(id) && !enemiesThere.length) val *= 0.25; // another army is already going there
         } else if (q.owner === f) {
@@ -1479,8 +1479,12 @@
         if (val <= 0) continue;
         // sea transport only for aggressive navies
         let seaHops = 0; let c = id; while (c && prev[c]) { if (isSea(prev[c], c)) seaHops++; c = prev[c]; }
+        const home = qd.owner === f && en.includes(q.owner);
         if (seaHops) {
-          if (S.turn < 6 || seaHops > 1 || a.units.length > SEA_CAP || a.units.length < 6 || myPow < 4500 || rnd() < 0.6) continue;
+          if (home) { // lost starting land: ship a detachment over, no matter how big the main army is
+            const carry = Math.min(a.units.length, SEA_CAP), share = myPow * carry / Math.max(1, a.units.length);
+            if (seaHops > 1 || carry < 3 || share < (ePow + C.garrisonStrength(id)) * 1.1) continue;
+          } else if (S.turn < 6 || seaHops > 1 || a.units.length > SEA_CAP || a.units.length < 6 || myPow < 4500 || rnd() < 0.6) continue;
         }
         const score = val / (d + 0.6);
         if (score > bscore) { bscore = score; best = id; }
@@ -1493,6 +1497,11 @@
       }
       if (best) {
         const path = []; let c = best; while (c !== a.prov) { path.unshift(c); c = prev[c]; }
+        let pv = a.prov, sails = false; for (const q of path) { if (isSea(pv, q)) sails = true; pv = q; }
+        if (sails && a.units.length > SEA_CAP) { // too big to sail: a detachment of the best regiments crosses, the rest stays
+          const idxs = []; for (let i = a.units.length - 1; i >= 0 && idxs.length < SEA_CAP; i--) idxs.push(i);
+          const na = C.splitArmy(a, idxs); if (na) { na.path = path; na.forage = a.forage; claimed.add(best); return; }
+        }
         a.path = path; claimed.add(best);
       } else {
         // retreat toward capital if outnumbered nearby

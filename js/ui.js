@@ -50,11 +50,22 @@
   if (document.fonts && document.fonts.load) Promise.all(["16px IM Fell English", "italic 16px IM Fell English", "700 16px Cinzel", "700 16px Cinzel Decorative", "16px Crimson Pro", "600 16px Crimson Pro"].map((f) => document.fonts.load(f).catch(() => {}))).then(() => { if (NAP.clearSprites) NAP.clearSprites(); dirty = true; });
 
   // ------------------------------------------------------------------ utilities
-  function modal(html, cls) {
+  // the five report windows share one tab strip, so you never hunt for a button
+  const REPORTS = [['country', 'My Nation'], ['europe', 'Europe'], ['armies', 'Armies'], ['wars', 'Wars'], ['dip', 'Diplomacy']];
+  function openReport(k) { ({ country: showCountry, europe: showOverview, armies: showArmies, wars: showWars, dip: showDiplomacy })[k](); }
+  function addTabs(cur) {
+    const m = $('#modal'), h = m.querySelector('h2'); if (!h) return;
+    const d = document.createElement('div'); d.className = 'reptabs';
+    d.innerHTML = REPORTS.map(([k, l]) => `<button data-tab="${k}" class="${k === cur ? 'on' : ''}">${l}</button>`).join('');
+    h.after(d);
+    d.querySelectorAll('button').forEach((b) => (b.onclick = () => { if (b.dataset.tab === cur) return; const t = b.dataset.tab; if (m._resolve) m._resolve('x'); else { m.hidden = true; m.innerHTML = ''; } setTimeout(() => openReport(t), 0); }));
+  }
+  function modal(html, cls, tab) {
     return new Promise((resolve) => {
       const m = $('#modal');
       m.innerHTML = `<div class="dlg ${cls || ''}">${html}</div>`;
       m.hidden = false;
+      if (tab) addTabs(tab);
       m._resolve = (v) => { m.hidden = true; m.innerHTML = ''; resolve(v); };
       m.querySelectorAll('[data-r]').forEach((b) => b.addEventListener('click', () => m._resolve(b.dataset.r)));
     });
@@ -228,14 +239,14 @@
       <span class="stat" title="Armies">&#9876; <b>${C.armiesOf(p).reduce((a, x) => a + x.units.length, 0)}</b> <small>regts</small></span>
       <span class="stat" title="At war with">${at.length ? `<span class="bad" title="${esc(at.join(', '))}">War${at.length <= 2 ? ': ' + at.join(', ') : ' × ' + at.length}</span>` : '<span class="good">At peace</span>'}</span>
       <span class="spacer"></span>
-      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-dip">Diplomacy</button><button id="b-cty" data-tip="<b>Country Overview</b> (key O)<br>Your nation at a glance: finances, manpower, strengths and weaknesses, provinces, armies, fleets and diplomacy.">Country Overview</button><button id="b-ov" data-tip="All nations compared">Europe</button><button id="b-arm" data-tip="<b>Army list</b> (key A)<br>Every army you own: sort, jump to it, reinforce or merge them all.">Armies</button><button id="b-wars" data-tip="<b>War overview</b> (key W)<br>Each war you are in: score, goals, enemy forces and threatened borders.">Wars</button><button id="b-set" data-tip="<b>Settings</b><br>Fonts, volume, autosave, colours and more.">&#9881;</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-les" data-tip="<b>Lessons</b><br>Replay any tutorial lesson, with an animated demonstration, without leaving your game.">Lessons</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
+      <button id="b-att" class="${att.length ? 'attn' : ''}" data-tip="<b>Needs attention</b><br>Idle armies, supply trouble, unrest, sieges and unspent gold.">&#9873; ${att.length}</button><select id="playsel" title="Turn playback: watch each nation's moves in turn"><option value="normal">Playback: normal</option><option value="fast">Playback: fast</option><option value="off">Playback: off</option></select><button id="b-rep" data-tip="<b>Reports</b><br>One window with tabs: My Nation (O), Europe, Armies (A), Wars (W) and Diplomacy (D).">Reports</button><button id="b-set" data-tip="<b>Settings</b><br>Fonts, volume, autosave, colours and more.">&#9881;</button><button id="b-snd" data-nosound="1" title="Sound on/off">${NAP.audio && NAP.audio.muted ? '&#128263;' : '&#128266;'}</button><button id="b-help" title="How to play">?</button><button id="b-les" data-tip="<b>Lessons</b><br>Replay any tutorial lesson, with an animated demonstration, without leaving your game.">Lessons</button><button id="b-save">Save</button><button id="b-menu">Menu</button>
       <span class="date">${C.dateStr()}</span>
       <button id="advance" ${s.busy || s.winner ? 'disabled' : ''} data-tip="<b>Advance (fast-forward)</b><br>Ends turns automatically (up to 6) until something needs your attention: a battle, a lost province, an idle army or supply trouble.">&#9654;&#9654;</button><button class="primary" id="endturn" ${s.busy || s.winner ? 'disabled' : ''}>End Turn <kbd>Enter</kbd></button>`;
     $('#b-snd').onclick = () => { NAP.audio.init(); NAP.audio.setMuted(!NAP.audio.muted); renderTop(); };
     $('#b-mp').onclick = showLevy;
-    $('#b-arm').onclick = showArmies; $('#b-wars').onclick = showWars; $('#b-set').onclick = showSettings;
+    $('#b-rep').onclick = () => openReport('country'); $('#b-set').onclick = showSettings;
     $('#b-les').onclick = showLessons;
-    $('#b-help').onclick = showHelp; $('#b-dip').onclick = showDiplomacy; $('#b-ov').onclick = showOverview; $('#b-cty').onclick = showCountry; $('#b-save').onclick = saveGame;
+    $('#b-help').onclick = showHelp; $('#b-save').onclick = saveGame;
     $('#b-menu').onclick = async () => { if (await modal(`<h2>Menu</h2><div class="body">Return to the main menu? Unsaved progress will be lost.</div><div class="foot"><button data-r="no">Cancel</button><button class="danger" data-r="yes">Quit to menu</button></div>`) === 'yes') showStart(); };
     $('#endturn').onclick = () => endTurn();
     $('#advance').onclick = advance;
@@ -604,6 +615,7 @@
       }).join('');
       m.innerHTML = `<div class="dlg wide dipl"><h2>Diplomacy</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Status</th><th>Opinion</th><th>Prov</th><th>Actions</th></tr>${rows}</table><p class="muted" id="dipmsg" style="min-height:20px">${esc(msg || '')}</p></div><div class="foot"><button id="dipclose">Close</button></div></div>`;
       m.hidden = false;
+      { const h = m.querySelector('h2'), d = document.createElement('div'); d.className = 'reptabs'; d.innerHTML = REPORTS.map(([k, l]) => `<button data-tab="${k}" class="${k === 'dip' ? 'on' : ''}">${l}</button>`).join(''); h.after(d); d.querySelectorAll('button').forEach((b) => (b.onclick = () => { if (b.dataset.tab === 'dip') return; close(); setTimeout(() => openReport(b.dataset.tab), 0); })); }
       $('#dipclose').onclick = close;
       m.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => {
         const [act, f] = b.dataset.d.split(':');
@@ -712,7 +724,7 @@
       <table class="t"><tr><th>Province</th><th>Income</th><th>Manpower</th><th>Unrest</th><th>Buildings</th></tr>
       ${provs.map(({ p, ps }) => `<tr class="go" data-r="p:${p.id}"><td>${p.capital ? '\u2605 ' : ''}${esc(p.name)}${ps.siege ? ' <span class="bad">(besieged)</span>' : ''}${ps.blockade ? ' <span class="bad">(blockaded)</span>' : ''}</td><td>${fmt(C.provIncome(ps))}</td><td>${C.def(p.id).manpower}</td><td class="${(ps.unrest || 0) >= 60 ? 'bad' : (ps.unrest || 0) >= 30 ? 'warn' : ''}">${Math.round(ps.unrest || 0)}%</td><td>${esc(bl(ps))}</td></tr>`).join('')}</table>
       </div><div class="foot"><button data-r="x">Close</button></div>`;
-    const r = await modal(html, 'wide');
+    const r = await modal(html, 'wide', 'country');
     if (!r || r === 'x') return;
     const [k, id] = [r[0], r.slice(2)];
     if (k === 'p') { const pp = NAP.world.byId[id]; ui.sel = { prov: id, army: null, fleet: null }; ui.zt = null; ui.cam.x = pp.cx; ui.cam.y = pp.cy; ui.cam.z = Math.max(ui.cam.z, 1.3); clampCam(); refresh(); }
@@ -804,7 +816,7 @@
         <table class="t armtab"><tr>${th('prov', 'Province')}${th('regts', 'Regts')}${th('men', 'Men')}${th('pct', 'Strength')}${th('gen', 'General')}${th('st', 'Status')}</tr>
         ${rows.map((r) => `<tr class="clickrow" data-r="go:${r.a.id}"><td>${esc(r.prov)}</td><td>${r.regts}</td><td>${fmt(r.men)}</td><td class="${r.pct < 60 ? 'bad' : r.pct < 90 ? '' : 'good'}">${r.pct}%</td><td>${esc(r.gen) || '\u2014'}</td><td class="${r.st === 'Idle' ? 'muted' : r.st === 'No supply' ? 'bad' : ''}">${r.st}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">You have no armies.</td></tr>'}
         </table><p class="muted">Click a row to jump to that army.</p></div><div class="foot"><button data-r="x">Close</button></div>`;
-      const r = await modal(html, 'wide');
+      const r = await modal(html, 'wide', 'armies');
       if (!r || r === 'x') break;
       if (r.startsWith('sort:')) { const k = r.slice(5); if (k === key) dir = -dir; else { key = k; dir = 1; } ui.armSort = key; ui.armDir = dir; continue; }
       if (r === 'reinf') { const res = C.reinforceAll(me); toast(res.n ? `Reinforced ${res.n} armies: +${fmt(res.men)} men for ${fmt(res.gold)} gold` : 'Nothing could be reinforced'); refresh(); continue; }
@@ -838,7 +850,7 @@
     const others = Object.keys(s.wars).map((k) => k.split('|')).filter((p) => !p.includes(me) && !p.includes('minor'));
     const html = `<h2>War overview</h2><div class="body">${mine.length ? mine.map(warCard).join('') : '<p class="good">Your nation is at peace.</p>'}
       ${others.length ? `<h4 style="margin:10px 0 4px">Other wars in Europe</h4><div class="muted">${others.map((p) => `${esc(F(p[0]).name)} vs ${esc(F(p[1]).name)}`).join(' &middot; ')}</div>` : ''}</div><div class="foot"><button data-r="x">Close</button></div>`;
-    const r = await modal(html, 'wide');
+    const r = await modal(html, 'wide', 'wars');
     if (r && r.startsWith('peace:')) showDiplomacy();
   }
 
@@ -849,7 +861,7 @@
     const html = `<h2>Overview of Europe</h2><div class="body"><table class="t"><tr><th>Nation</th><th>Prov</th><th>Income</th><th>Regts</th>${s.naval ? '<th>Ships</th>' : ''}<th>Army</th><th>Treasury</th><th>At war with</th></tr>
       ${rows.map((r) => `<tr style="${r.alive ? '' : 'opacity:.4'}"><td>${flag(r.f)}${esc(F(r.f).name)}${r.f === s.player ? ' <b>(you)</b>' : ''}</td><td>${r.n}</td><td>${fmt(r.inc)}</td><td>${r.arm}</td>${s.naval ? `<td>${r.ships}</td>` : ''}<td>${fmt(r.pow / 1000)}k</td><td>${fmt(r.gold)}</td><td>${r.alive ? esc(r.war || '—') : 'Eliminated'}</td></tr>`).join('')}</table>
       <p class="muted">Victory: hold 55% of all provinces, or eliminate every rival. Survive until the end of 1815 for a score by territory.</p></div><div class="foot"><button data-r="x">Close</button></div>`;
-    await modal(html);
+    await modal(html, 'wide', 'europe');
   }
 
   // ------------------------------------------------------------------ campaign hooks

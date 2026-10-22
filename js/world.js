@@ -185,6 +185,7 @@
         }
       }
     });
+    (NAP.SEA_EXTRA || []).forEach(([x, y]) => { const a = byId[x], b = byId[y]; if (a && b && a.port && b.port) { seaAdj[a.idx].add(b.idx); seaAdj[b.idx].add(a.idx); } });
     provs.forEach((p) => (p.sea = [...seaAdj[p.idx]]));
 
     const world = { gw, gh, pg, land, provs, byId, N };

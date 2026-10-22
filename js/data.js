@@ -253,6 +253,7 @@
     { name: 'Black Sea', c: [34, 43], range: 330, ports: ['constantinople','kherson','crimea','caucasus'] },
     { name: 'Baltic Sea', c: [19.5, 57.5], range: 360, ports: ['copenhagen','stockholm','gothenburg','pomerania','eastprussia','livonia','estonia','petersburg','finland','jutland'] }
   ];
+  NAP.SEA_EXTRA = [['lisbon', 'morocco']]; // crossings a little over the hop cap that history says were sailed
   NAP.BASE_ZONE_PORTS = NAP.SEA_ZONES.map((z) => z.ports.slice());
   // switch between the short (standard) map and the long map with extra regions; rebuilds the world only when the mode changes
   NAP.setLength = function (mode) {
